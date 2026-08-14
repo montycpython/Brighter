@@ -250,6 +250,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateSectionAiPrompt(section: SectionEntity, prompt: String) {
+        viewModelScope.launch {
+            repository.updateSection(section.copy(aiDraftPrompt = prompt))
+        }
+    }
+
     fun updateSectionTitle(section: SectionEntity, newTitle: String, newSubtitle: String) {
         viewModelScope.launch {
             repository.updateSection(section.copy(title = newTitle, subtitle = newSubtitle))

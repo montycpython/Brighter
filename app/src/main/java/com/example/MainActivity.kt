@@ -182,6 +182,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     onSaveContent = { sec, content ->
                         viewModel.updateSectionContent(sec, content)
                     },
+                    onSaveAiPrompt = { sec, prompt ->
+                        viewModel.updateSectionAiPrompt(sec, prompt)
+                    },
                     onSaveTitle = { sec, title, subtitle ->
                         viewModel.updateSectionTitle(sec, title, subtitle)
                     },

@@ -58,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.example.model.BookTrimSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -868,6 +869,7 @@ fun AddSectionDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManuscriptSettingsDialog(
     manuscript: ManuscriptEntity,
@@ -882,10 +884,12 @@ fun ManuscriptSettingsDialog(
     var edition by remember { mutableStateOf(manuscript.edition) }
     var year by remember { mutableStateOf(manuscript.year) }
     var isbn by remember { mutableStateOf(manuscript.isbn) }
+    var targetPageSize by remember { mutableStateOf(manuscript.targetPageSize) }
     var copyrightText by remember { mutableStateOf(manuscript.effectiveCopyrightText) }
     var dedication by remember { mutableStateOf(manuscript.dedication) }
     var epigraphText by remember { mutableStateOf(manuscript.epigraphText) }
     var epigraphAuthor by remember { mutableStateOf(manuscript.epigraphAuthor) }
+    var trimSizeExpanded by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -984,6 +988,46 @@ fun ManuscriptSettingsDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
+                // Book Trim Size Selector
+                item {
+                    ExposedDropdownMenuBox(
+                        expanded = trimSizeExpanded,
+                        onExpandedChange = { trimSizeExpanded = !trimSizeExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = targetPageSize,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Book Trim Size & Dimensions") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = trimSizeExpanded) },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = trimSizeExpanded,
+                            onDismissRequest = { trimSizeExpanded = false }
+                        ) {
+                            BookTrimSize.values().forEach { trim ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(trim.displayName, fontWeight = FontWeight.Bold)
+                                            Text(trim.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    },
+                                    onClick = {
+                                        targetPageSize = trim.displayName
+                                        trimSizeExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
                 // Dynamic Copyright Editor with Reset Button
                 item {
                     Column {
@@ -1071,6 +1115,7 @@ fun ManuscriptSettingsDialog(
                                         edition = edition.trim(),
                                         year = year.trim(),
                                         isbn = isbn.trim(),
+                                        targetPageSize = targetPageSize,
                                         copyrightText = copyrightText.trim(),
                                         dedication = dedication.trim(),
                                         epigraphText = epigraphText.trim(),

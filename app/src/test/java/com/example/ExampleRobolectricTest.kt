@@ -5,8 +5,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.cmos.CmosFormatter
 import com.example.cmos.CmosLeafEngine
 import com.example.data.UserPreferences
+import com.example.model.BookTrimSize
 import com.example.model.LeafDisplayType
 import com.example.model.ManuscriptEntity
+import com.example.model.MatterType
+import com.example.model.SectionEntity
+import com.example.model.SectionType
 import com.example.model.UserProfile
 import com.example.model.WorkRole
 import com.example.model.WorkType
@@ -68,18 +72,34 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `cmos leaf engine generates preliminary leaves with dynamic copyright`() {
-        val manuscript = ManuscriptEntity(
-            title = "A Chicago Treatise",
-            authorName = "Real Name",
-            authorPenName = "Nom De Plume",
-            publisher = "Bwriter Editions",
-            year = "2026"
+    fun `cmos leaf engine recalculates leaves based on trim size`() {
+        val manuscriptPocket = ManuscriptEntity(
+            title = "Pocket Guide",
+            authorName = "Author",
+            targetPageSize = BookTrimSize.POCKET_4_25X6_87.displayName
         )
-        val leaves = CmosLeafEngine.calculateLeaves(manuscript, emptyList())
-        val copyrightLeaf = leaves.find { it.displayType == LeafDisplayType.COPYRIGHT }
+        val manuscriptRoyal = ManuscriptEntity(
+            title = "Royal Edition",
+            authorName = "Author",
+            targetPageSize = BookTrimSize.ROYAL_8X10.displayName
+        )
 
-        assertTrue(copyrightLeaf != null)
-        assertTrue(copyrightLeaf!!.contentSnippet.contains("Nom De Plume"))
+        val sampleWords = (1..800).joinToString(" ") { "word$it" }
+        val section = listOf(
+            SectionEntity(
+                manuscriptId = 1,
+                matterType = MatterType.TEXT_BODY,
+                sectionType = SectionType.CHAPTER,
+                title = "Chapter 1",
+                orderIndex = 1,
+                content = sampleWords
+            )
+        )
+
+        val leavesPocket = CmosLeafEngine.calculateLeaves(manuscriptPocket, section)
+        val leavesRoyal = CmosLeafEngine.calculateLeaves(manuscriptRoyal, section)
+
+        // Pocket format has smaller capacity per page, thus generating more leaves than Royal 8x10
+        assertTrue(leavesPocket.size > leavesRoyal.size)
     }
 }

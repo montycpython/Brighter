@@ -14,7 +14,7 @@ import com.example.model.SectionEntity
         SectionEntity::class,
         EditorialCommentEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class BwriterDatabase : RoomDatabase() {
@@ -32,7 +32,9 @@ abstract class BwriterDatabase : RoomDatabase() {
                     context.applicationContext,
                     BwriterDatabase::class.java,
                     "bwriter_manuscripts.db"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

@@ -1,5 +1,6 @@
 package com.example.cmos
 
+import com.example.model.BookTrimSize
 import com.example.model.CalculatedLeaf
 import com.example.model.LeafDisplayType
 import com.example.model.LeafSide
@@ -10,16 +11,18 @@ import com.example.model.SectionType
 
 object CmosLeafEngine {
 
-    private const val WORDS_PER_PAGE = 260 // Average words per 6x9 trade paperback leaf page
-
     /**
      * Computes the complete sequence of physical book leaves honoring Chicago Manual of Style
-     * recto/verso conventions, roman front-matter pagination, and chapter opener leaf positioning.
+     * recto/verso conventions, roman front-matter pagination, and chapter opener leaf positioning,
+     * adjusted dynamically for the specified Book Trim Size (e.g. 6x9, 5.5x8.5, 7x10, 8x10, Pocket).
      */
     fun calculateLeaves(
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>
     ): List<CalculatedLeaf> {
+        val trimSize = BookTrimSize.fromTargetString(manuscript.targetPageSize)
+        val wordsPerPage = trimSize.wordsPerPageEstimate
+
         val leaves = mutableListOf<CalculatedLeaf>()
 
         var frontMatterPage = 1
@@ -60,7 +63,7 @@ object CmosLeafEngine {
                 side = LeafSide.VERSO,
                 matterType = MatterType.FRONT_MATTER,
                 sectionId = null,
-                sectionTitle = "Blank / Series",
+                sectionTitle = "Blank Verso",
                 sectionType = null,
                 displayType = LeafDisplayType.BLANK_INTENTIONAL,
                 contentSnippet = "",
@@ -70,7 +73,7 @@ object CmosLeafEngine {
         )
         frontMatterPage++
 
-        // Leaf 3: Full Title Page (Recto, p. iii)
+        // Leaf 3: Title Page (Recto, p. iii)
         leaves.add(
             CalculatedLeaf(
                 leafIndex = leaves.size + 1,
@@ -89,7 +92,7 @@ object CmosLeafEngine {
         )
         frontMatterPage++
 
-        // Leaf 4: Copyright & Colophon (Verso, p. iv)
+        // Leaf 4: Copyright Page & Colophon (Verso, p. iv)
         leaves.add(
             CalculatedLeaf(
                 leafIndex = leaves.size + 1,
@@ -108,12 +111,12 @@ object CmosLeafEngine {
         )
         frontMatterPage++
 
-        // Dedication & Epigraph if present
+        // Optional Dedication (Recto, p. v)
         if (manuscript.dedication.isNotBlank()) {
             leaves.add(
                 CalculatedLeaf(
                     leafIndex = leaves.size + 1,
-                    pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
+                    pageNumberDisplay = "v",
                     pageNumberRaw = frontMatterPage,
                     side = LeafSide.RECTO,
                     matterType = MatterType.FRONT_MATTER,
@@ -128,11 +131,11 @@ object CmosLeafEngine {
             )
             frontMatterPage++
 
-            // Blank verso after dedication
+            // Blank verso after dedication (Verso, p. vi)
             leaves.add(
                 CalculatedLeaf(
                     leafIndex = leaves.size + 1,
-                    pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
+                    pageNumberDisplay = "vi",
                     pageNumberRaw = frontMatterPage,
                     side = LeafSide.VERSO,
                     matterType = MatterType.FRONT_MATTER,
@@ -148,7 +151,30 @@ object CmosLeafEngine {
             frontMatterPage++
         }
 
+        // Optional Epigraph (Recto)
         if (manuscript.epigraphText.isNotBlank()) {
+            val isRecto = (leaves.size + 1) % 2 != 0
+            if (!isRecto) {
+                // Must be on Recto, add blank Verso
+                leaves.add(
+                    CalculatedLeaf(
+                        leafIndex = leaves.size + 1,
+                        pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
+                        pageNumberRaw = frontMatterPage,
+                        side = LeafSide.VERSO,
+                        matterType = MatterType.FRONT_MATTER,
+                        sectionId = null,
+                        sectionTitle = "Blank Verso",
+                        sectionType = null,
+                        displayType = LeafDisplayType.BLANK_INTENTIONAL,
+                        contentSnippet = "",
+                        isOpener = false,
+                        hasBlindFolio = true
+                    )
+                )
+                frontMatterPage++
+            }
+
             leaves.add(
                 CalculatedLeaf(
                     leafIndex = leaves.size + 1,
@@ -167,7 +193,7 @@ object CmosLeafEngine {
             )
             frontMatterPage++
 
-            // Blank verso after epigraph
+            // Blank Verso after epigraph
             leaves.add(
                 CalculatedLeaf(
                     leafIndex = leaves.size + 1,
@@ -191,8 +217,6 @@ object CmosLeafEngine {
         for (sec in frontSections) {
             // Front matter divisions must start on Recto
             if (leaves.size % 2 != 0 && sec.startOnRecto) {
-                // Currently on Recto (odd size means next index is even/verso), which is fine.
-                // If next leaf would be Verso, we insert a blank Verso so the division starts on Recto!
                 val nextSide = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
                 if (nextSide == LeafSide.VERSO) {
                     leaves.add(
@@ -216,12 +240,12 @@ object CmosLeafEngine {
             }
 
             val words = sec.content.split(Regex("""\s+""")).filter { it.isNotBlank() }
-            val pageCount = maxOf(1, (words.size + WORDS_PER_PAGE - 1) / WORDS_PER_PAGE)
+            val pageCount = maxOf(1, (words.size + wordsPerPage - 1) / wordsPerPage)
 
             for (p in 0 until pageCount) {
                 val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
-                val startWord = p * WORDS_PER_PAGE
-                val endWord = minOf(words.size, (p + 1) * WORDS_PER_PAGE)
+                val startWord = p * wordsPerPage
+                val endWord = minOf(words.size, (p + 1) * wordsPerPage)
                 val snippet = if (words.isNotEmpty()) words.subList(startWord, endWord).joinToString(" ") else sec.content
 
                 leaves.add(
@@ -251,7 +275,6 @@ object CmosLeafEngine {
         // ==========================================
         // Ensure Main Text starts on a RECTO (odd) leaf
         if ((leaves.size + 1) % 2 == 0) {
-            // Next is Verso, insert blank leaf to start on Recto
             leaves.add(
                 CalculatedLeaf(
                     leafIndex = leaves.size + 1,
@@ -270,14 +293,13 @@ object CmosLeafEngine {
             )
         }
 
-        // Now process Body Sections
+        // Process Body Sections with dimension-calibrated word count
         for (sec in bodySections) {
             // CMOS mandate: Chapters & Part Openers start on Recto leaf
             if (sec.startOnRecto) {
                 val nextLeafNumber = leaves.size + 1
                 val isNextRecto = nextLeafNumber % 2 != 0
                 if (!isNextRecto) {
-                    // It would land on Verso (even). Insert blank Verso leaf!
                     leaves.add(
                         CalculatedLeaf(
                             leafIndex = leaves.size + 1,
@@ -299,12 +321,12 @@ object CmosLeafEngine {
             }
 
             val words = sec.content.split(Regex("""\s+""")).filter { it.isNotBlank() }
-            val pageCount = maxOf(1, (words.size + WORDS_PER_PAGE - 1) / WORDS_PER_PAGE)
+            val pageCount = maxOf(1, (words.size + wordsPerPage - 1) / wordsPerPage)
 
             for (p in 0 until pageCount) {
                 val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
-                val startWord = p * WORDS_PER_PAGE
-                val endWord = minOf(words.size, (p + 1) * WORDS_PER_PAGE)
+                val startWord = p * wordsPerPage
+                val endWord = minOf(words.size, (p + 1) * wordsPerPage)
                 val snippet = if (words.isNotEmpty()) words.subList(startWord, endWord).joinToString(" ") else sec.content
 
                 leaves.add(
@@ -323,9 +345,9 @@ object CmosLeafEngine {
                         } else LeafDisplayType.CONTENT,
                         contentSnippet = snippet,
                         isOpener = p == 0,
-                        runningHeadVerso = manuscript.authorName.ifBlank { manuscript.title },
+                        runningHeadVerso = manuscript.effectiveAuthorByline.ifBlank { manuscript.title },
                         runningHeadRecto = sec.title,
-                        hasBlindFolio = p == 0 // Chapter opener has drop folio or blind folio
+                        hasBlindFolio = p == 0
                     )
                 )
                 bodyPage++
@@ -361,12 +383,12 @@ object CmosLeafEngine {
             }
 
             val words = sec.content.split(Regex("""\s+""")).filter { it.isNotBlank() }
-            val pageCount = maxOf(1, (words.size + WORDS_PER_PAGE - 1) / WORDS_PER_PAGE)
+            val pageCount = maxOf(1, (words.size + wordsPerPage - 1) / wordsPerPage)
 
             for (p in 0 until pageCount) {
                 val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
-                val startWord = p * WORDS_PER_PAGE
-                val endWord = minOf(words.size, (p + 1) * WORDS_PER_PAGE)
+                val startWord = p * wordsPerPage
+                val endWord = minOf(words.size, (p + 1) * wordsPerPage)
                 val snippet = if (words.isNotEmpty()) words.subList(startWord, endWord).joinToString(" ") else sec.content
 
                 leaves.add(

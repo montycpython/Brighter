@@ -13,6 +13,7 @@ import android.text.TextPaint
 import androidx.core.content.FileProvider
 import com.example.cmos.CmosFormatter
 import com.example.cmos.CmosLeafEngine
+import com.example.model.BookTrimSize
 import com.example.model.CalculatedLeaf
 import com.example.model.LeafDisplayType
 import com.example.model.LeafSide
@@ -25,21 +26,12 @@ import java.io.FileOutputStream
 
 object CmosPdfExporter {
 
-    // Standard 6" x 9" Trade Paperback at 72 dpi points (432 x 648 pt)
-    const val PAGE_WIDTH_PT = 432
-    const val PAGE_HEIGHT_PT = 648
-
-    // Margins (Chicago Manual of Style recommends generous inner gutter for physical binding)
-    private const val GUTTER_MARGIN = 54f // 0.75 in inner margin for spine binding
-    private const val OUTER_MARGIN = 42f  // ~0.58 in outer margin
-    private const val TOP_MARGIN = 48f    // ~0.66 in top margin
-    private const val BOTTOM_MARGIN = 48f // ~0.66 in bottom margin
-
     data class ExportResult(
         val file: File,
         val pageCount: Int,
         val leafCount: Int,
-        val formattedTitle: String
+        val formattedTitle: String,
+        val trimSize: BookTrimSize
     )
 
     fun exportToPdf(
@@ -47,14 +39,23 @@ object CmosPdfExporter {
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>
     ): ExportResult {
+        val trimSize = BookTrimSize.fromTargetString(manuscript.targetPageSize)
         val calculatedLeaves = CmosLeafEngine.calculateLeaves(manuscript, sections)
 
         val pdfDocument = PdfDocument()
 
-        // Text paints
+        val pageWidthPt = trimSize.widthPt
+        val pageHeightPt = trimSize.heightPt
+        val gutterMargin = trimSize.gutterMarginPt
+        val outerMargin = trimSize.outerMarginPt
+        val topMargin = trimSize.topMarginPt
+        val bottomMargin = trimSize.bottomMarginPt
+        val baseFontSize = trimSize.defaultBodyFontSizePt
+
+        // Text paints calibrated to trim size
         val textPaint = TextPaint().apply {
             color = Color.rgb(20, 21, 27) // Deep book ink
-            textSize = 10.5f
+            textSize = baseFontSize
             typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
             isAntiAlias = true
         }
@@ -69,42 +70,39 @@ object CmosPdfExporter {
 
         val headerPaint = TextPaint().apply {
             color = Color.rgb(70, 70, 80)
-            textSize = 8.5f
+            textSize = (baseFontSize - 2f).coerceAtLeast(7.5f)
             typeface = Typeface.create(Typeface.SERIF, Typeface.ITALIC)
             isAntiAlias = true
             letterSpacing = 0.05f
         }
 
         val folioPaint = TextPaint().apply {
-            color = Color.rgb(40, 40, 45)
-            textSize = 9f
+            color = Color.rgb(40, 40, 50)
+            textSize = (baseFontSize - 1.5f).coerceAtLeast(8.5f)
             typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
             isAntiAlias = true
         }
 
         val rulePaint = Paint().apply {
-            color = Color.rgb(190, 185, 175)
-            strokeWidth = 0.6f
+            color = Color.rgb(200, 195, 185)
+            strokeWidth = 0.5f
             style = Paint.Style.STROKE
             isAntiAlias = true
         }
 
-        for ((index, leaf) in calculatedLeaves.withIndex()) {
-            val pageNumber = index + 1
-            val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH_PT, PAGE_HEIGHT_PT, pageNumber).create()
+        for (leaf in calculatedLeaves) {
+            val pageInfo = PdfDocument.PageInfo.Builder(pageWidthPt, pageHeightPt, leaf.leafIndex).create()
             val page = pdfDocument.startPage(pageInfo)
             val canvas = page.canvas
 
-            // Background paper tone (subtle antique white/cream)
-            canvas.drawColor(Color.rgb(253, 252, 249))
+            // Light cream paper tone
+            canvas.drawColor(Color.rgb(253, 252, 248))
 
             // Compute Recto vs Verso margins
-            // Recto (Right page): inner gutter on LEFT, outer margin on RIGHT
-            // Verso (Left page): inner gutter on RIGHT, outer margin on LEFT
             val isRecto = leaf.side == LeafSide.RECTO
-            val leftMargin = if (isRecto) GUTTER_MARGIN else OUTER_MARGIN
-            val rightMargin = if (isRecto) OUTER_MARGIN else GUTTER_MARGIN
-            val printableWidth = (PAGE_WIDTH_PT - leftMargin - rightMargin).toInt()
+            val leftMargin = if (isRecto) gutterMargin else outerMargin
+            val rightMargin = if (isRecto) outerMargin else gutterMargin
+            val printableWidth = (pageWidthPt - leftMargin - rightMargin).toInt()
 
             // Draw Running Heads and Folios (CMOS Rules)
             drawRunningHeadersAndFolios(
@@ -113,67 +111,62 @@ object CmosPdfExporter {
                 isRecto = isRecto,
                 leftMargin = leftMargin,
                 rightMargin = rightMargin,
+                pageWidthPt = pageWidthPt,
+                pageHeightPt = pageHeightPt,
+                topMargin = topMargin,
+                bottomMargin = bottomMargin,
                 headerPaint = headerPaint,
                 folioPaint = folioPaint,
                 rulePaint = rulePaint
             )
 
             // Draw Body Content according to display type
-            val contentTop = if (leaf.isOpener) TOP_MARGIN + 54f else TOP_MARGIN + 20f
-            val maxContentHeight = (PAGE_HEIGHT_PT - BOTTOM_MARGIN - contentTop).toInt()
+            val contentTop = if (leaf.isOpener) topMargin + 50f else topMargin + 18f
+            val maxContentHeight = (pageHeightPt - bottomMargin - contentTop).toInt()
 
             when (leaf.displayType) {
                 LeafDisplayType.HALF_TITLE -> {
-                    drawHalfTitle(canvas, manuscript.title, leftMargin, printableWidth, boldPaint)
+                    drawHalfTitle(canvas, manuscript.title, leftMargin, printableWidth, pageHeightPt, boldPaint)
                 }
                 LeafDisplayType.TITLE_PAGE -> {
-                    drawTitlePage(canvas, manuscript, leftMargin, printableWidth, boldPaint, italicPaint, textPaint)
+                    drawTitlePage(canvas, manuscript, leftMargin, printableWidth, pageWidthPt, pageHeightPt, boldPaint, italicPaint, textPaint)
                 }
                 LeafDisplayType.COPYRIGHT -> {
-                    drawCopyrightPage(canvas, leaf.contentSnippet, leftMargin, printableWidth, textPaint, italicPaint)
+                    drawCopyrightPage(canvas, leaf.contentSnippet, leftMargin, printableWidth, pageHeightPt, textPaint, italicPaint)
                 }
                 LeafDisplayType.DEDICATION -> {
-                    drawDedicationPage(canvas, leaf.contentSnippet, leftMargin, printableWidth, italicPaint)
+                    drawDedicationPage(canvas, leaf.contentSnippet, leftMargin, printableWidth, pageHeightPt, italicPaint)
                 }
                 LeafDisplayType.EPIGRAPH -> {
-                    drawEpigraphPage(canvas, leaf.contentSnippet, leftMargin, printableWidth, italicPaint, textPaint)
+                    drawEpigraphPage(canvas, leaf.contentSnippet, leftMargin, printableWidth, pageHeightPt, italicPaint, textPaint)
                 }
                 LeafDisplayType.BLANK_INTENTIONAL -> {
-                    // Intentionally left blank leaf (blind folio)
-                    val notePaint = TextPaint(italicPaint).apply {
-                        color = Color.rgb(180, 175, 165)
-                        textSize = 8f
-                    }
-                    val text = "— This leaf intentionally left blank per Chicago Manual of Style —"
-                    val textWidth = notePaint.measureText(text)
-                    canvas.drawText(text, (PAGE_WIDTH_PT - textWidth) / 2f, PAGE_HEIGHT_PT / 2f, notePaint)
+                    // Blank leaf per Chicago rules
                 }
-                LeafDisplayType.PART_OPENER -> {
-                    drawPartOpener(canvas, leaf, leftMargin, printableWidth, boldPaint, textPaint)
-                }
-                LeafDisplayType.CHAPTER_OPENER -> {
+                LeafDisplayType.CHAPTER_OPENER, LeafDisplayType.PART_OPENER -> {
                     drawChapterOpener(
                         canvas = canvas,
                         leaf = leaf,
                         leftMargin = leftMargin,
-                        width = printableWidth,
-                        contentTop = contentTop,
+                        top = contentTop,
+                        printableWidth = printableWidth,
                         maxHeight = maxContentHeight,
                         boldPaint = boldPaint,
                         italicPaint = italicPaint,
-                        textPaint = textPaint
+                        textPaint = textPaint,
+                        lineHeightMult = trimSize.defaultLineHeightMultiplier
                     )
                 }
                 LeafDisplayType.CONTENT, LeafDisplayType.TABLE_OF_CONTENTS, LeafDisplayType.COLOPHON -> {
-                    drawStandardContent(
+                    drawProseContent(
                         canvas = canvas,
-                        leaf = leaf,
+                        text = leaf.contentSnippet,
                         leftMargin = leftMargin,
-                        width = printableWidth,
-                        contentTop = contentTop,
+                        top = contentTop,
+                        printableWidth = printableWidth,
                         maxHeight = maxContentHeight,
                         textPaint = textPaint,
-                        italicPaint = italicPaint
+                        lineHeightMult = trimSize.defaultLineHeightMultiplier
                     )
                 }
             }
@@ -181,22 +174,21 @@ object CmosPdfExporter {
             pdfDocument.finishPage(page)
         }
 
-        // Save PDF file to storage cache
-        val sanitizedTitle = manuscript.title.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-        val exportDir = File(context.cacheDir, "manuscripts")
-        if (!exportDir.exists()) exportDir.mkdirs()
-        val pdfFile = File(exportDir, "${sanitizedTitle}_CMOS_Manuscript.pdf")
+        val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+        val safeTitle = manuscript.title.replace(Regex("""[^a-zA-Z0-9_-]"""), "_").take(30)
+        val file = File(exportDir, "${safeTitle}_CMOS_${trimSize.id}.pdf")
 
-        FileOutputStream(pdfFile).use { out ->
+        FileOutputStream(file).use { out ->
             pdfDocument.writeTo(out)
         }
         pdfDocument.close()
 
         return ExportResult(
-            file = pdfFile,
+            file = file,
             pageCount = calculatedLeaves.size,
             leafCount = (calculatedLeaves.size + 1) / 2,
-            formattedTitle = manuscript.title
+            formattedTitle = manuscript.title,
+            trimSize = trimSize
         )
     }
 
@@ -206,11 +198,15 @@ object CmosPdfExporter {
         isRecto: Boolean,
         leftMargin: Float,
         rightMargin: Float,
+        pageWidthPt: Int,
+        pageHeightPt: Int,
+        topMargin: Float,
+        bottomMargin: Float,
         headerPaint: TextPaint,
         folioPaint: TextPaint,
         rulePaint: Paint
     ) {
-        val yHeader = TOP_MARGIN - 14f
+        val yHeader = topMargin - 14f
 
         if (!leaf.hasBlindFolio) {
             if (isRecto) {
@@ -220,8 +216,8 @@ object CmosPdfExporter {
                 val folioText = leaf.pageNumberDisplay
                 val folioWidth = folioPaint.measureText(folioText)
 
-                val headX = (PAGE_WIDTH_PT - rightMargin - headWidth - folioWidth - 16f).coerceAtLeast(leftMargin)
-                val folioX = PAGE_WIDTH_PT - rightMargin - folioWidth
+                val headX = (pageWidthPt - rightMargin - headWidth - folioWidth - 16f).coerceAtLeast(leftMargin)
+                val folioX = pageWidthPt - rightMargin - folioWidth
 
                 canvas.drawText(headText, headX, yHeader, headerPaint)
                 canvas.drawText(folioText, folioX, yHeader, folioPaint)
@@ -239,31 +235,29 @@ object CmosPdfExporter {
             }
 
             // Running head separator hairline rule
-            canvas.drawLine(leftMargin, TOP_MARGIN - 6f, PAGE_WIDTH_PT - rightMargin, TOP_MARGIN - 6f, rulePaint)
+            canvas.drawLine(leftMargin, topMargin - 6f, pageWidthPt - rightMargin, topMargin - 6f, rulePaint)
         } else if (leaf.isOpener && leaf.matterType == MatterType.TEXT_BODY && leaf.pageNumberDisplay.isNotBlank()) {
             // Drop folio: Centered at bottom for chapter opening leaves
             val folioText = leaf.pageNumberDisplay
             val folioWidth = folioPaint.measureText(folioText)
-            val centerX = (PAGE_WIDTH_PT - folioWidth) / 2f
-            canvas.drawText(folioText, centerX, PAGE_HEIGHT_PT - BOTTOM_MARGIN + 18f, folioPaint)
+            val centerX = (pageWidthPt - folioWidth) / 2f
+            canvas.drawText(folioText, centerX, pageHeightPt - bottomMargin + 18f, folioPaint)
         }
     }
 
-    private fun drawHalfTitle(
-        canvas: Canvas,
-        title: String,
-        leftMargin: Float,
-        width: Int,
-        boldPaint: TextPaint
-    ) {
+    private fun drawHalfTitle(canvas: Canvas, title: String, leftMargin: Float, width: Int, pageHeightPt: Int, boldPaint: TextPaint) {
         val paint = TextPaint(boldPaint).apply {
-            textSize = 14f
-            letterSpacing = 0.12f
+            textSize = 15f
+            letterSpacing = 0.1f
         }
-        val uppercaseTitle = title.uppercase()
-        val textWidth = paint.measureText(uppercaseTitle)
-        val x = (PAGE_WIDTH_PT - textWidth) / 2f
-        canvas.drawText(uppercaseTitle, x, PAGE_HEIGHT_PT * 0.38f, paint)
+        val layout = StaticLayout.Builder.obtain(title.uppercase(), 0, title.length, paint, width)
+            .setAlignment(Layout.Alignment.ALIGN_CENTER)
+            .build()
+
+        canvas.save()
+        canvas.translate(leftMargin, pageHeightPt * 0.32f)
+        layout.draw(canvas)
+        canvas.restore()
     }
 
     private fun drawTitlePage(
@@ -271,32 +265,32 @@ object CmosPdfExporter {
         manuscript: ManuscriptEntity,
         leftMargin: Float,
         width: Int,
+        pageWidthPt: Int,
+        pageHeightPt: Int,
         boldPaint: TextPaint,
         italicPaint: TextPaint,
         textPaint: TextPaint
     ) {
-        var currentY = PAGE_HEIGHT_PT * 0.28f
+        var currentY = pageHeightPt * 0.22f
 
-        // Main Title
+        // Title
         val titlePaint = TextPaint(boldPaint).apply {
-            textSize = 19f
+            textSize = 21f
             letterSpacing = 0.04f
         }
         val titleLayout = StaticLayout.Builder.obtain(manuscript.title, 0, manuscript.title.length, titlePaint, width)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .build()
-
         canvas.save()
         canvas.translate(leftMargin, currentY)
         titleLayout.draw(canvas)
         canvas.restore()
-
-        currentY += titleLayout.height + 12f
+        currentY += titleLayout.height + 16f
 
         // Subtitle
         if (manuscript.subtitle.isNotBlank()) {
             val subPaint = TextPaint(italicPaint).apply {
-                textSize = 12f
+                textSize = 12.5f
             }
             val subLayout = StaticLayout.Builder.obtain(manuscript.subtitle, 0, manuscript.subtitle.length, subPaint, width)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
@@ -305,42 +299,41 @@ object CmosPdfExporter {
             canvas.translate(leftMargin, currentY)
             subLayout.draw(canvas)
             canvas.restore()
-            currentY += subLayout.height + 16f
+            currentY += subLayout.height + 28f
+        } else {
+            currentY += 28f
         }
 
-        // Decorative Rule
-        val ornamentPaint = Paint().apply {
-            color = Color.rgb(180, 150, 90)
-            strokeWidth = 1f
-            isAntiAlias = true
+        // Byline
+        val bylinePaint = TextPaint(italicPaint).apply {
+            textSize = 10.5f
         }
-        val centerX = PAGE_WIDTH_PT / 2f
-        canvas.drawLine(centerX - 35f, currentY + 10f, centerX + 35f, currentY + 10f, ornamentPaint)
-
-        // Author
-        currentY = PAGE_HEIGHT_PT * 0.58f
-        val bylinePaint = TextPaint(italicPaint).apply { textSize = 11f }
         val byText = "by"
         val byWidth = bylinePaint.measureText(byText)
-        canvas.drawText(byText, (PAGE_WIDTH_PT - byWidth) / 2f, currentY, bylinePaint)
-
+        canvas.drawText(byText, (pageWidthPt - byWidth) / 2f, currentY, bylinePaint)
         currentY += 20f
+
         val authorPaint = TextPaint(boldPaint).apply {
             textSize = 13.5f
             letterSpacing = 0.05f
         }
         val authorText = manuscript.effectiveAuthorByline.uppercase()
         val authorWidth = authorPaint.measureText(authorText)
-        canvas.drawText(authorText, (PAGE_WIDTH_PT - authorWidth) / 2f, currentY, authorPaint)
+        canvas.drawText(authorText, (pageWidthPt - authorWidth) / 2f, currentY, authorPaint)
 
-        // Publisher / Imprint at foot
-        val footY = PAGE_HEIGHT_PT - BOTTOM_MARGIN - 24f
+        // Publisher at bottom
+        val pubY = pageHeightPt * 0.82f
         val pubPaint = TextPaint(textPaint).apply {
             textSize = 9.5f
+            letterSpacing = 0.08f
         }
-        val pubText = "${manuscript.publisher} • ${manuscript.year}"
+        val pubText = manuscript.publisher.uppercase()
         val pubWidth = pubPaint.measureText(pubText)
-        canvas.drawText(pubText, (PAGE_WIDTH_PT - pubWidth) / 2f, footY, pubPaint)
+        canvas.drawText(pubText, (pageWidthPt - pubWidth) / 2f, pubY, pubPaint)
+
+        val yearText = manuscript.year
+        val yearWidth = pubPaint.measureText(yearText)
+        canvas.drawText(yearText, (pageWidthPt - yearWidth) / 2f, pubY + 14f, pubPaint)
     }
 
     private fun drawCopyrightPage(
@@ -348,102 +341,50 @@ object CmosPdfExporter {
         text: String,
         leftMargin: Float,
         width: Int,
+        pageHeightPt: Int,
         textPaint: TextPaint,
         italicPaint: TextPaint
     ) {
-        val currentY = PAGE_HEIGHT_PT * 0.52f
-        val cpPaint = TextPaint(textPaint).apply {
+        val paint = TextPaint(textPaint).apply {
             textSize = 8.5f
-            color = Color.rgb(55, 55, 60)
         }
-
-        val layout = StaticLayout.Builder.obtain(text, 0, text.length, cpPaint, width)
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(3f, 1f)
+            .setLineSpacing(3f, 1.2f)
             .build()
 
         canvas.save()
-        canvas.translate(leftMargin, currentY)
+        canvas.translate(leftMargin, pageHeightPt * 0.58f)
         layout.draw(canvas)
         canvas.restore()
     }
 
-    private fun drawDedicationPage(
-        canvas: Canvas,
-        dedication: String,
-        leftMargin: Float,
-        width: Int,
-        italicPaint: TextPaint
-    ) {
-        val dedPaint = TextPaint(italicPaint).apply {
+    private fun drawDedicationPage(canvas: Canvas, text: String, leftMargin: Float, width: Int, pageHeightPt: Int, italicPaint: TextPaint) {
+        val paint = TextPaint(italicPaint).apply {
             textSize = 11.5f
-            letterSpacing = 0.02f
         }
-
-        val layout = StaticLayout.Builder.obtain(dedication, 0, dedication.length, dedPaint, width)
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
-            .setLineSpacing(4f, 1f)
+            .setLineSpacing(4f, 1.3f)
             .build()
 
         canvas.save()
-        canvas.translate(leftMargin, PAGE_HEIGHT_PT * 0.38f)
+        canvas.translate(leftMargin, pageHeightPt * 0.35f)
         layout.draw(canvas)
         canvas.restore()
     }
 
-    private fun drawEpigraphPage(
-        canvas: Canvas,
-        text: String,
-        leftMargin: Float,
-        width: Int,
-        italicPaint: TextPaint,
-        textPaint: TextPaint
-    ) {
-        val epPaint = TextPaint(italicPaint).apply {
+    private fun drawEpigraphPage(canvas: Canvas, text: String, leftMargin: Float, width: Int, pageHeightPt: Int, italicPaint: TextPaint, textPaint: TextPaint) {
+        val paint = TextPaint(italicPaint).apply {
             textSize = 10.5f
-            letterSpacing = 0.02f
         }
-
-        val layout = StaticLayout.Builder.obtain(text, 0, text.length, epPaint, (width * 0.85f).toInt())
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(4f, 1f)
-            .build()
-
-        val x = leftMargin + (width * 0.15f)
-        canvas.save()
-        canvas.translate(x, PAGE_HEIGHT_PT * 0.35f)
-        layout.draw(canvas)
-        canvas.restore()
-    }
-
-    private fun drawPartOpener(
-        canvas: Canvas,
-        leaf: CalculatedLeaf,
-        leftMargin: Float,
-        width: Int,
-        boldPaint: TextPaint,
-        textPaint: TextPaint
-    ) {
-        val currentY = PAGE_HEIGHT_PT * 0.36f
-
-        val partLabelPaint = TextPaint(textPaint).apply {
-            textSize = 11f
-            letterSpacing = 0.15f
-        }
-        val partLabel = "PART"
-        val labelWidth = partLabelPaint.measureText(partLabel)
-        canvas.drawText(partLabel, (PAGE_WIDTH_PT - labelWidth) / 2f, currentY, partLabelPaint)
-
-        val titlePaint = TextPaint(boldPaint).apply {
-            textSize = 16f
-            letterSpacing = 0.05f
-        }
-        val layout = StaticLayout.Builder.obtain(leaf.sectionTitle, 0, leaf.sectionTitle.length, titlePaint, width)
-            .setAlignment(Layout.Alignment.ALIGN_CENTER)
+            .setLineSpacing(4f, 1.3f)
             .build()
 
         canvas.save()
-        canvas.translate(leftMargin, currentY + 16f)
+        canvas.translate(leftMargin + width * 0.15f, pageHeightPt * 0.32f)
         layout.draw(canvas)
         canvas.restore()
     }
@@ -452,104 +393,64 @@ object CmosPdfExporter {
         canvas: Canvas,
         leaf: CalculatedLeaf,
         leftMargin: Float,
-        width: Int,
-        contentTop: Float,
+        top: Float,
+        printableWidth: Int,
         maxHeight: Int,
         boldPaint: TextPaint,
         italicPaint: TextPaint,
-        textPaint: TextPaint
+        textPaint: TextPaint,
+        lineHeightMult: Float
     ) {
-        var currentY = contentTop
+        var currentY = top
 
-        // Chapter Header / Title
-        val chapTitlePaint = TextPaint(boldPaint).apply {
-            textSize = 14.5f
-            letterSpacing = 0.04f
+        // Chapter Header
+        val titlePaint = TextPaint(boldPaint).apply {
+            textSize = 16f
+            letterSpacing = 0.03f
         }
-
-        val titleLayout = StaticLayout.Builder.obtain(leaf.sectionTitle, 0, leaf.sectionTitle.length, chapTitlePaint, width)
+        val titleLayout = StaticLayout.Builder.obtain(leaf.sectionTitle, 0, leaf.sectionTitle.length, titlePaint, printableWidth)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .build()
-
         canvas.save()
         canvas.translate(leftMargin, currentY)
         titleLayout.draw(canvas)
         canvas.restore()
+        currentY += titleLayout.height + 8f
 
-        currentY += titleLayout.height + 14f
-
-        // Chapter ornament rule
-        val rulePaint = Paint().apply {
-            color = Color.rgb(180, 150, 90)
-            strokeWidth = 0.8f
-            isAntiAlias = true
+        // Chapter Divider line
+        val dividerPaint = Paint().apply {
+            color = Color.rgb(180, 160, 120)
+            strokeWidth = 1f
         }
-        val centerX = PAGE_WIDTH_PT / 2f
-        canvas.drawLine(centerX - 24f, currentY, centerX + 24f, currentY, rulePaint)
-        currentY += 22f
+        val halfW = 40f
+        val centerX = leftMargin + printableWidth / 2f
+        canvas.drawLine(centerX - halfW, currentY + 4f, centerX + halfW, currentY + 4f, dividerPaint)
+        currentY += 24f
 
-        // First paragraph with CMOS First-Line Indent (or drop cap style)
-        val formattedContent = formatCmosParagraphs(leaf.contentSnippet)
-        val bodyPaint = TextPaint(textPaint).apply {
-            textSize = 10f
-            isAntiAlias = true
+        // Prose Content
+        if (leaf.contentSnippet.isNotBlank()) {
+            drawProseContent(canvas, leaf.contentSnippet, leftMargin, currentY, printableWidth, maxHeight, textPaint, lineHeightMult)
         }
-
-        val bodyLayout = StaticLayout.Builder.obtain(formattedContent, 0, formattedContent.length, bodyPaint, width)
-            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(3.5f, 1f)
-            .build()
-
-        canvas.save()
-        canvas.translate(leftMargin, currentY)
-        bodyLayout.draw(canvas)
-        canvas.restore()
     }
 
-    private fun drawStandardContent(
+    private fun drawProseContent(
         canvas: Canvas,
-        leaf: CalculatedLeaf,
+        text: String,
         leftMargin: Float,
-        width: Int,
-        contentTop: Float,
+        top: Float,
+        printableWidth: Int,
         maxHeight: Int,
         textPaint: TextPaint,
-        italicPaint: TextPaint
+        lineHeightMult: Float
     ) {
-        val formattedContent = formatCmosParagraphs(leaf.contentSnippet)
-        val bodyPaint = TextPaint(textPaint).apply {
-            textSize = 10f
-            isAntiAlias = true
-        }
-
-        val bodyLayout = StaticLayout.Builder.obtain(formattedContent, 0, formattedContent.length, bodyPaint, width)
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, textPaint, printableWidth)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(3.5f, 1f)
+            .setLineSpacing(4f, lineHeightMult)
             .build()
 
         canvas.save()
-        canvas.translate(leftMargin, contentTop)
-        bodyLayout.draw(canvas)
+        canvas.translate(leftMargin, top)
+        layout.draw(canvas)
         canvas.restore()
-    }
-
-    /**
-     * Formats paragraphs according to Chicago Manual of Style §2.12:
-     * Standard paragraph indentation of 0.5 inch (3-4 em space), with no blank line between paragraphs in continuous prose.
-     */
-    private fun formatCmosParagraphs(text: String): String {
-        val paragraphs = text.split("\n").filter { it.isNotBlank() }
-        val sb = StringBuilder()
-        for (p in paragraphs) {
-            val trimmed = p.trim()
-            if (trimmed.startsWith("“") || trimmed.startsWith("\"") || trimmed.startsWith("—")) {
-                sb.append("   ").append(trimmed).append("\n\n")
-            } else if (trimmed.startsWith("#")) {
-                sb.append("\n").append(trimmed.replace("#", "").trim()).append("\n\n")
-            } else {
-                sb.append("      ").append(trimmed).append("\n\n")
-            }
-        }
-        return sb.toString().trimEnd()
     }
 }
