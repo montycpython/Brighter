@@ -27,15 +27,27 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-36" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
 
-      - name: Prepare Keystore, Config & Environment
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+          cache-disabled: true
+
+      - name: Prepare Secrets, Keystore & Google Services
         run: |
+          # 1. Provide .env files required by Secrets Gradle plugin
           touch .env
           touch .env.example
-          # Generate fresh debug keystore
+
+          # 2. Re-create debug.keystore
           rm -f debug.keystore
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          
-          # Create google-services.json matching applicationId com.aistudio.bwriter.xmkty
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          else
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          # 3. Create google-services.json matching applicationId com.aistudio.bwriter.xmkty
           cat << 'EOF' > app/google-services.json
           {
             "project_info": {
@@ -68,16 +80,11 @@ jobs:
           }
           EOF
 
-          # Setup Gradle 9.3.1 wrapper
-          gradle wrapper --gradle-version 9.3.1 || true
-          chmod +x ./gradlew || true
-
       - name: Assemble Debug APK
         run: |
-          ./gradlew :app:assembleDebug \
+          gradle :app:assembleDebug \
             --no-configuration-cache \
             --no-build-cache \
-            --no-daemon \
             -x test \
             -x lint \
             -x verifyRoborazziDebug \
