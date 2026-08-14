@@ -1,5 +1,23 @@
 package com.example.cmos
 
+import android.graphics.Typeface
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
+import android.text.style.SuperscriptSpan
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 object CmosFormatter {
@@ -159,4 +177,369 @@ object CmosFormatter {
         }
         return sb.toString()
     }
+
+    /**
+     * Converts markdown styled text (*italic*, **bold**, ***bold italic***, _italic_)
+     * into a Jetpack Compose AnnotatedString with proper styling for Reader and UI components.
+     */
+    fun toAnnotatedString(text: String, baseColor: Color = Color.Unspecified): AnnotatedString {
+        val builder = AnnotatedString.Builder()
+        val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
+        var lastIndex = 0
+        val matches = regex.findAll(text)
+
+        for (match in matches) {
+            if (match.range.first > lastIndex) {
+                builder.append(text.substring(lastIndex, match.range.first))
+            }
+            val full = match.value
+            when {
+                full.startsWith("***") && full.endsWith("***") -> {
+                    val inner = full.substring(3, full.length - 3)
+                    builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
+                    builder.append(inner)
+                    builder.pop()
+                }
+                full.startsWith("___") && full.endsWith("___") -> {
+                    val inner = full.substring(3, full.length - 3)
+                    builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
+                    builder.append(inner)
+                    builder.pop()
+                }
+                full.startsWith("**") && full.endsWith("**") -> {
+                    val inner = full.substring(2, full.length - 2)
+                    builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                    builder.append(inner)
+                    builder.pop()
+                }
+                full.startsWith("__") && full.endsWith("__") -> {
+                    val inner = full.substring(2, full.length - 2)
+                    builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                    builder.append(inner)
+                    builder.pop()
+                }
+                full.startsWith("*") && full.endsWith("*") -> {
+                    val inner = full.substring(1, full.length - 1)
+                    builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
+                    builder.append(inner)
+                    builder.pop()
+                }
+                full.startsWith("_") && full.endsWith("_") -> {
+                    val inner = full.substring(1, full.length - 1)
+                    builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
+                    builder.append(inner)
+                    builder.pop()
+                }
+                full.startsWith("[^") && full.endsWith("]") -> {
+                    builder.pushStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8C6D23)))
+                    builder.append(full)
+                    builder.pop()
+                }
+                else -> {
+                    builder.append(full)
+                }
+            }
+            lastIndex = match.range.last + 1
+        }
+
+        if (lastIndex < text.length) {
+            builder.append(text.substring(lastIndex))
+        }
+
+        return builder.toAnnotatedString()
+    }
+
+    /**
+     * Converts markdown styled text (*italic*, **bold**, ***bold italic***) into Android Spanned
+     * with StyleSpan(Typeface.ITALIC/BOLD) for high quality PDF StaticLayout rendering.
+     */
+    fun toSpanned(text: String): CharSequence {
+        val ssb = SpannableStringBuilder()
+        val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
+        var lastIndex = 0
+        val matches = regex.findAll(text)
+
+        for (match in matches) {
+            if (match.range.first > lastIndex) {
+                ssb.append(text.substring(lastIndex, match.range.first))
+            }
+            val full = match.value
+            when {
+                full.startsWith("***") && full.endsWith("***") -> {
+                    val inner = full.substring(3, full.length - 3)
+                    val start = ssb.length
+                    ssb.append(inner)
+                    ssb.setSpan(StyleSpan(Typeface.BOLD_ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                full.startsWith("___") && full.endsWith("___") -> {
+                    val inner = full.substring(3, full.length - 3)
+                    val start = ssb.length
+                    ssb.append(inner)
+                    ssb.setSpan(StyleSpan(Typeface.BOLD_ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                full.startsWith("**") && full.endsWith("**") -> {
+                    val inner = full.substring(2, full.length - 2)
+                    val start = ssb.length
+                    ssb.append(inner)
+                    ssb.setSpan(StyleSpan(Typeface.BOLD), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                full.startsWith("__") && full.endsWith("__") -> {
+                    val inner = full.substring(2, full.length - 2)
+                    val start = ssb.length
+                    ssb.append(inner)
+                    ssb.setSpan(StyleSpan(Typeface.BOLD), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                full.startsWith("*") && full.endsWith("*") -> {
+                    val inner = full.substring(1, full.length - 1)
+                    val start = ssb.length
+                    ssb.append(inner)
+                    ssb.setSpan(StyleSpan(Typeface.ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                full.startsWith("_") && full.endsWith("_") -> {
+                    val inner = full.substring(1, full.length - 1)
+                    val start = ssb.length
+                    ssb.append(inner)
+                    ssb.setSpan(StyleSpan(Typeface.ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                full.startsWith("[^") && full.endsWith("]") -> {
+                    val inner = full.substring(2, full.length - 1)
+                    val start = ssb.length
+                    ssb.append(inner)
+                    ssb.setSpan(SuperscriptSpan(), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    ssb.setSpan(RelativeSizeSpan(0.7f), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    ssb.setSpan(StyleSpan(Typeface.BOLD), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                else -> {
+                    ssb.append(full)
+                }
+            }
+            lastIndex = match.range.last + 1
+        }
+
+        if (lastIndex < text.length) {
+            ssb.append(text.substring(lastIndex))
+        }
+
+        return ssb
+    }
+
+    /**
+     * VisualTransformation for in-editor markdown rendering that styles *italics* and **bold**
+     * while preserving 1:1 character index mapping so the cursor position and typing never glitch.
+     */
+    fun createMarkdownVisualTransformation(): VisualTransformation {
+        return VisualTransformation { text ->
+            val builder = AnnotatedString.Builder()
+            val raw = text.text
+            val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
+            var lastIndex = 0
+            val matches = regex.findAll(raw)
+
+            for (match in matches) {
+                if (match.range.first > lastIndex) {
+                    builder.append(raw.substring(lastIndex, match.range.first))
+                }
+                val full = match.value
+                when {
+                    full.startsWith("***") && full.endsWith("***") -> {
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("***")
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
+                        builder.append(full.substring(3, full.length - 3))
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("***")
+                        builder.pop()
+                    }
+                    full.startsWith("**") && full.endsWith("**") -> {
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("**")
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                        builder.append(full.substring(2, full.length - 2))
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("**")
+                        builder.pop()
+                    }
+                    full.startsWith("*") && full.endsWith("*") -> {
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("*")
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
+                        builder.append(full.substring(1, full.length - 1))
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("*")
+                        builder.pop()
+                    }
+                    full.startsWith("_") && full.endsWith("_") -> {
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("_")
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
+                        builder.append(full.substring(1, full.length - 1))
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("_")
+                        builder.pop()
+                    }
+                    full.startsWith("[^") && full.endsWith("]") -> {
+                        builder.pushStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8C6D23)))
+                        builder.append(full)
+                        builder.pop()
+                    }
+                    else -> {
+                        builder.append(full)
+                    }
+                }
+                lastIndex = match.range.last + 1
+            }
+
+            if (lastIndex < raw.length) {
+                builder.append(raw.substring(lastIndex))
+            }
+
+            TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+        }
+    }
+
+    /**
+     * Toggles or applies italics (*...*) to the current selection or inserts *...* at cursor.
+     */
+    fun applyItalics(current: TextFieldValue): TextFieldValue {
+        val text = current.text
+        val selection = current.selection
+        val min = selection.min
+        val max = selection.max
+
+        return if (min != max) {
+            val selected = text.substring(min, max)
+            // Check if already italicized
+            if (selected.startsWith("*") && selected.endsWith("*") && selected.length >= 2) {
+                val unwrapped = selected.substring(1, selected.length - 1)
+                val newText = text.substring(0, min) + unwrapped + text.substring(max)
+                TextFieldValue(newText, selection = TextRange(min, min + unwrapped.length))
+            } else {
+                val wrapped = "*$selected*"
+                val newText = text.substring(0, min) + wrapped + text.substring(max)
+                TextFieldValue(newText, selection = TextRange(min, min + wrapped.length))
+            }
+        } else {
+            val newText = text.substring(0, min) + "**" + text.substring(min)
+            TextFieldValue(newText, selection = TextRange(min + 1))
+        }
+    }
+
+    /**
+     * Toggles or applies bold (**...**) to current selection or inserts **** at cursor.
+     */
+    fun applyBold(current: TextFieldValue): TextFieldValue {
+        val text = current.text
+        val selection = current.selection
+        val min = selection.min
+        val max = selection.max
+
+        return if (min != max) {
+            val selected = text.substring(min, max)
+            if (selected.startsWith("**") && selected.endsWith("**") && selected.length >= 4) {
+                val unwrapped = selected.substring(2, selected.length - 2)
+                val newText = text.substring(0, min) + unwrapped + text.substring(max)
+                TextFieldValue(newText, selection = TextRange(min, min + unwrapped.length))
+            } else {
+                val wrapped = "**$selected**"
+                val newText = text.substring(0, min) + wrapped + text.substring(max)
+                TextFieldValue(newText, selection = TextRange(min, min + wrapped.length))
+            }
+        } else {
+            val newText = text.substring(0, min) + "****" + text.substring(min)
+            TextFieldValue(newText, selection = TextRange(min + 2))
+        }
+    }
+
+    /**
+     * Wraps selection in Chicago smart quotes or inserts “ ” at cursor.
+     */
+    fun applySmartQuotesToSelection(current: TextFieldValue): TextFieldValue {
+        val text = current.text
+        val selection = current.selection
+        val min = selection.min
+        val max = selection.max
+
+        return if (min != max) {
+            val selected = text.substring(min, max)
+            val wrapped = "“$selected”"
+            val newText = text.substring(0, min) + wrapped + text.substring(max)
+            TextFieldValue(newText, selection = TextRange(min + 1, min + 1 + selected.length))
+        } else {
+            val newText = text.substring(0, min) + "“ ”" + text.substring(min)
+            TextFieldValue(newText, selection = TextRange(min + 1))
+        }
+    }
+
+    /**
+     * Inserts standard CMOS em-dash (—) at cursor.
+     */
+    fun applyEmDashAtCursor(current: TextFieldValue): TextFieldValue {
+        val text = current.text
+        val min = current.selection.min
+        val max = current.selection.max
+        val newText = text.substring(0, min) + "—" + text.substring(max)
+        return TextFieldValue(newText, selection = TextRange(min + 1))
+    }
+
+    /**
+     * Inserts standard CMOS en-dash (–) at cursor.
+     */
+    fun applyEnDashAtCursor(current: TextFieldValue): TextFieldValue {
+        val text = current.text
+        val min = current.selection.min
+        val max = current.selection.max
+        val newText = text.substring(0, min) + "–" + text.substring(max)
+        return TextFieldValue(newText, selection = TextRange(min + 1))
+    }
+
+    /**
+     * Inserts Chicago 4-space paragraph indent at cursor.
+     */
+    fun applyIndentAtCursor(current: TextFieldValue): TextFieldValue {
+        val text = current.text
+        val min = current.selection.min
+        val max = current.selection.max
+        val indent = "    "
+        val newText = text.substring(0, min) + indent + text.substring(max)
+        return TextFieldValue(newText, selection = TextRange(min + indent.length))
+    }
+
+    /**
+     * Inserts next sequential footnote reference [^N] at cursor.
+     */
+    fun applyFootnoteAtCursor(current: TextFieldValue): TextFieldValue {
+        val text = current.text
+        val count = Regex("""\[\^(\d+)\]""").findAll(text).count() + 1
+        val tag = "[^$count]"
+        val min = current.selection.min
+        val max = current.selection.max
+        val newText = text.substring(0, min) + tag + text.substring(max)
+        return TextFieldValue(newText, selection = TextRange(min + tag.length))
+    }
+
+    /**
+     * Formats block quote at cursor.
+     */
+    fun applyBlockQuote(current: TextFieldValue): TextFieldValue {
+        val text = current.text
+        val min = current.selection.min
+        val max = current.selection.max
+        val block = if (min != max) {
+            val selected = text.substring(min, max)
+            "\n\n    “$selected”\n\n"
+        } else {
+            "\n\n    “Insert extended block quotation here...”\n\n"
+        }
+        val newText = text.substring(0, min) + block + text.substring(max)
+        return TextFieldValue(newText, selection = TextRange(min + block.length))
+    }
 }
+

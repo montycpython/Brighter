@@ -420,6 +420,43 @@ fun SingleLeafView(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+            LeafDisplayType.TABLE_OF_CONTENTS -> {
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "CONTENTS",
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    letterSpacing = 2.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(32.dp, 1.dp)
+                        .background(BookGoldDark)
+                        .align(Alignment.CenterHorizontally)
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                val lines = leaf.contentSnippet.lines().filter { it.isNotBlank() && it.trim() != "CONTENTS" }
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                ) {
+                    for (line in lines) {
+                        Text(
+                            text = line,
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 9.sp,
+                            lineHeight = 14.5.sp,
+                            color = InkBlack,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
             LeafDisplayType.CHAPTER_OPENER, LeafDisplayType.PART_OPENER -> {
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
@@ -500,8 +537,9 @@ fun ProseParagraphsView(text: String) {
         for (para in paragraphs) {
             if (para.isNotBlank()) {
                 val indent = "    " // Always indent every paragraph
+                val formatted = com.example.cmos.CmosFormatter.toAnnotatedString("$indent$para")
                 Text(
-                    text = "$indent$para",
+                    text = formatted,
                     fontFamily = FontFamily.Serif,
                     fontSize = 10.sp,
                     lineHeight = 16.5.sp,

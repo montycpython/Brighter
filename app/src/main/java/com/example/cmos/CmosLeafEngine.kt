@@ -211,7 +211,73 @@ object CmosLeafEngine {
             frontMatterPage++
         }
 
+        // ==========================================
+        // DYNAMIC TABLE OF CONTENTS (Recto Leaf)
+        // ==========================================
+        val tocLeafIndex = if (sections.isNotEmpty()) {
+            // Ensure TOC starts on Recto
+            if ((leaves.size + 1) % 2 == 0) {
+                leaves.add(
+                    CalculatedLeaf(
+                        leafIndex = leaves.size + 1,
+                        pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
+                        pageNumberRaw = frontMatterPage,
+                        side = LeafSide.VERSO,
+                        matterType = MatterType.FRONT_MATTER,
+                        sectionId = null,
+                        sectionTitle = "Blank Verso",
+                        sectionType = null,
+                        displayType = LeafDisplayType.BLANK_INTENTIONAL,
+                        contentSnippet = "",
+                        isOpener = false,
+                        hasBlindFolio = true
+                    )
+                )
+                frontMatterPage++
+            }
+
+            val tIndex = leaves.size
+            leaves.add(
+                CalculatedLeaf(
+                    leafIndex = leaves.size + 1,
+                    pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
+                    pageNumberRaw = frontMatterPage,
+                    side = LeafSide.RECTO,
+                    matterType = MatterType.FRONT_MATTER,
+                    sectionId = null,
+                    sectionTitle = "Contents",
+                    sectionType = SectionType.TABLE_OF_CONTENTS,
+                    displayType = LeafDisplayType.TABLE_OF_CONTENTS,
+                    contentSnippet = "Contents\n\nGenerating dynamically...",
+                    isOpener = true,
+                    hasBlindFolio = true
+                )
+            )
+            frontMatterPage++
+
+            // Blank Verso after TOC to ensure next section starts on Recto
+            leaves.add(
+                CalculatedLeaf(
+                    leafIndex = leaves.size + 1,
+                    pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
+                    pageNumberRaw = frontMatterPage,
+                    side = LeafSide.VERSO,
+                    matterType = MatterType.FRONT_MATTER,
+                    sectionId = null,
+                    sectionTitle = "Blank Verso",
+                    sectionType = null,
+                    displayType = LeafDisplayType.BLANK_INTENTIONAL,
+                    contentSnippet = "",
+                    isOpener = false,
+                    hasBlindFolio = true
+                )
+            )
+            frontMatterPage++
+            tIndex
+        } else null
+
         // Custom Front Matter sections (Foreword, Preface, Acknowledgments, Introduction)
+        val sectionStartPageMap = mutableMapOf<Long, String>()
         for (sec in frontSections) {
             if (leaves.size % 2 != 0 && sec.startOnRecto) {
                 val nextSide = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
@@ -247,11 +313,15 @@ object CmosLeafEngine {
                 val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
                 val isOpener = p == 0
                 val isCloser = p == pageSnippets.size - 1
+                val roman = CmosFormatter.toRoman(frontMatterPage)
+                if (isOpener) {
+                    sectionStartPageMap[sec.id] = roman
+                }
 
                 leaves.add(
                     CalculatedLeaf(
                         leafIndex = leaves.size + 1,
-                        pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
+                        pageNumberDisplay = roman,
                         pageNumberRaw = frontMatterPage,
                         side = side,
                         matterType = MatterType.FRONT_MATTER,
@@ -338,10 +408,15 @@ object CmosLeafEngine {
                 val isOpener = p == 0
                 val isCloser = p == pageSnippets.size - 1
 
+                val displayPage = bodyPage.toString()
+                if (isOpener) {
+                    sectionStartPageMap[sec.id] = displayPage
+                }
+
                 leaves.add(
                     CalculatedLeaf(
                         leafIndex = leaves.size + 1,
-                        pageNumberDisplay = bodyPage.toString(),
+                        pageNumberDisplay = displayPage,
                         pageNumberRaw = bodyPage,
                         side = side,
                         matterType = MatterType.TEXT_BODY,
@@ -409,10 +484,15 @@ object CmosLeafEngine {
                 val isOpener = p == 0
                 val isCloser = p == pageSnippets.size - 1
 
+                val displayPage = bodyPage.toString()
+                if (isOpener) {
+                    sectionStartPageMap[sec.id] = displayPage
+                }
+
                 leaves.add(
                     CalculatedLeaf(
                         leafIndex = leaves.size + 1,
-                        pageNumberDisplay = bodyPage.toString(),
+                        pageNumberDisplay = displayPage,
                         pageNumberRaw = bodyPage,
                         side = side,
                         matterType = MatterType.BACK_MATTER,
@@ -437,8 +517,82 @@ object CmosLeafEngine {
             }
         }
 
+        // ==========================================
+        // DYNAMIC TABLE OF CONTENTS POPULATION
+        // ==========================================
+        if (tocLeafIndex != null && tocLeafIndex < leaves.size) {
+            val tocLines = mutableListOf<String>()
+            tocLines.add("CONTENTS\n")
+
+            if (frontSections.isNotEmpty()) {
+                for (sec in frontSections) {
+                    val page = sectionStartPageMap[sec.id] ?: "v"
+                    tocLines.add(formatTocLine(sec.title, page))
+                }
+                tocLines.add("")
+            }
+
+            for (sec in bodySections) {
+                val page = sectionStartPageMap[sec.id] ?: "1"
+                val title = if (sec.sectionType == SectionType.PART_DIVIDER) sec.title.uppercase() else sec.title
+                tocLines.add(formatTocLine(title, page))
+            }
+
+            if (backSections.isNotEmpty()) {
+                tocLines.add("")
+                for (sec in backSections) {
+                    val page = sectionStartPageMap[sec.id] ?: ""
+                    tocLines.add(formatTocLine(sec.title, page))
+                }
+            }
+
+            leaves[tocLeafIndex] = leaves[tocLeafIndex].copy(
+                contentSnippet = tocLines.joinToString("\n").trimEnd()
+            )
+        }
+
         return leaves
     }
+
+    /**
+     * Formats a single Table of Contents entry line with standard Chicago dot leaders.
+     */
+    fun formatTocLine(title: String, page: String, totalChars: Int = 42): String {
+        val cleanTitle = title.trim()
+        val cleanPage = page.trim()
+        val dotsNeeded = (totalChars - cleanTitle.length - cleanPage.length - 2).coerceAtLeast(4)
+        val dots = " " + ". ".repeat(dotsNeeded / 2).trimEnd() + " "
+        return "$cleanTitle$dots$cleanPage"
+    }
+
+    /**
+     * Generates structured TocItem objects for rich UI and interactive navigation.
+     */
+    fun generateTocItems(
+        sections: List<SectionEntity>,
+        leaves: List<CalculatedLeaf>
+    ): List<com.example.model.TocItem> {
+        val pageMap = mutableMapOf<Long, String>()
+        for (leaf in leaves) {
+            if (leaf.isOpener && leaf.sectionId != null && !pageMap.containsKey(leaf.sectionId)) {
+                pageMap[leaf.sectionId] = leaf.pageNumberDisplay
+            }
+        }
+
+        return sections.map { sec ->
+            val page = pageMap[sec.id] ?: if (sec.matterType == MatterType.FRONT_MATTER) "i" else "1"
+            com.example.model.TocItem(
+                title = sec.title,
+                subtitle = sec.subtitle,
+                matterType = sec.matterType,
+                sectionType = sec.sectionType,
+                sectionId = sec.id,
+                pageNumberDisplay = page,
+                isPartDivider = sec.sectionType == SectionType.PART_DIVIDER
+            )
+        }
+    }
+
 
     /**
      * Accurately slices section content into physical page snippets, preserving all paragraph

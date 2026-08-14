@@ -87,3 +87,14 @@ data class CalculatedLeaf(
     val runningHeadRecto: String = "",
     val hasBlindFolio: Boolean = false
 )
+
+data class TocItem(
+    val title: String,
+    val subtitle: String = "",
+    val matterType: MatterType,
+    val sectionType: SectionType?,
+    val sectionId: Long?,
+    val pageNumberDisplay: String,
+    val isPartDivider: Boolean = false
+)
+

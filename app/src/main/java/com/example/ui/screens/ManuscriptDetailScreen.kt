@@ -388,6 +388,11 @@ fun FrontMatterTab(
                             Text("Dedication", fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterVertically))
                         }
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        LeafBadge(side = LeafSide.RECTO, pageNumber = "vii")
+                        Text("Table of Contents (Dynamic CMOS)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BookGoldDark, modifier = Modifier.align(Alignment.CenterVertically))
+                    }
                 }
             }
         }

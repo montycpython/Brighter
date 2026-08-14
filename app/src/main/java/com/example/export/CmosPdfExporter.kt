@@ -15,6 +15,7 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import com.example.R
 import com.example.cmos.CmosFormatter
+import com.example.cmos.CmosLeafEngine
 import com.example.model.BookTrimSize
 import com.example.model.CalculatedLeaf
 import com.example.model.LeafDisplayType
@@ -202,6 +203,42 @@ object CmosPdfExporter {
             // Blank verso after epigraph
             val (blankPage2, _) = createNewPage(isRecto = false)
             pdfDocument.finishPage(blankPage2)
+            globalPageNumber++
+            frontMatterRomanPage++
+        }
+
+        // ==========================================
+        // Dynamic Table of Contents in Front Matter
+        // ==========================================
+        val calculatedLeaves = CmosLeafEngine.calculateLeaves(manuscript, sections)
+        val tocLeaf = calculatedLeaves.find { it.displayType == LeafDisplayType.TABLE_OF_CONTENTS }
+
+        if (tocLeaf != null && tocLeaf.contentSnippet.isNotBlank()) {
+            // Ensure TOC starts on Recto (odd global page)
+            if (globalPageNumber % 2 == 0) {
+                val (blankPage, _) = createNewPage(isRecto = false)
+                pdfDocument.finishPage(blankPage)
+                globalPageNumber++
+                frontMatterRomanPage++
+            }
+
+            val (page, canvas) = createNewPage(isRecto = true)
+            drawTableOfContentsPage(
+                canvas = canvas,
+                tocContent = tocLeaf.contentSnippet,
+                leftMargin = gutterMargin.toInt(),
+                rightMargin = (pageWidthPt - outerMargin).toInt(),
+                pageHeightPt = pageHeightPt,
+                boldPaint = boldPaint,
+                textPaint = textPaint
+            )
+            pdfDocument.finishPage(page)
+            globalPageNumber++
+            frontMatterRomanPage++
+
+            // Blank verso after TOC to ensure next section starts on Recto
+            val (blankAfterToc, _) = createNewPage(isRecto = false)
+            pdfDocument.finishPage(blankAfterToc)
             globalPageNumber++
             frontMatterRomanPage++
         }
@@ -538,7 +575,8 @@ object CmosPdfExporter {
                     isContinuationOfPara = false
                 }
 
-                val layout = StaticLayout.Builder.obtain(currentTextToDraw, 0, currentTextToDraw.length, textPaint, printableWidth)
+                val spanned = CmosFormatter.toSpanned(currentTextToDraw)
+                val layout = StaticLayout.Builder.obtain(spanned, 0, spanned.length, textPaint, printableWidth)
                     .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                     .setLineSpacing(lineSpacingExtra, lineHeightMult)
                     .build()
@@ -567,7 +605,7 @@ object CmosPdfExporter {
                     if (linesThatFit > 0) {
                         // Draw the lines that fit
                         val endCharOffset = layout.getLineEnd(linesThatFit - 1)
-                        val textForCurrentPage = currentTextToDraw.substring(0, endCharOffset)
+                        val textForCurrentPage = spanned.subSequence(0, endCharOffset)
                         val textForNextPage = currentTextToDraw.substring(endCharOffset).trimStart()
 
                         val partialLayout = StaticLayout.Builder.obtain(textForCurrentPage, 0, textForCurrentPage.length, textPaint, printableWidth)
@@ -743,6 +781,56 @@ object CmosPdfExporter {
         canvas.translate(leftMargin + width * 0.15f, pageHeightPt * 0.32f)
         layout.draw(canvas)
         canvas.restore()
+    }
+
+    private fun drawTableOfContentsPage(
+        canvas: Canvas,
+        tocContent: String,
+        leftMargin: Int,
+        rightMargin: Int,
+        pageHeightPt: Int,
+        boldPaint: TextPaint,
+        textPaint: TextPaint
+    ) {
+        var currentY = pageHeightPt * 0.14f
+        val titleText = "CONTENTS"
+        val titlePaint = TextPaint(boldPaint).apply {
+            textSize = 14f
+            letterSpacing = 0.12f
+        }
+        val titleWidth = titlePaint.measureText(titleText)
+        val centerX = leftMargin + (rightMargin - leftMargin) / 2f
+        canvas.drawText(titleText, centerX - titleWidth / 2f, currentY, titlePaint)
+
+        currentY += 12f
+        val rulePaint = Paint().apply {
+            color = Color.rgb(180, 150, 80)
+            strokeWidth = 1f
+        }
+        canvas.drawLine(centerX - 20f, currentY, centerX + 20f, currentY, rulePaint)
+        currentY += 24f
+
+        val lines = tocContent.lines().filter { it.isNotBlank() && it.trim() != "CONTENTS" }
+        val printableWidth = rightMargin - leftMargin
+
+        val entryPaint = TextPaint(textPaint).apply {
+            textSize = 9.5f
+            letterSpacing = 0.02f
+        }
+
+        for (line in lines) {
+            val layout = StaticLayout.Builder.obtain(line, 0, line.length, entryPaint, printableWidth)
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setLineSpacing(0f, 1.25f)
+                .build()
+
+            canvas.save()
+            canvas.translate(leftMargin.toFloat(), currentY)
+            layout.draw(canvas)
+            canvas.restore()
+
+            currentY += layout.height + 6f
+        }
     }
 
     private fun drawIllustration(
