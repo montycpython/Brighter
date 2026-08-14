@@ -27,18 +27,48 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-36" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
 
-      - name: Prepare Wrapper, Keystore & Config Files
+      - name: Prepare Keystore, Config & Environment
         run: |
           touch .env
           touch .env.example
           # Generate fresh debug keystore
           rm -f debug.keystore
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          # Ensure dummy google-services.json is present
-          if [ ! -f app/google-services.json ]; then
-            echo '{"project_info":{"project_number":"0","project_id":"dummy"},"client":[{"client_info":{"mobilesdk_app_id":"1:0:android:0","android_client_info":{"package_name":"com.example"}}}]}' > app/google-services.json
-          fi
-          # Install and grant permissions to the Gradle 9.3.1 wrapper
+          
+          # Create google-services.json matching applicationId com.aistudio.bwriter.xmkty
+          cat << 'EOF' > app/google-services.json
+          {
+            "project_info": {
+              "project_number": "123456789012",
+              "project_id": "bwriter-app",
+              "storage_bucket": "bwriter-app.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789012:android:abcdef0123456789",
+                  "android_client_info": {
+                    "package_name": "com.aistudio.bwriter.xmkty"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyDummyKeyForBuildOnly123456789"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
+          # Setup Gradle 9.3.1 wrapper
           gradle wrapper --gradle-version 9.3.1 || true
           chmod +x ./gradlew || true
 
