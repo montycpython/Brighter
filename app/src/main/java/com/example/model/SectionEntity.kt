@@ -33,6 +33,10 @@ data class SectionEntity(
     val assignedRole: WorkRole = WorkRole.AUTHOR,
     val status: SectionStatus = SectionStatus.DRAFT,
     val startOnRecto: Boolean = true,
+    val headerIllustrationUri: String = "",
+    val headerIllustrationCaption: String = "",
+    val tailIllustrationUri: String = "",
+    val tailIllustrationCaption: String = "",
     val wordCount: Int = 0,
     val updatedAt: Long = System.currentTimeMillis()
 )

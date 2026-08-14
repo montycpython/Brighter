@@ -13,16 +13,15 @@ object CmosLeafEngine {
 
     /**
      * Computes the complete sequence of physical book leaves honoring Chicago Manual of Style
-     * recto/verso conventions, roman front-matter pagination, and chapter opener leaf positioning,
-     * adjusted dynamically for the specified Book Trim Size (e.g. 6x9, 5.5x8.5, 7x10, 8x10, Pocket).
+     * recto/verso conventions, roman front-matter pagination, paragraph/dialogue line preservation,
+     * and chapter opener leaf positioning with illustration clearances, adjusted dynamically for the
+     * specified Book Trim Size.
      */
     fun calculateLeaves(
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>
     ): List<CalculatedLeaf> {
         val trimSize = BookTrimSize.fromTargetString(manuscript.targetPageSize)
-        val wordsPerPage = trimSize.wordsPerPageEstimate
-
         val leaves = mutableListOf<CalculatedLeaf>()
 
         var frontMatterPage = 1
@@ -155,7 +154,6 @@ object CmosLeafEngine {
         if (manuscript.epigraphText.isNotBlank()) {
             val isRecto = (leaves.size + 1) % 2 != 0
             if (!isRecto) {
-                // Must be on Recto, add blank Verso
                 leaves.add(
                     CalculatedLeaf(
                         leafIndex = leaves.size + 1,
@@ -213,9 +211,8 @@ object CmosLeafEngine {
             frontMatterPage++
         }
 
-        // Additional custom Front Matter sections (Table of Contents, Foreword, Preface, Acknowledgments, Introduction)
+        // Custom Front Matter sections (Foreword, Preface, Acknowledgments, Introduction)
         for (sec in frontSections) {
-            // Front matter divisions must start on Recto
             if (leaves.size % 2 != 0 && sec.startOnRecto) {
                 val nextSide = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
                 if (nextSide == LeafSide.VERSO) {
@@ -239,14 +236,17 @@ object CmosLeafEngine {
                 }
             }
 
-            val words = sec.content.split(Regex("""\s+""")).filter { it.isNotBlank() }
-            val pageCount = maxOf(1, (words.size + wordsPerPage - 1) / wordsPerPage)
+            val pageSnippets = paginateSectionProse(
+                content = sec.content,
+                trimSize = trimSize,
+                hasHeaderIllustration = sec.headerIllustrationUri.isNotBlank(),
+                hasSubtitle = sec.subtitle.isNotBlank()
+            )
 
-            for (p in 0 until pageCount) {
+            for ((p, snippet) in pageSnippets.withIndex()) {
                 val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
-                val startWord = p * wordsPerPage
-                val endWord = minOf(words.size, (p + 1) * wordsPerPage)
-                val snippet = if (words.isNotEmpty()) words.subList(startWord, endWord).joinToString(" ") else sec.content
+                val isOpener = p == 0
+                val isCloser = p == pageSnippets.size - 1
 
                 leaves.add(
                     CalculatedLeaf(
@@ -257,13 +257,19 @@ object CmosLeafEngine {
                         matterType = MatterType.FRONT_MATTER,
                         sectionId = sec.id,
                         sectionTitle = sec.title,
+                        sectionSubtitle = sec.subtitle,
                         sectionType = sec.sectionType,
-                        displayType = if (p == 0) LeafDisplayType.CHAPTER_OPENER else LeafDisplayType.CONTENT,
+                        displayType = if (isOpener) LeafDisplayType.CHAPTER_OPENER else LeafDisplayType.CONTENT,
                         contentSnippet = snippet,
-                        isOpener = p == 0,
+                        isOpener = isOpener,
+                        isCloser = isCloser,
+                        headerIllustrationUri = if (isOpener) sec.headerIllustrationUri else "",
+                        headerIllustrationCaption = if (isOpener) sec.headerIllustrationCaption else "",
+                        tailIllustrationUri = if (isCloser) sec.tailIllustrationUri else "",
+                        tailIllustrationCaption = if (isCloser) sec.tailIllustrationCaption else "",
                         runningHeadVerso = manuscript.title,
                         runningHeadRecto = sec.title,
-                        hasBlindFolio = p == 0
+                        hasBlindFolio = isOpener
                     )
                 )
                 frontMatterPage++
@@ -293,7 +299,7 @@ object CmosLeafEngine {
             )
         }
 
-        // Process Body Sections with dimension-calibrated word count
+        // Process Body Sections with paragraph-aware, non-overflowing pagination
         for (sec in bodySections) {
             // CMOS mandate: Chapters & Part Openers start on Recto leaf
             if (sec.startOnRecto) {
@@ -320,14 +326,17 @@ object CmosLeafEngine {
                 }
             }
 
-            val words = sec.content.split(Regex("""\s+""")).filter { it.isNotBlank() }
-            val pageCount = maxOf(1, (words.size + wordsPerPage - 1) / wordsPerPage)
+            val pageSnippets = paginateSectionProse(
+                content = sec.content,
+                trimSize = trimSize,
+                hasHeaderIllustration = sec.headerIllustrationUri.isNotBlank(),
+                hasSubtitle = sec.subtitle.isNotBlank()
+            )
 
-            for (p in 0 until pageCount) {
+            for ((p, snippet) in pageSnippets.withIndex()) {
                 val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
-                val startWord = p * wordsPerPage
-                val endWord = minOf(words.size, (p + 1) * wordsPerPage)
-                val snippet = if (words.isNotEmpty()) words.subList(startWord, endWord).joinToString(" ") else sec.content
+                val isOpener = p == 0
+                val isCloser = p == pageSnippets.size - 1
 
                 leaves.add(
                     CalculatedLeaf(
@@ -338,16 +347,22 @@ object CmosLeafEngine {
                         matterType = MatterType.TEXT_BODY,
                         sectionId = sec.id,
                         sectionTitle = sec.title,
+                        sectionSubtitle = sec.subtitle,
                         sectionType = sec.sectionType,
-                        displayType = if (p == 0) {
+                        displayType = if (isOpener) {
                             if (sec.sectionType == SectionType.PART_DIVIDER) LeafDisplayType.PART_OPENER
                             else LeafDisplayType.CHAPTER_OPENER
                         } else LeafDisplayType.CONTENT,
                         contentSnippet = snippet,
-                        isOpener = p == 0,
+                        isOpener = isOpener,
+                        isCloser = isCloser,
+                        headerIllustrationUri = if (isOpener) sec.headerIllustrationUri else "",
+                        headerIllustrationCaption = if (isOpener) sec.headerIllustrationCaption else "",
+                        tailIllustrationUri = if (isCloser) sec.tailIllustrationUri else "",
+                        tailIllustrationCaption = if (isCloser) sec.tailIllustrationCaption else "",
                         runningHeadVerso = manuscript.effectiveAuthorByline.ifBlank { manuscript.title },
                         runningHeadRecto = sec.title,
-                        hasBlindFolio = p == 0
+                        hasBlindFolio = isOpener
                     )
                 )
                 bodyPage++
@@ -382,14 +397,17 @@ object CmosLeafEngine {
                 }
             }
 
-            val words = sec.content.split(Regex("""\s+""")).filter { it.isNotBlank() }
-            val pageCount = maxOf(1, (words.size + wordsPerPage - 1) / wordsPerPage)
+            val pageSnippets = paginateSectionProse(
+                content = sec.content,
+                trimSize = trimSize,
+                hasHeaderIllustration = sec.headerIllustrationUri.isNotBlank(),
+                hasSubtitle = sec.subtitle.isNotBlank()
+            )
 
-            for (p in 0 until pageCount) {
+            for ((p, snippet) in pageSnippets.withIndex()) {
                 val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
-                val startWord = p * wordsPerPage
-                val endWord = minOf(words.size, (p + 1) * wordsPerPage)
-                val snippet = if (words.isNotEmpty()) words.subList(startWord, endWord).joinToString(" ") else sec.content
+                val isOpener = p == 0
+                val isCloser = p == pageSnippets.size - 1
 
                 leaves.add(
                     CalculatedLeaf(
@@ -400,13 +418,19 @@ object CmosLeafEngine {
                         matterType = MatterType.BACK_MATTER,
                         sectionId = sec.id,
                         sectionTitle = sec.title,
+                        sectionSubtitle = sec.subtitle,
                         sectionType = sec.sectionType,
-                        displayType = if (p == 0) LeafDisplayType.CHAPTER_OPENER else LeafDisplayType.CONTENT,
+                        displayType = if (isOpener) LeafDisplayType.CHAPTER_OPENER else LeafDisplayType.CONTENT,
                         contentSnippet = snippet,
-                        isOpener = p == 0,
+                        isOpener = isOpener,
+                        isCloser = isCloser,
+                        headerIllustrationUri = if (isOpener) sec.headerIllustrationUri else "",
+                        headerIllustrationCaption = if (isOpener) sec.headerIllustrationCaption else "",
+                        tailIllustrationUri = if (isCloser) sec.tailIllustrationUri else "",
+                        tailIllustrationCaption = if (isCloser) sec.tailIllustrationCaption else "",
                         runningHeadVerso = manuscript.title,
                         runningHeadRecto = sec.title,
-                        hasBlindFolio = p == 0
+                        hasBlindFolio = isOpener
                     )
                 )
                 bodyPage++
@@ -414,5 +438,108 @@ object CmosLeafEngine {
         }
 
         return leaves
+    }
+
+    /**
+     * Accurately slices section content into physical page snippets, preserving all paragraph
+     * newlines, dialogue speaker turns, and ensuring text never overflows the printable height
+     * or collides with the bottom margin and drop folios.
+     */
+    fun paginateSectionProse(
+        content: String,
+        trimSize: BookTrimSize,
+        hasHeaderIllustration: Boolean = false,
+        hasSubtitle: Boolean = false
+    ): List<String> {
+        if (content.isBlank()) return listOf("")
+
+        val printableWidth = trimSize.widthPt - trimSize.gutterMarginPt - trimSize.outerMarginPt
+        val fontSize = trimSize.defaultBodyFontSizePt
+        val lineHeight = fontSize * trimSize.defaultLineHeightMultiplier + 4.5f
+        val charsPerLine = (printableWidth / (fontSize * 0.50f)).toInt().coerceIn(32, 90)
+
+        // Opener page vertical occupancy:
+        // Top margin + drop offset (36) + Title (22) + Rule (18) + Subtitle (if any 18) + Header Illustration (if any 140) + Bottom margin + Drop Folio safe buffer (36)
+        val openerOccupied = trimSize.topMarginPt + 36f + 22f + 18f +
+                (if (hasSubtitle) 18f else 0f) +
+                (if (hasHeaderIllustration) 140f else 0f) +
+                trimSize.bottomMarginPt + 36f
+
+        val availableHeightOpener = (trimSize.heightPt - openerOccupied).coerceAtLeast(80f)
+        val maxLinesOpener = (availableHeightOpener / lineHeight).toInt().coerceAtLeast(3)
+
+        // Continuation pages vertical occupancy:
+        // Top margin + Running header & rule clearance (24) + Bottom margin + Bottom margin safety buffer (16)
+        val continuationOccupied = trimSize.topMarginPt + 24f + trimSize.bottomMarginPt + 16f
+        val availableHeightContinuation = (trimSize.heightPt - continuationOccupied).coerceAtLeast(120f)
+        val maxLinesContinuation = (availableHeightContinuation / lineHeight).toInt().coerceAtLeast(6)
+
+        val pages = mutableListOf<String>()
+        val paragraphs = content.replace("\r\n", "\n").replace('\r', '\n').split("\n")
+
+        var currentPageLines = 0
+        var currentPageMaxLines = maxLinesOpener
+        val currentPageParagraphs = mutableListOf<String>()
+
+        for (para in paragraphs) {
+            if (para.isEmpty()) {
+                // Scene break / blank line
+                if (currentPageLines + 1 >= currentPageMaxLines && currentPageParagraphs.isNotEmpty()) {
+                    pages.add(currentPageParagraphs.joinToString("\n"))
+                    currentPageParagraphs.clear()
+                    currentPageLines = 0
+                    currentPageMaxLines = maxLinesContinuation
+                } else {
+                    currentPageParagraphs.add("")
+                    currentPageLines += 1
+                }
+                continue
+            }
+
+            var remainingPara = para
+            while (remainingPara.isNotEmpty()) {
+                val neededLines = maxOf(1, (remainingPara.length + charsPerLine - 1) / charsPerLine)
+                val availableLinesOnPage = currentPageMaxLines - currentPageLines
+
+                if (neededLines <= availableLinesOnPage || availableLinesOnPage <= 0) {
+                    if (availableLinesOnPage <= 0 && currentPageParagraphs.isNotEmpty()) {
+                        pages.add(currentPageParagraphs.joinToString("\n"))
+                        currentPageParagraphs.clear()
+                        currentPageLines = 0
+                        currentPageMaxLines = maxLinesContinuation
+                        continue
+                    }
+                    currentPageParagraphs.add(remainingPara)
+                    currentPageLines += neededLines
+                    remainingPara = ""
+                } else {
+                    // Paragraph splits across pages: take the portion that fits cleanly on current page
+                    val charsToTake = (availableLinesOnPage * charsPerLine).coerceAtMost(remainingPara.length)
+                    var splitIdx = remainingPara.lastIndexOf(' ', charsToTake)
+                    if (splitIdx < charsToTake / 2 || splitIdx <= 0) {
+                        splitIdx = charsToTake
+                    }
+
+                    val fitsOnCurrent = remainingPara.substring(0, splitIdx).trimEnd()
+                    val flowsToNext = remainingPara.substring(splitIdx).trimStart()
+
+                    if (fitsOnCurrent.isNotEmpty()) {
+                        currentPageParagraphs.add(fitsOnCurrent)
+                    }
+
+                    pages.add(currentPageParagraphs.joinToString("\n"))
+                    currentPageParagraphs.clear()
+                    currentPageLines = 0
+                    currentPageMaxLines = maxLinesContinuation
+                    remainingPara = flowsToNext
+                }
+            }
+        }
+
+        if (currentPageParagraphs.isNotEmpty()) {
+            pages.add(currentPageParagraphs.joinToString("\n"))
+        }
+
+        return if (pages.isEmpty()) listOf("") else pages
     }
 }

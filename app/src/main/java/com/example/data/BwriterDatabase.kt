@@ -14,7 +14,7 @@ import com.example.model.SectionEntity
         SectionEntity::class,
         EditorialCommentEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class BwriterDatabase : RoomDatabase() {

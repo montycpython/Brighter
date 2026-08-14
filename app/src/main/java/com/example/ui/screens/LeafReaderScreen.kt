@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,16 +48,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.R
 import com.example.model.CalculatedLeaf
 import com.example.model.LeafDisplayType
 import com.example.model.LeafSide
@@ -84,9 +90,6 @@ fun LeafReaderScreen(
     val totalLeaves = leaves.size
     val totalSpreads = maxOf(1, (totalLeaves + 1) / 2)
 
-    // For spread index i:
-    // Left leaf (Verso) is at index (i * 2) - 1 if i > 0, else null
-    // Right leaf (Recto) is at index (i * 2)
     val rectoIndex = currentSpreadIndex * 2
     val versoIndex = rectoIndex - 1
 
@@ -142,15 +145,15 @@ fun LeafReaderScreen(
                         enabled = currentSpreadIndex > 0,
                         modifier = Modifier.testTag("btn_prev_spread")
                     ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Previous Spread")
                     }
 
                     Text(
-                        text = "Chicago 6\"×9\" Leaf Spread",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        text = "${currentSpreadIndex + 1} / $totalSpreads",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
@@ -162,70 +165,83 @@ fun LeafReaderScreen(
                     ) {
                         Text("Next Spread")
                         Spacer(modifier = Modifier.width(6.dp))
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
                 }
             }
         }
-    ) { paddingValues ->
-        Box(
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF23252E)) // Dark desk backdrop
-                .padding(paddingValues)
+                .padding(innerPadding)
+                .background(Color(0xFF1E1E24))
                 .padding(12.dp),
-            contentAlignment = Alignment.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
+            // Book spread container
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .shadow(12.dp, RoundedCornerShape(4.dp))
-                    .background(Color(0xFFFDFCF9), RoundedCornerShape(4.dp)),
-                horizontalArrangement = Arrangement.Center
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .shadow(12.dp, RoundedCornerShape(6.dp)),
+                shape = RoundedCornerShape(6.dp),
+                colors = CardDefaults.cardColors(containerColor = ParchmentPaper),
+                border = BorderStroke(1.dp, Color(0xFF4A4036))
             ) {
-                // Left Leaf: VERSO
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 12.dp)
+                Row(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    if (versoLeaf != null) {
-                        BookLeafView(leaf = versoLeaf, manuscript = manuscript, isVerso = true)
-                    } else {
-                        // Inside Cover (Before Leaf 1)
-                        InsideCoverView(manuscript = manuscript)
+                    // LEFT LEAF (Verso - Even page)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)
+                    ) {
+                        if (versoLeaf != null) {
+                            SingleLeafView(
+                                leaf = versoLeaf,
+                                manuscript = manuscript,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            InsideCoverView(manuscript)
+                        }
                     }
-                }
 
-                // Central Spine Binding Shadow
-                Box(
-                    modifier = Modifier
-                        .width(16.dp)
-                        .fillMaxHeight()
-                        .background(
-                            Brush.horizontalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.12f),
-                                    Color.Black.copy(alpha = 0.28f),
-                                    Color.Black.copy(alpha = 0.12f)
+                    // Book Spine / Gutter shadow
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(14.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0x22000000),
+                                        Color(0x66000000),
+                                        Color(0x11000000)
+                                    )
                                 )
                             )
-                        )
-                )
+                    )
 
-                // Right Leaf: RECTO
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(start = 6.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
-                ) {
-                    if (rectoLeaf != null) {
-                        BookLeafView(leaf = rectoLeaf, manuscript = manuscript, isVerso = false)
-                    } else {
-                        // Empty back endpaper
-                        EndpaperView()
+                    // RIGHT LEAF (Recto - Odd page)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(start = 4.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+                    ) {
+                        if (rectoLeaf != null) {
+                            SingleLeafView(
+                                leaf = rectoLeaf,
+                                manuscript = manuscript,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            EndpaperView()
+                        }
                     }
                 }
             }
@@ -234,45 +250,38 @@ fun LeafReaderScreen(
 }
 
 @Composable
-fun BookLeafView(
+fun SingleLeafView(
     leaf: CalculatedLeaf,
     manuscript: ManuscriptEntity,
-    isVerso: Boolean
+    modifier: Modifier = Modifier
 ) {
-    val isBlank = leaf.displayType == LeafDisplayType.BLANK_INTENTIONAL
-    val scrollState = rememberScrollState()
-
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(
-                start = if (isVerso) 12.dp else 16.dp, // Gutter margin on inner side
-                end = if (isVerso) 16.dp else 12.dp,
-                top = 8.dp,
-                bottom = 8.dp
-            )
+        modifier = modifier
+            .background(ParchmentCream, RoundedCornerShape(3.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Running Head and Folio (Top)
+        // Top Running Header & Folio
         if (!leaf.hasBlindFolio) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isVerso) {
+                if (leaf.side == LeafSide.VERSO) {
                     Text(
                         text = leaf.pageNumberDisplay,
                         fontFamily = FontFamily.Serif,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
                         color = Color.DarkGray
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = leaf.runningHeadVerso.ifBlank { manuscript.title },
                         fontFamily = FontFamily.Serif,
                         fontStyle = FontStyle.Italic,
-                        fontSize = 9.sp,
+                        fontSize = 8.5.sp,
                         color = Color.Gray,
                         maxLines = 1
                     )
@@ -281,52 +290,49 @@ fun BookLeafView(
                         text = leaf.runningHeadRecto.ifBlank { leaf.sectionTitle },
                         fontFamily = FontFamily.Serif,
                         fontStyle = FontStyle.Italic,
-                        fontSize = 9.sp,
+                        fontSize = 8.5.sp,
                         color = Color.Gray,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.End,
                         maxLines = 1
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = leaf.pageNumberDisplay,
                         fontFamily = FontFamily.Serif,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
                         color = Color.DarkGray
                     )
                 }
             }
             HorizontalDivider(
-                color = Color.LightGray.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
                 thickness = 0.5.dp,
-                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                color = Color(0xFFD4CBBF)
             )
         } else {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Leaf Body Render
+        // Leaf Body Content by Type
         when (leaf.displayType) {
             LeafDisplayType.HALF_TITLE -> {
                 Spacer(modifier = Modifier.height(60.dp))
                 Text(
-                    text = manuscript.title.uppercase(),
+                    text = leaf.contentSnippet.uppercase(),
                     fontFamily = FontFamily.Serif,
-                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
+                    fontSize = 13.sp,
+                    letterSpacing = 1.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
             LeafDisplayType.TITLE_PAGE -> {
-                Spacer(modifier = Modifier.height(30.dp))
+                Spacer(modifier = Modifier.height(24.dp))
                 Text(
                     text = manuscript.title,
                     fontFamily = FontFamily.Serif,
-                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -341,22 +347,15 @@ fun BookLeafView(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                Spacer(modifier = Modifier.height(20.dp))
-                Box(
-                    modifier = Modifier
-                        .size(30.dp, 1.dp)
-                        .background(BookGoldDark)
-                        .align(Alignment.CenterHorizontally)
-                )
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(30.dp))
                 Text(
                     text = "by\n${manuscript.effectiveAuthorByline.uppercase()}",
                     fontFamily = FontFamily.Serif,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(40.dp))
                 Text(
                     text = "${manuscript.publisher}\n${manuscript.year}",
                     fontFamily = FontFamily.Serif,
@@ -367,7 +366,7 @@ fun BookLeafView(
                 )
             }
             LeafDisplayType.COPYRIGHT -> {
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(40.dp))
                 Text(
                     text = leaf.contentSnippet,
                     fontFamily = FontFamily.Serif,
@@ -377,7 +376,7 @@ fun BookLeafView(
                 )
             }
             LeafDisplayType.DEDICATION -> {
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(40.dp))
                 Text(
                     text = leaf.contentSnippet,
                     fontFamily = FontFamily.Serif,
@@ -389,7 +388,7 @@ fun BookLeafView(
                 )
             }
             LeafDisplayType.EPIGRAPH -> {
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(40.dp))
                 Text(
                     text = leaf.contentSnippet,
                     fontFamily = FontFamily.Serif,
@@ -400,10 +399,10 @@ fun BookLeafView(
                 )
             }
             LeafDisplayType.BLANK_INTENTIONAL -> {
-                Spacer(modifier = Modifier.height(100.dp))
+                Spacer(modifier = Modifier.height(80.dp))
                 Text(
                     text = "[ This leaf intentionally left blank ]",
-                    fontSize = 9.sp,
+                    fontSize = 8.5.sp,
                     fontStyle = FontStyle.Italic,
                     color = BlankLeafColor,
                     textAlign = TextAlign.Center,
@@ -411,7 +410,7 @@ fun BookLeafView(
                 )
             }
             LeafDisplayType.CHAPTER_OPENER, LeafDisplayType.PART_OPENER -> {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = leaf.sectionTitle,
                     fontFamily = FontFamily.Serif,
@@ -420,37 +419,57 @@ fun BookLeafView(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                if (leaf.sectionSubtitle.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = leaf.sectionSubtitle,
+                        fontFamily = FontFamily.Serif,
+                        fontStyle = FontStyle.Italic,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
-                        .size(24.dp, 1.dp)
+                        .size(28.dp, 1.dp)
                         .background(BookGoldDark)
                         .align(Alignment.CenterHorizontally)
                 )
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = leaf.contentSnippet,
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 10.sp,
-                    lineHeight = 17.sp,
-                    color = InkBlack
-                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Chapter Head Illustration
+                if (leaf.headerIllustrationUri.isNotBlank()) {
+                    IllustrationPreview(
+                        uriString = leaf.headerIllustrationUri,
+                        caption = leaf.headerIllustrationCaption,
+                        maxHeight = 90
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                ProseParagraphsView(text = leaf.contentSnippet, isOpener = true)
             }
             else -> {
-                Text(
-                    text = leaf.contentSnippet,
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 10.sp,
-                    lineHeight = 17.sp,
-                    color = InkBlack
-                )
+                ProseParagraphsView(text = leaf.contentSnippet, isOpener = false)
+
+                // Chapter Tailpiece (if closer)
+                if (leaf.isCloser && leaf.tailIllustrationUri.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    IllustrationPreview(
+                        uriString = leaf.tailIllustrationUri,
+                        caption = leaf.tailIllustrationCaption,
+                        maxHeight = 55
+                    )
+                }
             }
         }
 
         // Drop folio on chapter openers (Centered bottom)
         if (leaf.isOpener && leaf.matterType == MatterType.TEXT_BODY && leaf.pageNumberDisplay.isNotBlank()) {
             Spacer(modifier = Modifier.weight(1f, fill = false))
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             Text(
                 text = leaf.pageNumberDisplay,
                 fontFamily = FontFamily.Serif,
@@ -458,6 +477,84 @@ fun BookLeafView(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
                 color = Color.DarkGray
+            )
+        }
+    }
+}
+
+@Composable
+fun ProseParagraphsView(text: String, isOpener: Boolean) {
+    val paragraphs = text.split("\n")
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((idx, para) in paragraphs.withIndex()) {
+            if (para.isNotBlank()) {
+                val indent = if (isOpener && idx == 0) "" else "    "
+                Text(
+                    text = "$indent$para",
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 10.sp,
+                    lineHeight = 16.5.sp,
+                    color = InkBlack
+                )
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun IllustrationPreview(
+    uriString: String,
+    caption: String,
+    maxHeight: Int
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        when {
+            uriString == "drawable:head_engraving" -> {
+                Image(
+                    painter = painterResource(id = R.drawable.img_chapter_head_engraving_1786743429212),
+                    contentDescription = caption.ifBlank { "Chapter Illustration" },
+                    modifier = Modifier
+                        .height(maxHeight.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            uriString == "drawable:tailpiece" -> {
+                Image(
+                    painter = painterResource(id = R.drawable.img_chapter_tailpiece_1786743439495),
+                    contentDescription = caption.ifBlank { "Chapter Tailpiece" },
+                    modifier = Modifier
+                        .height(maxHeight.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            else -> {
+                AsyncImage(
+                    model = uriString,
+                    contentDescription = caption.ifBlank { "Chapter Illustration" },
+                    modifier = Modifier
+                        .height(maxHeight.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
+
+        if (caption.isNotBlank()) {
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = caption,
+                fontFamily = FontFamily.Serif,
+                fontStyle = FontStyle.Italic,
+                fontSize = 8.sp,
+                color = Color.DarkGray,
+                textAlign = TextAlign.Center
             )
         }
     }

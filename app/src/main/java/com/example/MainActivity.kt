@@ -188,6 +188,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     onSaveTitle = { sec, title, subtitle ->
                         viewModel.updateSectionTitle(sec, title, subtitle)
                     },
+                    onSaveIllustrations = { sec, hUri, hCap, tUri, tCap ->
+                        viewModel.updateSectionIllustrations(sec, hUri, hCap, tUri, tCap)
+                    },
                     onUpdateStatus = { sec, status ->
                         viewModel.updateSectionStatus(sec, status)
                     },

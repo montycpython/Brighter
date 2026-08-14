@@ -268,6 +268,25 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateSectionIllustrations(
+        section: SectionEntity,
+        headerUri: String,
+        headerCaption: String,
+        tailUri: String,
+        tailCaption: String
+    ) {
+        viewModelScope.launch {
+            repository.updateSection(
+                section.copy(
+                    headerIllustrationUri = headerUri,
+                    headerIllustrationCaption = headerCaption,
+                    tailIllustrationUri = tailUri,
+                    tailIllustrationCaption = tailCaption
+                )
+            )
+        }
+    }
+
     fun deleteSection(sectionId: Long, manuscriptId: Long) {
         viewModelScope.launch {
             repository.deleteSection(sectionId, manuscriptId)

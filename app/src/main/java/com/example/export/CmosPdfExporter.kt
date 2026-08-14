@@ -1,17 +1,20 @@
 package com.example.export
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import android.net.Uri
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
-import androidx.core.content.FileProvider
-import com.example.cmos.CmosFormatter
+import com.example.R
 import com.example.cmos.CmosLeafEngine
 import com.example.model.BookTrimSize
 import com.example.model.CalculatedLeaf
@@ -20,9 +23,9 @@ import com.example.model.LeafSide
 import com.example.model.ManuscriptEntity
 import com.example.model.MatterType
 import com.example.model.SectionEntity
-import com.example.model.SectionType
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 
 object CmosPdfExporter {
 
@@ -41,7 +44,6 @@ object CmosPdfExporter {
     ): ExportResult {
         val trimSize = BookTrimSize.fromTargetString(manuscript.targetPageSize)
         val calculatedLeaves = CmosLeafEngine.calculateLeaves(manuscript, sections)
-
         val pdfDocument = PdfDocument()
 
         val pageWidthPt = trimSize.widthPt
@@ -52,9 +54,8 @@ object CmosPdfExporter {
         val bottomMargin = trimSize.bottomMarginPt
         val baseFontSize = trimSize.defaultBodyFontSizePt
 
-        // Text paints calibrated to trim size
         val textPaint = TextPaint().apply {
-            color = Color.rgb(20, 21, 27) // Deep book ink
+            color = Color.rgb(20, 21, 27)
             textSize = baseFontSize
             typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
             isAntiAlias = true
@@ -98,13 +99,11 @@ object CmosPdfExporter {
             // Light cream paper tone
             canvas.drawColor(Color.rgb(253, 252, 248))
 
-            // Compute Recto vs Verso margins
             val isRecto = leaf.side == LeafSide.RECTO
             val leftMargin = if (isRecto) gutterMargin else outerMargin
             val rightMargin = if (isRecto) outerMargin else gutterMargin
             val printableWidth = (pageWidthPt - leftMargin - rightMargin).toInt()
 
-            // Draw Running Heads and Folios (CMOS Rules)
             drawRunningHeadersAndFolios(
                 canvas = canvas,
                 leaf = leaf,
@@ -120,9 +119,8 @@ object CmosPdfExporter {
                 rulePaint = rulePaint
             )
 
-            // Draw Body Content according to display type
-            val contentTop = if (leaf.isOpener) topMargin + 50f else topMargin + 18f
-            val maxContentHeight = (pageHeightPt - bottomMargin - contentTop).toInt()
+            val contentTop = if (leaf.isOpener) topMargin + 36f else topMargin + 14f
+            val maxContentHeight = (pageHeightPt - bottomMargin - contentTop - (if (leaf.hasBlindFolio && leaf.isOpener) 36f else 8f)).toInt()
 
             when (leaf.displayType) {
                 LeafDisplayType.HALF_TITLE -> {
@@ -141,10 +139,11 @@ object CmosPdfExporter {
                     drawEpigraphPage(canvas, leaf.contentSnippet, leftMargin, printableWidth, pageHeightPt, italicPaint, textPaint)
                 }
                 LeafDisplayType.BLANK_INTENTIONAL -> {
-                    // Blank leaf per Chicago rules
+                    // Blank leaf per CMOS
                 }
                 LeafDisplayType.CHAPTER_OPENER, LeafDisplayType.PART_OPENER -> {
                     drawChapterOpener(
+                        context = context,
                         canvas = canvas,
                         leaf = leaf,
                         leftMargin = leftMargin,
@@ -159,13 +158,15 @@ object CmosPdfExporter {
                 }
                 LeafDisplayType.CONTENT, LeafDisplayType.TABLE_OF_CONTENTS, LeafDisplayType.COLOPHON -> {
                     drawProseContent(
+                        context = context,
                         canvas = canvas,
-                        text = leaf.contentSnippet,
+                        leaf = leaf,
                         leftMargin = leftMargin,
                         top = contentTop,
                         printableWidth = printableWidth,
                         maxHeight = maxContentHeight,
                         textPaint = textPaint,
+                        italicPaint = italicPaint,
                         lineHeightMult = trimSize.defaultLineHeightMultiplier
                     )
                 }
@@ -206,11 +207,10 @@ object CmosPdfExporter {
         folioPaint: TextPaint,
         rulePaint: Paint
     ) {
-        val yHeader = topMargin - 14f
+        val yHeader = topMargin - 12f
 
         if (!leaf.hasBlindFolio) {
             if (isRecto) {
-                // Recto: Right page number, Chapter/Section title
                 val headText = leaf.runningHeadRecto.ifBlank { leaf.sectionTitle }
                 val headWidth = headerPaint.measureText(headText)
                 val folioText = leaf.pageNumberDisplay
@@ -222,7 +222,6 @@ object CmosPdfExporter {
                 canvas.drawText(headText, headX, yHeader, headerPaint)
                 canvas.drawText(folioText, folioX, yHeader, folioPaint)
             } else {
-                // Verso: Left page number, Book Title or Author Name
                 val headText = leaf.runningHeadVerso.ifBlank { leaf.sectionTitle }
                 val folioText = leaf.pageNumberDisplay
                 val folioWidth = folioPaint.measureText(folioText)
@@ -233,15 +232,13 @@ object CmosPdfExporter {
                 canvas.drawText(folioText, folioX, yHeader, folioPaint)
                 canvas.drawText(headText, headX, yHeader, headerPaint)
             }
-
-            // Running head separator hairline rule
-            canvas.drawLine(leftMargin, topMargin - 6f, pageWidthPt - rightMargin, topMargin - 6f, rulePaint)
+            canvas.drawLine(leftMargin, topMargin - 4f, pageWidthPt - rightMargin, topMargin - 4f, rulePaint)
         } else if (leaf.isOpener && leaf.matterType == MatterType.TEXT_BODY && leaf.pageNumberDisplay.isNotBlank()) {
-            // Drop folio: Centered at bottom for chapter opening leaves
+            // Drop folio: Cleanly centered at bottom margin foot
             val folioText = leaf.pageNumberDisplay
             val folioWidth = folioPaint.measureText(folioText)
             val centerX = (pageWidthPt - folioWidth) / 2f
-            canvas.drawText(folioText, centerX, pageHeightPt - bottomMargin + 18f, folioPaint)
+            canvas.drawText(folioText, centerX, pageHeightPt - (bottomMargin * 0.55f), folioPaint)
         }
     }
 
@@ -273,9 +270,8 @@ object CmosPdfExporter {
     ) {
         var currentY = pageHeightPt * 0.22f
 
-        // Title
         val titlePaint = TextPaint(boldPaint).apply {
-            textSize = 21f
+            textSize = 20f
             letterSpacing = 0.04f
         }
         val titleLayout = StaticLayout.Builder.obtain(manuscript.title, 0, manuscript.title.length, titlePaint, width)
@@ -285,13 +281,10 @@ object CmosPdfExporter {
         canvas.translate(leftMargin, currentY)
         titleLayout.draw(canvas)
         canvas.restore()
-        currentY += titleLayout.height + 16f
+        currentY += titleLayout.height + 14f
 
-        // Subtitle
         if (manuscript.subtitle.isNotBlank()) {
-            val subPaint = TextPaint(italicPaint).apply {
-                textSize = 12.5f
-            }
+            val subPaint = TextPaint(italicPaint).apply { textSize = 12f }
             val subLayout = StaticLayout.Builder.obtain(manuscript.subtitle, 0, manuscript.subtitle.length, subPaint, width)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
                 .build()
@@ -299,32 +292,28 @@ object CmosPdfExporter {
             canvas.translate(leftMargin, currentY)
             subLayout.draw(canvas)
             canvas.restore()
-            currentY += subLayout.height + 28f
+            currentY += subLayout.height + 24f
         } else {
-            currentY += 28f
+            currentY += 24f
         }
 
-        // Byline
-        val bylinePaint = TextPaint(italicPaint).apply {
-            textSize = 10.5f
-        }
+        val bylinePaint = TextPaint(italicPaint).apply { textSize = 10f }
         val byText = "by"
         val byWidth = bylinePaint.measureText(byText)
         canvas.drawText(byText, (pageWidthPt - byWidth) / 2f, currentY, bylinePaint)
-        currentY += 20f
+        currentY += 18f
 
         val authorPaint = TextPaint(boldPaint).apply {
-            textSize = 13.5f
+            textSize = 13f
             letterSpacing = 0.05f
         }
         val authorText = manuscript.effectiveAuthorByline.uppercase()
         val authorWidth = authorPaint.measureText(authorText)
         canvas.drawText(authorText, (pageWidthPt - authorWidth) / 2f, currentY, authorPaint)
 
-        // Publisher at bottom
         val pubY = pageHeightPt * 0.82f
         val pubPaint = TextPaint(textPaint).apply {
-            textSize = 9.5f
+            textSize = 9f
             letterSpacing = 0.08f
         }
         val pubText = manuscript.publisher.uppercase()
@@ -336,18 +325,8 @@ object CmosPdfExporter {
         canvas.drawText(yearText, (pageWidthPt - yearWidth) / 2f, pubY + 14f, pubPaint)
     }
 
-    private fun drawCopyrightPage(
-        canvas: Canvas,
-        text: String,
-        leftMargin: Float,
-        width: Int,
-        pageHeightPt: Int,
-        textPaint: TextPaint,
-        italicPaint: TextPaint
-    ) {
-        val paint = TextPaint(textPaint).apply {
-            textSize = 8.5f
-        }
+    private fun drawCopyrightPage(canvas: Canvas, text: String, leftMargin: Float, width: Int, pageHeightPt: Int, textPaint: TextPaint, italicPaint: TextPaint) {
+        val paint = TextPaint(textPaint).apply { textSize = 8.5f }
         val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setLineSpacing(3f, 1.2f)
@@ -360,9 +339,7 @@ object CmosPdfExporter {
     }
 
     private fun drawDedicationPage(canvas: Canvas, text: String, leftMargin: Float, width: Int, pageHeightPt: Int, italicPaint: TextPaint) {
-        val paint = TextPaint(italicPaint).apply {
-            textSize = 11.5f
-        }
+        val paint = TextPaint(italicPaint).apply { textSize = 11f }
         val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .setLineSpacing(4f, 1.3f)
@@ -375,9 +352,7 @@ object CmosPdfExporter {
     }
 
     private fun drawEpigraphPage(canvas: Canvas, text: String, leftMargin: Float, width: Int, pageHeightPt: Int, italicPaint: TextPaint, textPaint: TextPaint) {
-        val paint = TextPaint(italicPaint).apply {
-            textSize = 10.5f
-        }
+        val paint = TextPaint(italicPaint).apply { textSize = 10f }
         val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setLineSpacing(4f, 1.3f)
@@ -390,6 +365,7 @@ object CmosPdfExporter {
     }
 
     private fun drawChapterOpener(
+        context: Context,
         canvas: Canvas,
         leaf: CalculatedLeaf,
         leftMargin: Float,
@@ -403,9 +379,9 @@ object CmosPdfExporter {
     ) {
         var currentY = top
 
-        // Chapter Header
+        // Chapter Title
         val titlePaint = TextPaint(boldPaint).apply {
-            textSize = 16f
+            textSize = 15.5f
             letterSpacing = 0.03f
         }
         val titleLayout = StaticLayout.Builder.obtain(leaf.sectionTitle, 0, leaf.sectionTitle.length, titlePaint, printableWidth)
@@ -415,25 +391,109 @@ object CmosPdfExporter {
         canvas.translate(leftMargin, currentY)
         titleLayout.draw(canvas)
         canvas.restore()
-        currentY += titleLayout.height + 8f
+        currentY += titleLayout.height + 6f
 
-        // Chapter Divider line
+        // Chapter Divider Line
         val dividerPaint = Paint().apply {
             color = Color.rgb(180, 160, 120)
-            strokeWidth = 1f
+            strokeWidth = 0.75f
         }
-        val halfW = 40f
+        val halfW = 35f
         val centerX = leftMargin + printableWidth / 2f
-        canvas.drawLine(centerX - halfW, currentY + 4f, centerX + halfW, currentY + 4f, dividerPaint)
-        currentY += 24f
+        canvas.drawLine(centerX - halfW, currentY + 3f, centerX + halfW, currentY + 3f, dividerPaint)
+        currentY += 12f
+
+        // Subtitle (if present)
+        if (leaf.sectionSubtitle.isNotBlank()) {
+            val subPaint = TextPaint(italicPaint).apply { textSize = 10.5f }
+            val subLayout = StaticLayout.Builder.obtain(leaf.sectionSubtitle, 0, leaf.sectionSubtitle.length, subPaint, printableWidth)
+                .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                .build()
+            canvas.save()
+            canvas.translate(leftMargin, currentY)
+            subLayout.draw(canvas)
+            canvas.restore()
+            currentY += subLayout.height + 10f
+        }
+
+        // Chapter Head Illustration (if present)
+        if (leaf.headerIllustrationUri.isNotBlank()) {
+            val drawnHeight = drawIllustration(
+                context = context,
+                canvas = canvas,
+                uriString = leaf.headerIllustrationUri,
+                caption = leaf.headerIllustrationCaption,
+                leftMargin = leftMargin,
+                top = currentY,
+                printableWidth = printableWidth,
+                maxAllowedHeight = 120f,
+                captionPaint = italicPaint
+            )
+            currentY += drawnHeight + 10f
+        }
 
         // Prose Content
         if (leaf.contentSnippet.isNotBlank()) {
-            drawProseContent(canvas, leaf.contentSnippet, leftMargin, currentY, printableWidth, maxHeight, textPaint, lineHeightMult)
+            val remainingHeight = (maxHeight - (currentY - top)).toInt().coerceAtLeast(40)
+            drawProseParagraphs(
+                canvas = canvas,
+                text = leaf.contentSnippet,
+                leftMargin = leftMargin,
+                top = currentY,
+                printableWidth = printableWidth,
+                maxHeight = remainingHeight,
+                textPaint = textPaint,
+                lineHeightMult = lineHeightMult,
+                isOpener = true
+            )
         }
     }
 
     private fun drawProseContent(
+        context: Context,
+        canvas: Canvas,
+        leaf: CalculatedLeaf,
+        leftMargin: Float,
+        top: Float,
+        printableWidth: Int,
+        maxHeight: Int,
+        textPaint: TextPaint,
+        italicPaint: TextPaint,
+        lineHeightMult: Float
+    ) {
+        val proseHeight = drawProseParagraphs(
+            canvas = canvas,
+            text = leaf.contentSnippet,
+            leftMargin = leftMargin,
+            top = top,
+            printableWidth = printableWidth,
+            maxHeight = maxHeight,
+            textPaint = textPaint,
+            lineHeightMult = lineHeightMult,
+            isOpener = false
+        )
+
+        // Chapter Tailpiece (if present at end of chapter)
+        if (leaf.isCloser && leaf.tailIllustrationUri.isNotBlank()) {
+            val tailTop = top + proseHeight + 16f
+            val tailMaxHeight = (maxHeight - proseHeight - 20f).coerceAtLeast(30f)
+            if (tailMaxHeight >= 30f) {
+                drawIllustration(
+                    context = context,
+                    canvas = canvas,
+                    uriString = leaf.tailIllustrationUri,
+                    caption = leaf.tailIllustrationCaption,
+                    leftMargin = leftMargin,
+                    top = tailTop,
+                    printableWidth = printableWidth,
+                    maxAllowedHeight = tailMaxHeight.coerceAtMost(70f),
+                    captionPaint = italicPaint
+                )
+            }
+        }
+    }
+
+    private fun drawProseParagraphs(
         canvas: Canvas,
         text: String,
         leftMargin: Float,
@@ -441,16 +501,113 @@ object CmosPdfExporter {
         printableWidth: Int,
         maxHeight: Int,
         textPaint: TextPaint,
-        lineHeightMult: Float
-    ) {
-        val layout = StaticLayout.Builder.obtain(text, 0, text.length, textPaint, printableWidth)
-            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(4f, lineHeightMult)
-            .build()
+        lineHeightMult: Float,
+        isOpener: Boolean
+    ): Float {
+        val paragraphs = text.split("\n")
+        var currentY = top
+        val firstLineIndent = "    " // Standard CMOS first-line paragraph indent (~18pt)
 
-        canvas.save()
-        canvas.translate(leftMargin, top)
-        layout.draw(canvas)
-        canvas.restore()
+        for ((idx, para) in paragraphs.withIndex()) {
+            if (para.isBlank()) {
+                currentY += textPaint.textSize * 0.8f
+                continue
+            }
+
+            // In CMOS, first paragraph directly under chapter head is flush left or indented; subsequent paragraphs always indented
+            val formattedPara = if (isOpener && idx == 0) para else "$firstLineIndent$para"
+
+            val layout = StaticLayout.Builder.obtain(formattedPara, 0, formattedPara.length, textPaint, printableWidth)
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setLineSpacing(3.5f, lineHeightMult)
+                .build()
+
+            if (currentY + layout.height > top + maxHeight + 10f) {
+                break
+            }
+
+            canvas.save()
+            canvas.translate(leftMargin, currentY)
+            layout.draw(canvas)
+            canvas.restore()
+
+            currentY += layout.height
+        }
+
+        return currentY - top
+    }
+
+    private fun drawIllustration(
+        context: Context,
+        canvas: Canvas,
+        uriString: String,
+        caption: String,
+        leftMargin: Float,
+        top: Float,
+        printableWidth: Int,
+        maxAllowedHeight: Float,
+        captionPaint: TextPaint
+    ): Float {
+        val bitmap = loadBitmap(context, uriString)
+        var totalDrawnHeight = 0f
+
+        if (bitmap != null) {
+            val aspect = bitmap.width.toFloat() / bitmap.height.toFloat()
+            var destW = printableWidth.toFloat() * 0.85f
+            var destH = destW / aspect
+
+            if (destH > maxAllowedHeight) {
+                destH = maxAllowedHeight
+                destW = destH * aspect
+            }
+
+            val destLeft = leftMargin + (printableWidth - destW) / 2f
+            val destTop = top
+            val destRect = RectF(destLeft, destTop, destLeft + destW, destTop + destH)
+
+            canvas.drawBitmap(bitmap, null, destRect, null)
+            totalDrawnHeight += destH
+
+            // Draw Caption
+            if (caption.isNotBlank()) {
+                val capPaint = TextPaint(captionPaint).apply { textSize = 8.5f }
+                val capLayout = StaticLayout.Builder.obtain(caption, 0, caption.length, capPaint, printableWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                    .build()
+                canvas.save()
+                canvas.translate(leftMargin, top + destH + 4f)
+                capLayout.draw(canvas)
+                canvas.restore()
+                totalDrawnHeight += capLayout.height + 6f
+            }
+        }
+        return totalDrawnHeight
+    }
+
+    private fun loadBitmap(context: Context, uriString: String): Bitmap? {
+        return try {
+            when {
+                uriString.startsWith("drawable:") -> {
+                    val resName = uriString.removePrefix("drawable:")
+                    val resId = when (resName) {
+                        "head_engraving" -> R.drawable.img_chapter_head_engraving_1786743429212
+                        "tailpiece" -> R.drawable.img_chapter_tailpiece_1786743439495
+                        else -> 0
+                    }
+                    if (resId != 0) BitmapFactory.decodeResource(context.resources, resId) else null
+                }
+                uriString.startsWith("content://") || uriString.startsWith("file://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
+                        BitmapFactory.decodeStream(input)
+                    }
+                }
+                else -> {
+                    val file = File(uriString)
+                    if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }

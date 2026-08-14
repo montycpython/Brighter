@@ -3,7 +3,11 @@ package com.example.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +30,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -33,9 +38,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Save
@@ -64,15 +72,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -81,32 +85,31 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.R
 import com.example.cmos.CmosFormatter
 import com.example.model.EditorialCommentEntity
-import com.example.model.LeafSide
-import com.example.model.MatterType
 import com.example.model.SectionEntity
 import com.example.model.SectionStatus
 import com.example.model.UserProfile
-import com.example.model.WorkRole
-import com.example.ui.components.CmosToolbar
-import com.example.ui.components.LeafBadge
-import com.example.ui.components.RoleBadge
-import com.example.ui.components.StatusBadge
 import com.example.ui.theme.BookGold
 import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.CrimsonSeal
-import com.example.ui.theme.ForestCloth
+import com.example.ui.theme.BookGoldLight
+import com.example.ui.theme.InkBlack
 import com.example.ui.theme.InkNavy
 import com.example.ui.theme.ParchmentCream
 import com.example.ui.theme.ParchmentPaper
@@ -122,6 +125,7 @@ fun SectionEditorScreen(
     onSaveContent: (SectionEntity, String) -> Unit,
     onSaveAiPrompt: (SectionEntity, String) -> Unit,
     onSaveTitle: (SectionEntity, String, String) -> Unit,
+    onSaveIllustrations: (SectionEntity, String, String, String, String) -> Unit,
     onUpdateStatus: (SectionEntity, SectionStatus) -> Unit,
     onAddComment: (sectionId: Long, manuscriptId: Long, text: String, cmosRef: String) -> Unit,
     onResolveComment: (commentId: Long, resolved: Boolean) -> Unit
@@ -132,6 +136,11 @@ fun SectionEditorScreen(
     var title by remember(section.id) { mutableStateOf(section.title) }
     var subtitle by remember(section.id) { mutableStateOf(section.subtitle) }
     var content by remember(section.id) { mutableStateOf(section.content) }
+    var headerIllustrationUri by remember(section.id) { mutableStateOf(section.headerIllustrationUri) }
+    var headerIllustrationCaption by remember(section.id) { mutableStateOf(section.headerIllustrationCaption) }
+    var tailIllustrationUri by remember(section.id) { mutableStateOf(section.tailIllustrationUri) }
+    var tailIllustrationCaption by remember(section.id) { mutableStateOf(section.tailIllustrationCaption) }
+
     var aiDraftPrompt by remember(section.id) {
         mutableStateOf(
             if (section.aiDraftPrompt.isNotBlank()) section.aiDraftPrompt
@@ -140,7 +149,7 @@ fun SectionEditorScreen(
     }
     var currentStatus by remember(section.id) { mutableStateOf(section.status) }
 
-    // Editor Tab: 0 = Manuscript Prose, 1 = AI Prompt / Assistant Workshop
+    // 0 = Prose, 1 = Illustrations & Art, 2 = AI Workshop
     var selectedEditorTab by remember { mutableIntStateOf(0) }
 
     var showCommentsSheet by remember { mutableStateOf(false) }
@@ -148,18 +157,28 @@ fun SectionEditorScreen(
     var newCommentCmosRef by remember { mutableStateOf("CMOS 17th Ed.") }
     var showStatusMenu by remember { mutableStateOf(false) }
 
-    val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    // Realtime metrics
+    // Image Pickers
+    val headImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            headerIllustrationUri = uri.toString()
+            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+            coroutineScope.launch { snackbarHostState.showSnackbar("Chapter Head Illustration attached.") }
+        }
+    }
+
+    val tailImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            tailIllustrationUri = uri.toString()
+            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+            coroutineScope.launch { snackbarHostState.showSnackbar("Chapter Tailpiece Ornament attached.") }
+        }
+    }
+
     val wordCount = remember(content) {
         content.split(Regex("""\s+""")).count { it.isNotBlank() }
-    }
-    val estimatedPages = remember(wordCount) { maxOf(1, (wordCount + 259) / 260) }
-
-    // Check for Oxford comma issues
-    val oxfordIssues = remember(content) {
-        CmosFormatter.checkOxfordComma(content)
     }
 
     Scaffold(
@@ -169,27 +188,26 @@ fun SectionEditorScreen(
                 title = {
                     Column {
                         Text(
-                            text = section.title,
+                            text = section.sectionType.defaultTitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = BookGoldDark,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = title.ifBlank { "Untitled Section" },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Serif,
                             maxLines = 1
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "${section.matterType.displayName} • $wordCount words • ~$estimatedPages leaves",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     }
                 },
                 navigationIcon = {
                     IconButton(
                         onClick = {
                             onSaveContent(section, content)
-                            onSaveAiPrompt(section, aiDraftPrompt)
                             onSaveTitle(section, title, subtitle)
+                            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
                             onBack()
                         },
                         modifier = Modifier.testTag("btn_back_editor")
@@ -198,525 +216,593 @@ fun SectionEditorScreen(
                     }
                 },
                 actions = {
-                    // Status selector
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .clickable { showStatusMenu = true }
-                            .padding(end = 4.dp)
-                            .testTag("btn_change_status")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    // Status Badge with Dropdown
+                    Box {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = when (currentStatus) {
+                                SectionStatus.DRAFT -> Color(0xFFFFF3E0)
+                                SectionStatus.UNDER_REVIEW -> Color(0xFFE3F2FD)
+                                SectionStatus.POLISHED -> Color(0xFFE8F5E9)
+                                SectionStatus.FINAL -> Color(0xFFEDE7F6)
+                            },
+                            modifier = Modifier
+                                .clickable { showStatusMenu = true }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .testTag("btn_status_badge")
                         ) {
-                            StatusBadge(status = currentStatus)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = currentStatus.displayName,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when (currentStatus) {
+                                        SectionStatus.DRAFT -> Color(0xFFE65100)
+                                        SectionStatus.UNDER_REVIEW -> Color(0xFF1565C0)
+                                        SectionStatus.POLISHED -> Color(0xFF2E7D32)
+                                        SectionStatus.FINAL -> Color(0xFF6A1B9A)
+                                    }
+                                )
+                            }
                         }
-                    }
 
-                    DropdownMenu(
-                        expanded = showStatusMenu,
-                        onDismissRequest = { showStatusMenu = false }
-                    ) {
-                        SectionStatus.values().forEach { st ->
-                            DropdownMenuItem(
-                                text = { Text(st.displayName) },
-                                onClick = {
-                                    currentStatus = st
-                                    onUpdateStatus(section, st)
-                                    showStatusMenu = false
-                                }
-                            )
-                        }
-                    }
-
-                    // Comments button
-                    IconButton(
-                        onClick = { showCommentsSheet = true },
-                        modifier = Modifier.testTag("btn_open_comments")
-                    ) {
-                        Box {
-                            Icon(
-                                imageVector = Icons.Default.Comment,
-                                contentDescription = "Editorial Comments",
-                                tint = if (comments.any { !it.isResolved }) CrimsonSeal else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (comments.isNotEmpty()) {
-                                Surface(
-                                    color = if (comments.any { !it.isResolved }) CrimsonSeal else ForestCloth,
-                                    shape = CircleShape,
-                                    modifier = Modifier
-                                        .size(14.dp)
-                                        .align(Alignment.TopEnd)
-                                ) {
-                                    Text(
-                                        text = comments.size.toString(),
-                                        color = Color.White,
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(start = 2.dp)
-                                    )
-                                }
+                        DropdownMenu(
+                            expanded = showStatusMenu,
+                            onDismissRequest = { showStatusMenu = false }
+                        ) {
+                            SectionStatus.values().forEach { st ->
+                                DropdownMenuItem(
+                                    text = { Text(st.displayName) },
+                                    onClick = {
+                                        currentStatus = st
+                                        onUpdateStatus(section, st)
+                                        showStatusMenu = false
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("Status changed to ${st.displayName}") }
+                                    },
+                                    trailingIcon = {
+                                        if (currentStatus == st) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = BookGoldDark)
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
 
-                    // Save Button
+                    // Comments Button
+                    IconButton(
+                        onClick = { showCommentsSheet = true },
+                        modifier = Modifier.testTag("btn_editor_comments")
+                    ) {
+                        Box {
+                            Icon(imageVector = Icons.Default.Comment, contentDescription = "Comments", tint = BookGoldDark)
+                            if (comments.any { !it.isResolved }) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(Color.Red, CircleShape)
+                                        .align(Alignment.TopEnd)
+                                )
+                            }
+                        }
+                    }
+
+                    // Quick Save Button
                     IconButton(
                         onClick = {
                             onSaveContent(section, content)
-                            onSaveAiPrompt(section, aiDraftPrompt)
                             onSaveTitle(section, title, subtitle)
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Manuscript section & AI prompt saved.")
-                            }
+                            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("All changes saved.") }
                         },
                         modifier = Modifier.testTag("btn_save_section")
                     ) {
-                        Icon(imageVector = Icons.Default.Save, contentDescription = "Save", tint = BookGoldDark)
+                        Icon(imageVector = Icons.Default.Save, contentDescription = "Save")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
-    ) { paddingValues ->
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(innerPadding)
         ) {
-            // Tab Header: Prose Editor vs AI Prompt Studio
-            TabRow(
-                selectedTabIndex = selectedEditorTab,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = BookGoldDark,
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[selectedEditorTab]),
-                        color = BookGoldDark
-                    )
-                }
+            // Section Title & Subtitle Edit Bar
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Tab(
-                    selected = selectedEditorTab == 0,
-                    onClick = { selectedEditorTab = 0 },
-                    icon = { Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    text = { Text("Manuscript Prose", fontWeight = if (selectedEditorTab == 0) FontWeight.Bold else FontWeight.Normal) }
-                )
-                Tab(
-                    selected = selectedEditorTab == 1,
-                    onClick = { selectedEditorTab = 1 },
-                    icon = { Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(18.dp), tint = BookGoldDark) },
-                    text = { Text("AI Prompt Workshop", fontWeight = if (selectedEditorTab == 1) FontWeight.Bold else FontWeight.Normal) }
-                )
-            }
-
-            if (selectedEditorTab == 0) {
-                // ==========================================
-                // 1. MANUSCRIPT PROSE CANVAS
-                // ==========================================
-                // CMOS Interactive Toolbar
-                CmosToolbar(
-                    onApplySmartQuotes = {
-                        content = CmosFormatter.applySmartQuotes(content)
-                        onSaveContent(section, content)
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Applied Chicago smart quotes “ ”.") }
-                    },
-                    onApplyEmDash = {
-                        content = CmosFormatter.applyEmDashes(content)
-                        onSaveContent(section, content)
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Applied Chicago em-dashes (—).") }
-                    },
-                    onApplyEnDash = {
-                        content = CmosFormatter.applyEnDashes(content)
-                        onSaveContent(section, content)
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Applied Chicago en-dashes (–) for ranges.") }
-                    },
-                    onApplyHeadlineCase = {
-                        title = CmosFormatter.toChicagoHeadlineCase(title)
-                        onSaveTitle(section, title, subtitle)
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Applied Chicago Headline Capitalization to title.") }
-                    },
-                    onApplyOxfordComma = {
-                        content = CmosFormatter.fixOxfordCommas(content)
-                        onSaveContent(section, content)
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Enforced serial (Oxford) commas.") }
-                    },
-                    onInsertBlockQuote = {
-                        content += "\n\n   “Insert block quotation here (over 100 words), indented by standard 0.5 inch...”\n\n"
-                        onSaveContent(section, content)
-                    },
-                    onInsertFootnote = {
-                        val nextNum = (Regex("""\[\^(\d+)\]""").findAll(content).count()) + 1
-                        content += "[^$nextNum]"
-                        onSaveContent(section, content)
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Inserted footnote reference [^$nextNum].") }
-                    },
-                    onFullPolish = {
-                        content = CmosFormatter.polishText(content)
-                        title = CmosFormatter.toChicagoHeadlineCase(title)
-                        onSaveContent(section, content)
-                        onSaveTitle(section, title, subtitle)
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Full Chicago Manual of Style polish applied!") }
-                    }
-                )
-
-                // Quick Prompt Paste helper bar
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Working on: ${section.title}",
-                            fontSize = 12.sp,
-                            fontStyle = FontStyle.Italic,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(
-                                onClick = {
-                                    val clip = clipboardManager.primaryClip
-                                    if (clip != null && clip.itemCount > 0) {
-                                        val pasted = clip.getItemAt(0).text?.toString() ?: ""
-                                        if (pasted.isNotBlank()) {
-                                            content = if (content.isBlank()) pasted else "$content\n\n$pasted"
-                                            onSaveContent(section, content)
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar("Pasted AI response into manuscript.")
-                                            }
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Paste from Clipboard", fontSize = 12.sp)
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            TextButton(
-                                onClick = { selectedEditorTab = 1 }
-                            ) {
-                                Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(14.dp), tint = BookGoldDark)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Toggle Prompt", fontSize = 12.sp, color = BookGoldDark, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-
-                // Oxford Comma Warning Bar if issues found
-                if (oxfordIssues.isNotEmpty()) {
-                    Surface(
-                        color = BookGoldDark.copy(alpha = 0.15f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${oxfordIssues.size} serial comma suggestion(s) detected",
-                                fontSize = 11.5.sp,
-                                color = BookGoldDark,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f)
+                        OutlinedTextField(
+                            value = title,
+                            onValueChange = {
+                                title = it
+                                onSaveTitle(section, title, subtitle)
+                            },
+                            label = { Text("Title (CMOS Headline Style)") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("input_section_title"),
+                            singleLine = true,
+                            textStyle = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 14.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BookGoldDark,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                             )
-                            TextButton(
-                                onClick = {
-                                    content = CmosFormatter.fixOxfordCommas(content)
-                                    onSaveContent(section, content)
-                                }
-                            ) {
-                                Text("Fix All", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
+                        )
                     }
-                }
-
-                // Main Editor Canvas
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 14.dp)
-                ) {
-                    // Section Title field
-                    BasicTextField(
-                        value = title,
-                        onValueChange = {
-                            title = it
-                            onSaveTitle(section, title, subtitle)
-                        },
-                        textStyle = TextStyle(
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            color = MaterialTheme.colorScheme.onBackground
-                        ),
-                        cursorBrush = SolidColor(BookGoldDark),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_section_title")
-                    )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Subtitle field
-                    BasicTextField(
+                    OutlinedTextField(
                         value = subtitle,
                         onValueChange = {
                             subtitle = it
                             onSaveTitle(section, title, subtitle)
                         },
-                        textStyle = TextStyle(
-                            fontFamily = FontFamily.Serif,
-                            fontStyle = FontStyle.Italic,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        cursorBrush = SolidColor(BookGoldDark),
+                        label = { Text("Subtitle / Epigraph (Optional)") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_section_subtitle"),
-                        decorationBox = { innerTextField ->
-                            if (subtitle.isEmpty()) {
-                                Text(
-                                    text = "Optional chapter subtitle or epigraph...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontStyle = FontStyle.Italic,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
-                            }
-                            innerTextField()
-                        }
+                        singleLine = true,
+                        textStyle = TextStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic, fontSize = 12.sp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BookGoldDark,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        )
                     )
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(14.dp))
+            // Tabs Bar: Manuscript Prose vs Illustrations vs AI Prompt Workshop
+            TabRow(
+                selectedTabIndex = selectedEditorTab,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = BookGoldDark
+            ) {
+                Tab(
+                    selected = selectedEditorTab == 0,
+                    onClick = { selectedEditorTab = 0 },
+                    icon = { Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    text = { Text("Manuscript Prose", fontSize = 12.sp, fontWeight = if (selectedEditorTab == 0) FontWeight.Bold else FontWeight.Normal) },
+                    modifier = Modifier.testTag("tab_manuscript_prose")
+                )
+                Tab(
+                    selected = selectedEditorTab == 1,
+                    onClick = { selectedEditorTab = 1 },
+                    icon = { Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp), tint = BookGoldDark) },
+                    text = { Text("Illustrations & Art", fontSize = 12.sp, fontWeight = if (selectedEditorTab == 1) FontWeight.Bold else FontWeight.Normal) },
+                    modifier = Modifier.testTag("tab_chapter_art")
+                )
+                Tab(
+                    selected = selectedEditorTab == 2,
+                    onClick = { selectedEditorTab = 2 },
+                    icon = { Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(18.dp), tint = BookGoldDark) },
+                    text = { Text("AI Workshop", fontSize = 12.sp, fontWeight = if (selectedEditorTab == 2) FontWeight.Bold else FontWeight.Normal) },
+                    modifier = Modifier.testTag("tab_ai_prompt_workshop")
+                )
+            }
 
-                    // Manuscript Prose Editor
-                    BasicTextField(
-                        value = content,
-                        onValueChange = {
-                            content = it
+            when (selectedEditorTab) {
+                0 -> {
+                    // ==========================================
+                    // 1. MANUSCRIPT PROSE CANVAS
+                    // ==========================================
+                    CmosToolbar(
+                        onApplySmartQuotes = {
+                            content = CmosFormatter.applySmartQuotes(content)
+                            onSaveContent(section, content)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Applied Chicago smart quotes “ ”.") }
+                        },
+                        onApplyEmDash = {
+                            content = CmosFormatter.applyEmDashes(content)
+                            onSaveContent(section, content)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Applied Chicago em-dashes (—).") }
+                        },
+                        onApplyEnDash = {
+                            content = CmosFormatter.applyEnDashes(content)
+                            onSaveContent(section, content)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Applied Chicago en-dashes (–) for ranges.") }
+                        },
+                        onApplyHeadlineCase = {
+                            title = CmosFormatter.toChicagoHeadlineCase(title)
+                            onSaveTitle(section, title, subtitle)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Applied Chicago Headline Capitalization to title.") }
+                        },
+                        onApplyOxfordComma = {
+                            content = CmosFormatter.fixOxfordCommas(content)
+                            onSaveContent(section, content)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Enforced serial (Oxford) commas.") }
+                        },
+                        onInsertBlockQuote = {
+                            content += "\n\n   “Insert block quotation here (over 100 words), indented by standard 0.5 inch...”\n\n"
                             onSaveContent(section, content)
                         },
-                        textStyle = TextStyle(
-                            fontFamily = FontFamily.Serif,
-                            fontSize = 16.sp,
-                            lineHeight = 28.sp,
-                            color = MaterialTheme.colorScheme.onBackground
-                        ),
-                        cursorBrush = SolidColor(BookGoldDark),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(550.dp)
-                            .testTag("input_section_content"),
-                        decorationBox = { innerTextField ->
-                            if (content.isEmpty()) {
-                                Text(
-                                    text = "Begin composing your manuscript text here...\n\nUse quotes for dialogue, -- for em-dashes, and [^1] for footnotes. Switch to 'AI Prompt Workshop' at the top to draft prompts for external LLMs.",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    lineHeight = 28.sp
-                                )
-                            }
-                            innerTextField()
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(40.dp))
-                }
-            } else {
-                // ==========================================
-                // 2. AI PROMPT WORKSHOP / ASSISTANT STUDIO
-                // ==========================================
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(20.dp)
-                ) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                        border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.3f)),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = BookGoldDark)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Section AI Prompt Studio",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Serif
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Craft, tweak, and copy specialized prompts for '${section.title}'. Copy your prompt to your favorite LLM (Gemini, Claude, ChatGPT), then copy the generated text and paste it directly into your manuscript leaf.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 18.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "AI Generation & Refinement Prompt",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    OutlinedTextField(
-                        value = aiDraftPrompt,
-                        onValueChange = {
-                            aiDraftPrompt = it
-                            onSaveAiPrompt(section, aiDraftPrompt)
+                        onInsertFootnote = {
+                            val nextNum = (Regex("""\[\^(\d+)\]""").findAll(content).count()) + 1
+                            content += "[^$nextNum]"
+                            onSaveContent(section, content)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Inserted footnote reference [^$nextNum].") }
                         },
+                        onFullPolish = {
+                            content = CmosFormatter.polishText(content)
+                            title = CmosFormatter.toChicagoHeadlineCase(title)
+                            onSaveContent(section, content)
+                            onSaveTitle(section, title, subtitle)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Full CMOS 17th Edition Polish applied!") }
+                        }
+                    )
+
+                    // Prose Leaf Sheet Area
+                    Box(
                         modifier = Modifier
+                            .weight(1f)
                             .fillMaxWidth()
-                            .height(200.dp)
-                            .testTag("input_ai_prompt"),
-                        shape = RoundedCornerShape(10.dp),
-                        textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.5.sp, lineHeight = 20.sp),
-                        placeholder = { Text("Enter the instructions and scene details for this chapter...") }
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Preset prompt chips
-                    Text(
-                        text = "Quick CMOS Prompt Templates:",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .background(Color(0xFFE8E5DF))
+                            .padding(12.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = {
-                                aiDraftPrompt = "Draft the complete opening scenes for '${section.title}' using rich prose, authentic period dialogue, standard serial commas, and Chicago Manual of Style typographic rules. Pacing should be deliberate and evocative."
-                                onSaveAiPrompt(section, aiDraftPrompt)
-                            },
-                            modifier = Modifier.weight(1f)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .shadow(4.dp, RoundedCornerShape(4.dp)),
+                            shape = RoundedCornerShape(4.dp),
+                            colors = CardDefaults.cardColors(containerColor = ParchmentCream),
+                            border = BorderStroke(1.dp, Color(0xFFD4CBBF))
                         ) {
-                            Text("Draft Scene", fontSize = 11.sp)
-                        }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp)
+                            ) {
+                                // Live word count and status
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "$wordCount words • Paragraphs preserved",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray,
+                                        fontFamily = FontFamily.Serif
+                                    )
+                                    Text(
+                                        text = "CMOS 17th Edition Typographic Leaf",
+                                        fontSize = 11.sp,
+                                        color = BookGoldDark,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFFE0D8CE))
 
-                        OutlinedButton(
-                            onClick = {
-                                aiDraftPrompt = "Review and edit the following manuscript section for '${section.title}'. Ensure strict adherence to Chicago Manual of Style (17th Edition): fix hyphenation, enforce serial commas, replace hyphens with em-dashes, and enhance sentence flow:\n\n$content"
-                                onSaveAiPrompt(section, aiDraftPrompt)
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("CMOS Polish", fontSize = 11.sp)
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                aiDraftPrompt = "Generate detailed historical and sensory background research, character dialogue ideas, and atmospheric descriptions for '${section.title}'."
-                                onSaveAiPrompt(section, aiDraftPrompt)
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Worldbuilding", fontSize = 11.sp)
+                                BasicTextField(
+                                    value = content,
+                                    onValueChange = {
+                                        content = it
+                                        onSaveContent(section, content)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                        .testTag("input_section_content"),
+                                    textStyle = TextStyle(
+                                        fontFamily = FontFamily.Serif,
+                                        fontSize = 14.sp,
+                                        lineHeight = 22.sp,
+                                        color = InkBlack
+                                    ),
+                                    cursorBrush = SolidColor(BookGoldDark)
+                                )
+                            }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Action buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                }
+                1 -> {
+                    // ==========================================
+                    // 2. ILLUSTRATIONS & CHAPTER ART WORKSHOP
+                    // ==========================================
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .background(Color(0xFFF9F7F4))
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState())
                     ) {
-                        Button(
-                            onClick = {
-                                val clip = ClipData.newPlainText("AI Prompt", aiDraftPrompt)
-                                clipboardManager.setPrimaryClip(clip)
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("Prompt copied to clipboard! Paste into your LLM.")
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("btn_copy_prompt")
-                        ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Copy Prompt")
-                        }
+                        Text(
+                            text = "Chapter Illustrations & Ornaments",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Serif
+                        )
+                        Text(
+                            text = "Embed woodcuts, engravings, or custom photos at chapter head or tail.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                        Button(
-                            onClick = {
-                                val clip = clipboardManager.primaryClip
-                                if (clip != null && clip.itemCount > 0) {
-                                    val pasted = clip.getItemAt(0).text?.toString() ?: ""
-                                    if (pasted.isNotBlank()) {
-                                        content = pasted
-                                        onSaveContent(section, content)
-                                        selectedEditorTab = 0
-                                        coroutineScope.launch {
-                                            snackbarHostState.showSnackbar("AI response pasted into manuscript leaf!")
-                                        }
-                                    } else {
-                                        coroutineScope.launch {
-                                            snackbarHostState.showSnackbar("Clipboard is empty.")
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // CHAPTER HEAD ILLUSTRATION CARD
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Chapter Headpiece (Beginning)",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    if (headerIllustrationUri.isNotBlank()) {
+                                        IconButton(
+                                            onClick = {
+                                                headerIllustrationUri = ""
+                                                headerIllustrationCaption = ""
+                                                onSaveIllustrations(section, "", "", tailIllustrationUri, tailIllustrationCaption)
+                                            }
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Remove Headpiece", tint = Color.Red)
                                         }
                                     }
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ForestCloth),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("btn_paste_to_manuscript")
+
+                                if (headerIllustrationUri.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    IllustrationPreview(
+                                        uriString = headerIllustrationUri,
+                                        caption = headerIllustrationCaption,
+                                        maxHeight = 120
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = headerIllustrationCaption,
+                                        onValueChange = {
+                                            headerIllustrationCaption = it
+                                            onSaveIllustrations(section, headerIllustrationUri, it, tailIllustrationUri, tailIllustrationCaption)
+                                        },
+                                        label = { Text("Headpiece Caption / Citation (Italic)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                } else {
+                                    Text(
+                                        text = "No headpiece illustration selected.",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray,
+                                        fontStyle = FontStyle.Italic
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { headImagePicker.launch("image/*") },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Pick Photo", fontSize = 11.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            headerIllustrationUri = "drawable:head_engraving"
+                                            headerIllustrationCaption = "The Dearborn Foundry at Dusk"
+                                            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Preset Woodcut", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // CHAPTER TAILPIECE / END ORNAMENT CARD
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
-                            Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Paste & Return")
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Chapter Tailpiece (End of Chapter)",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    if (tailIllustrationUri.isNotBlank()) {
+                                        IconButton(
+                                            onClick = {
+                                                tailIllustrationUri = ""
+                                                tailIllustrationCaption = ""
+                                                onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, "", "")
+                                            }
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Remove Tailpiece", tint = Color.Red)
+                                        }
+                                    }
+                                }
+
+                                if (tailIllustrationUri.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    IllustrationPreview(
+                                        uriString = tailIllustrationUri,
+                                        caption = tailIllustrationCaption,
+                                        maxHeight = 80
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = tailIllustrationCaption,
+                                        onValueChange = {
+                                            tailIllustrationCaption = it
+                                            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, it)
+                                        },
+                                        label = { Text("Tailpiece Caption (Optional)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                } else {
+                                    Text(
+                                        text = "No tailpiece ornament selected.",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray,
+                                        fontStyle = FontStyle.Italic
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { tailImagePicker.launch("image/*") },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Pick Photo", fontSize = 11.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            tailIllustrationUri = "drawable:tailpiece"
+                                            tailIllustrationCaption = "— End of Chapter —"
+                                            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Preset Fleuron", fontSize = 11.sp)
+                                    }
+                                }
+                            }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // Helpful Workflow Card
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(12.dp)
+                }
+                2 -> {
+                    // ==========================================
+                    // 3. AI PROMPT & ASSISTANT WORKSHOP
+                    // ==========================================
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .background(Color(0xFFFBF9F5))
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState())
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Text(
-                                text = "How the AI Assistant Workflow Works:",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "1. Refine your prompt above for this specific chapter or section.\n2. Tap 'Copy Prompt' to copy to clipboard.\n3. Paste into Gemini, Claude, or ChatGPT.\n4. Copy the LLM's response.\n5. Tap 'Paste & Return' to automatically insert the text into this leaf.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 19.sp
-                            )
+                        Text(
+                            text = "Chicago Style AI Prompt Workshop",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Serif
+                        )
+                        Text(
+                            text = "Draft your prompt, generate narrative sections, and copy/paste directly to the leaf.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "AI Drafting Prompt (Saved with Section)",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BookGoldDark
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = aiDraftPrompt,
+                                    onValueChange = {
+                                        aiDraftPrompt = it
+                                        onSaveAiPrompt(section, it)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(140.dp)
+                                        .testTag("input_ai_prompt"),
+                                    textStyle = TextStyle(fontSize = 13.sp, lineHeight = 18.sp),
+                                    placeholder = { Text("Describe what scene, dialogue, or bibliographic analysis to generate...") }
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val clip = ClipData.newPlainText("Bwriter AI Prompt", aiDraftPrompt)
+                                            clipboardManager.setPrimaryClip(clip)
+                                            coroutineScope.launch { snackbarHostState.showSnackbar("Prompt copied to clipboard!") }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Copy Prompt", fontSize = 11.sp)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val clip = clipboardManager.primaryClip
+                                            if (clip != null && clip.itemCount > 0) {
+                                                val pasted = clip.getItemAt(0).text.toString()
+                                                if (pasted.isNotBlank()) {
+                                                    content = if (content.isBlank()) pasted else "$content\n\n$pasted"
+                                                    onSaveContent(section, content)
+                                                    selectedEditorTab = 0
+                                                    coroutineScope.launch { snackbarHostState.showSnackbar("Pasted AI response into Manuscript Leaf!") }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Paste to Leaf", fontSize = 11.sp)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -728,119 +814,62 @@ fun SectionEditorScreen(
     if (showCommentsSheet) {
         ModalBottomSheet(
             onDismissRequest = { showCommentsSheet = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState = rememberModalBottomSheetState()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Editorial Marginalia & CMOS Notes",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Serif,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { showCommentsSheet = false }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
+                Text(
+                    text = "Editorial Feedback & Notes",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Serif
+                )
+                Spacer(modifier = Modifier.height(12.dp))
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // List of existing comments
                 if (comments.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No editorial notes yet on this section.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = "No comments for this section yet.",
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        fontStyle = FontStyle.Italic
+                    )
                 } else {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(260.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                            .height(200.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(comments, key = { it.id }) { comm ->
+                        items(comments) { comment ->
                             Card(
+                                modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (comm.isResolved) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface
-                                ),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (comm.isResolved) MaterialTheme.colorScheme.outlineVariant else CrimsonSeal.copy(alpha = 0.4f)
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                    containerColor = if (comment.isResolved) Color(0xFFF5F5F5) else Color(0xFFFFF8E1)
+                                )
                             ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        RoleBadge(role = comm.authorRole)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = comm.authorName,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        if (comm.cmosRuleReference.isNotBlank()) {
-                                            Surface(
-                                                color = BookGoldDark.copy(alpha = 0.15f),
-                                                shape = RoundedCornerShape(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = comm.cmosRuleReference,
-                                                    fontSize = 10.sp,
-                                                    color = BookGoldDark,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(6.dp))
-
-                                    Text(
-                                        text = comm.commentText,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = comment.isResolved,
+                                        onCheckedChange = { onResolveComment(comment.id, it) }
                                     )
-
-                                    Spacer(modifier = Modifier.height(6.dp))
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        Text(
-                                            text = if (comm.isResolved) "Resolved" else "Mark as Resolved",
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Checkbox(
-                                            checked = comm.isResolved,
-                                            onCheckedChange = { resolved ->
-                                                onResolveComment(comm.id, resolved)
-                                            }
-                                        )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = comment.commentText, fontSize = 13.sp)
+                                        if (comment.cmosRuleReference.isNotBlank()) {
+                                            Text(
+                                                text = comment.cmosRuleReference,
+                                                fontSize = 11.sp,
+                                                color = BookGoldDark,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -848,56 +877,77 @@ fun SectionEditorScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // New Comment Input
-                Text(
-                    text = "Add Editorial Annotation:",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                OutlinedTextField(
-                    value = newCommentText,
-                    onValueChange = { newCommentText = it },
-                    label = { Text("Comment or Rule Citation") },
-                    placeholder = { Text("e.g. CMOS 6.19: Serial comma required before 'and'...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = newCommentCmosRef,
-                    onValueChange = { newCommentCmosRef = it },
-                    label = { Text("Rule / Citation Tag") },
-                    placeholder = { Text("CMOS 6.19, CMOS 13.1, etc.") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Button(
-                    onClick = {
-                        if (newCommentText.isNotBlank()) {
-                            onAddComment(section.id, section.manuscriptId, newCommentText.trim(), newCommentCmosRef.trim())
-                            newCommentText = ""
-                        }
-                    },
-                    enabled = newCommentText.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Post Marginalia")
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = newCommentText,
+                        onValueChange = { newCommentText = it },
+                        label = { Text("Add feedback or CMOS note...") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            if (newCommentText.isNotBlank()) {
+                                onAddComment(section.id, section.manuscriptId, newCommentText, newCommentCmosRef)
+                                newCommentText = ""
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = "Send", tint = BookGoldDark)
+                    }
                 }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
 
-                Spacer(modifier = Modifier.height(20.dp))
+@Composable
+fun CmosToolbar(
+    onApplySmartQuotes: () -> Unit,
+    onApplyEmDash: () -> Unit,
+    onApplyEnDash: () -> Unit,
+    onApplyHeadlineCase: () -> Unit,
+    onApplyOxfordComma: () -> Unit,
+    onInsertBlockQuote: () -> Unit,
+    onInsertFootnote: () -> Unit,
+    onFullPolish: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(onClick = onApplySmartQuotes, modifier = Modifier.testTag("btn_toolbar_quotes")) {
+                Text("“ ”", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            OutlinedButton(onClick = onApplyEmDash, modifier = Modifier.testTag("btn_toolbar_emdash")) {
+                Text("—", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            OutlinedButton(onClick = onApplyOxfordComma, modifier = Modifier.testTag("btn_toolbar_oxford")) {
+                Text(", and", fontSize = 11.sp)
+            }
+            OutlinedButton(onClick = onApplyHeadlineCase, modifier = Modifier.testTag("btn_toolbar_headline")) {
+                Text("Title Case", fontSize = 11.sp)
+            }
+            Button(
+                onClick = onFullPolish,
+                colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                modifier = Modifier.testTag("btn_toolbar_polish")
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("CMOS Polish", fontSize = 11.sp)
             }
         }
     }
