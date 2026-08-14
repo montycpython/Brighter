@@ -53,7 +53,7 @@ object CmosLeafEngine {
         )
         frontMatterPage++
 
-        // Leaf 2: Blank or Series Verso (Verso, p. ii)
+        // Leaf 2: Blank Verso (Verso, p. ii)
         leaves.add(
             CalculatedLeaf(
                 leafIndex = leaves.size + 1,
@@ -299,7 +299,7 @@ object CmosLeafEngine {
             )
         }
 
-        // Process Body Sections with paragraph-aware, non-overflowing pagination
+        // Process Body Sections with accurate height-based pagination
         for (sec in bodySections) {
             // CMOS mandate: Chapters & Part Openers start on Recto leaf
             if (sec.startOnRecto) {
@@ -442,8 +442,8 @@ object CmosLeafEngine {
 
     /**
      * Accurately slices section content into physical page snippets, preserving all paragraph
-     * newlines, dialogue speaker turns, and ensuring text never overflows the printable height
-     * or collides with the bottom margin and drop folios.
+     * newlines, dialogue speaker turns, and ensuring text fills the printable height down to the
+     * 1-inch bottom margin without dropping text.
      */
     fun paginateSectionProse(
         content: String,
@@ -455,24 +455,21 @@ object CmosLeafEngine {
 
         val printableWidth = trimSize.widthPt - trimSize.gutterMarginPt - trimSize.outerMarginPt
         val fontSize = trimSize.defaultBodyFontSizePt
-        val lineHeight = fontSize * trimSize.defaultLineHeightMultiplier + 4.5f
-        val charsPerLine = (printableWidth / (fontSize * 0.50f)).toInt().coerceIn(32, 90)
+        val lineHeight = fontSize * trimSize.defaultLineHeightMultiplier + 3.2f
+        val charsPerLine = (printableWidth / (fontSize * 0.48f)).toInt().coerceIn(45, 100)
 
-        // Opener page vertical occupancy:
-        // Top margin + drop offset (36) + Title (22) + Rule (18) + Subtitle (if any 18) + Header Illustration (if any 140) + Bottom margin + Drop Folio safe buffer (36)
-        val openerOccupied = trimSize.topMarginPt + 36f + 22f + 18f +
+        // Opener page vertical occupancy
+        val openerOccupied = trimSize.topMarginPt + 20f + 22f + 10f +
                 (if (hasSubtitle) 18f else 0f) +
-                (if (hasHeaderIllustration) 140f else 0f) +
-                trimSize.bottomMarginPt + 36f
+                (if (hasHeaderIllustration) 110f else 0f) + 54f // 54pt bottom margin
 
-        val availableHeightOpener = (trimSize.heightPt - openerOccupied).coerceAtLeast(80f)
-        val maxLinesOpener = (availableHeightOpener / lineHeight).toInt().coerceAtLeast(3)
+        val availableHeightOpener = (trimSize.heightPt - openerOccupied).coerceAtLeast(200f)
+        val maxLinesOpener = (availableHeightOpener / lineHeight).toInt().coerceAtLeast(20)
 
-        // Continuation pages vertical occupancy:
-        // Top margin + Running header & rule clearance (24) + Bottom margin + Bottom margin safety buffer (16)
-        val continuationOccupied = trimSize.topMarginPt + 24f + trimSize.bottomMarginPt + 16f
-        val availableHeightContinuation = (trimSize.heightPt - continuationOccupied).coerceAtLeast(120f)
-        val maxLinesContinuation = (availableHeightContinuation / lineHeight).toInt().coerceAtLeast(6)
+        // Continuation pages vertical occupancy
+        val continuationOccupied = trimSize.topMarginPt + 10f + 54f // 54pt bottom margin
+        val availableHeightContinuation = (trimSize.heightPt - continuationOccupied).coerceAtLeast(240f)
+        val maxLinesContinuation = (availableHeightContinuation / lineHeight).toInt().coerceAtLeast(24)
 
         val pages = mutableListOf<String>()
         val paragraphs = content.replace("\r\n", "\n").replace('\r', '\n').split("\n")

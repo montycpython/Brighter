@@ -21,11 +21,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -68,13 +65,9 @@ import com.example.model.LeafDisplayType
 import com.example.model.LeafSide
 import com.example.model.ManuscriptEntity
 import com.example.model.MatterType
-import com.example.ui.components.LeafBadge
 import com.example.ui.theme.BlankLeafColor
-import com.example.ui.theme.BookGold
 import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.BookGoldLight
 import com.example.ui.theme.InkBlack
-import com.example.ui.theme.InkNavy
 import com.example.ui.theme.ParchmentCream
 import com.example.ui.theme.ParchmentPaper
 
@@ -108,7 +101,7 @@ fun LeafReaderScreen(
                             fontFamily = FontFamily.Serif
                         )
                         Text(
-                            text = "Spread ${currentSpreadIndex + 1} of $totalSpreads • Leaf ${rectoIndex + 1} of $totalLeaves",
+                            text = "Spread ${currentSpreadIndex + 1} of $totalSpreads • Leaves ${maxOf(1, versoIndex + 1)}–${rectoIndex + 1} of $totalLeaves",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -120,55 +113,26 @@ fun LeafReaderScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { if (currentSpreadIndex > 0) currentSpreadIndex-- },
+                        enabled = currentSpreadIndex > 0,
+                        modifier = Modifier.testTag("btn_top_prev_spread")
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Spread")
+                    }
+                    IconButton(
+                        onClick = { if (currentSpreadIndex < totalSpreads - 1) currentSpreadIndex++ },
+                        enabled = currentSpreadIndex < totalSpreads - 1,
+                        modifier = Modifier.testTag("btn_top_next_spread")
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Spread")
+                    }
                     IconButton(onClick = onOpenExport, modifier = Modifier.testTag("btn_reader_export")) {
                         Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = "Export PDF", tint = BookGoldDark)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
-        },
-        bottomBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 4.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = { if (currentSpreadIndex > 0) currentSpreadIndex-- },
-                        enabled = currentSpreadIndex > 0,
-                        modifier = Modifier.testTag("btn_prev_spread")
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Previous Spread")
-                    }
-
-                    Text(
-                        text = "${currentSpreadIndex + 1} / $totalSpreads",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Button(
-                        onClick = { if (currentSpreadIndex < totalSpreads - 1) currentSpreadIndex++ },
-                        enabled = currentSpreadIndex < totalSpreads - 1,
-                        colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
-                        modifier = Modifier.testTag("btn_next_spread")
-                    ) {
-                        Text("Next Spread")
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
         }
     ) { innerPadding ->
         Column(
@@ -176,9 +140,56 @@ fun LeafReaderScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .background(Color(0xFF1E1E24))
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Sleek Spread Navigation Bar
+            Surface(
+                color = Color(0xFF2A2A32),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = { if (currentSpreadIndex > 0) currentSpreadIndex-- },
+                        enabled = currentSpreadIndex > 0,
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.testTag("btn_prev_spread")
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Previous Spread", fontSize = 12.sp)
+                    }
+
+                    Text(
+                        text = "Spread ${currentSpreadIndex + 1} / $totalSpreads",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
+                    Button(
+                        onClick = { if (currentSpreadIndex < totalSpreads - 1) currentSpreadIndex++ },
+                        enabled = currentSpreadIndex < totalSpreads - 1,
+                        colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.testTag("btn_next_spread")
+                    ) {
+                        Text("Next Spread", fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+
             // Book spread container
             Card(
                 modifier = Modifier
@@ -449,10 +460,10 @@ fun SingleLeafView(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                ProseParagraphsView(text = leaf.contentSnippet, isOpener = true)
+                ProseParagraphsView(text = leaf.contentSnippet)
             }
             else -> {
-                ProseParagraphsView(text = leaf.contentSnippet, isOpener = false)
+                ProseParagraphsView(text = leaf.contentSnippet)
 
                 // Chapter Tailpiece (if closer)
                 if (leaf.isCloser && leaf.tailIllustrationUri.isNotBlank()) {
@@ -483,12 +494,12 @@ fun SingleLeafView(
 }
 
 @Composable
-fun ProseParagraphsView(text: String, isOpener: Boolean) {
+fun ProseParagraphsView(text: String) {
     val paragraphs = text.split("\n")
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((idx, para) in paragraphs.withIndex()) {
+        for (para in paragraphs) {
             if (para.isNotBlank()) {
-                val indent = if (isOpener && idx == 0) "" else "    "
+                val indent = "    " // Always indent every paragraph
                 Text(
                     text = "$indent$para",
                     fontFamily = FontFamily.Serif,

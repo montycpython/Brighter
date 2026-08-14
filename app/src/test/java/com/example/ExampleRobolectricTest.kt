@@ -102,4 +102,14 @@ class ExampleRobolectricTest {
         // Pocket format has smaller capacity per page, thus generating more leaves than Royal 8x10
         assertTrue(leavesPocket.size > leavesRoyal.size)
     }
+
+    @Test
+    fun `cmos pagination preserves paragraphs and handles multi-paragraph prose`() {
+        val trimSize = BookTrimSize.TRADE_6X9
+        val prose = "Paragraph one with some text.\n\nParagraph two with dialogue.\n\n“Watch out!” called the voice.\n\nParagraph four continues."
+        val pages = CmosLeafEngine.paginateSectionProse(prose, trimSize)
+        assertTrue(pages.isNotEmpty())
+        assertTrue(pages[0].contains("Paragraph one"))
+        assertTrue(pages[0].contains("Watch out!"))
+    }
 }
