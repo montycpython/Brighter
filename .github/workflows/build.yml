@@ -22,7 +22,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android Platforms
+      - name: Install Android 36 SDK Platform
         run: |
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-36" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
@@ -51,7 +51,8 @@ jobs:
       - name: Assemble Debug APK
         run: |
           gradle :app:assembleDebug \
-            -Dorg.gradle.configuration-cache=false \
+            --no-configuration-cache \
+            --no-build-cache \
             -x test \
             -x lint \
             -x verifyRoborazziDebug \
