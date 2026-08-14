@@ -1,0 +1,6 @@
+{
+  "name": "Bwriter",
+  "description": "Professional Chicago Manual of Style manuscript drafting, recto-verso leaf typography, and publication-grade PDF export for authors, editors, and contributors.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
