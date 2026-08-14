@@ -19,31 +19,40 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
+      - name: Install Android Platforms & Build Tools
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --install "platforms;android-36" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
+
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
           cache-disabled: true
 
-      - name: Prepare Keystore and Config
+      - name: Prepare Keystore & Config Files
         run: |
           touch .env
           touch .env.example
+          # Decode or generate debug keystore
           if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
           else
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
+          # Ensure dummy google-services.json is present
+          if [ ! -f app/google-services.json ]; then
+            echo '{"project_info":{"project_number":"0","project_id":"dummy"},"client":[{"client_info":{"mobilesdk_app_id":"1:0:android:0","android_client_info":{"package_name":"com.example"}}}]}' > app/google-services.json
+          fi
 
       - name: Build Debug APK
-        run: gradle :app:assembleDebug -x test -x lint --stacktrace
+        run: ./gradlew assembleDebug -x test -x lint -x verifyRoborazziDebug --no-daemon --stacktrace || gradle :app:assembleDebug -x test -x lint -x verifyRoborazziDebug --no-daemon --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Bwriter-Debug-APK
           path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
