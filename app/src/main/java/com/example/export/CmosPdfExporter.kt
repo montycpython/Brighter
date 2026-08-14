@@ -329,7 +329,7 @@ object CmosPdfExporter {
             textSize = 13.5f
             letterSpacing = 0.05f
         }
-        val authorText = manuscript.authorName.uppercase()
+        val authorText = manuscript.effectiveAuthorByline.uppercase()
         val authorWidth = authorPaint.measureText(authorText)
         canvas.drawText(authorText, (PAGE_WIDTH_PT - authorWidth) / 2f, currentY, authorPaint)
 

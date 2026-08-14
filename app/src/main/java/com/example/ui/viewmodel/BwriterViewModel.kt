@@ -4,10 +4,10 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.cmos.CmosFormatter
 import com.example.cmos.CmosLeafEngine
 import com.example.data.BwriterDatabase
 import com.example.data.BwriterRepository
+import com.example.data.UserPreferences
 import com.example.export.CmosPdfExporter
 import com.example.model.CalculatedLeaf
 import com.example.model.EditorialCommentEntity
@@ -26,13 +26,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class BwriterViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: BwriterRepository
+    private val userPreferences = UserPreferences(application)
+
+    // ==========================================
+    // User & Google Identity (Persisted)
+    // ==========================================
+    private val _currentUser = MutableStateFlow(userPreferences.getUserProfile())
+    val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
 
     init {
         val db = BwriterDatabase.getDatabase(application)
@@ -42,33 +48,33 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // ==========================================
-    // User & Google Identity
-    // ==========================================
-    private val _currentUser = MutableStateFlow(
-        UserProfile(
-            id = "user_google_1",
-            email = "real.artistry@gmail.com",
-            name = "Dr. Arthur Vance",
-            penName = "A. V. Hawthorne",
-            role = WorkRole.AUTHOR,
-            organization = "Chicago Typographic Guild & University Press",
-            preferredCmosEdition = "17th Edition"
-        )
-    )
-    val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
-
     fun updateRole(newRole: WorkRole) {
-        _currentUser.value = _currentUser.value.copy(role = newRole)
+        val updated = _currentUser.value.copy(role = newRole)
+        _currentUser.value = updated
+        userPreferences.saveUserProfile(updated)
     }
 
-    fun signInWithGoogleAccount(email: String, name: String, role: WorkRole) {
-        _currentUser.value = _currentUser.value.copy(
-            email = email,
-            name = name,
-            penName = name.split(" ").lastOrNull()?.let { "A. $it" } ?: name,
+    fun updateProfile(name: String, penName: String, email: String, role: WorkRole) {
+        val updated = _currentUser.value.copy(
+            name = name.trim(),
+            penName = penName.trim(),
+            email = email.trim(),
             role = role
         )
+        _currentUser.value = updated
+        userPreferences.saveUserProfile(updated)
+    }
+
+    fun signInWithGoogleAccount(email: String, name: String, penName: String, role: WorkRole) {
+        val finalPenName = if (penName.isNotBlank()) penName.trim() else _currentUser.value.penName
+        val updated = _currentUser.value.copy(
+            email = email.trim(),
+            name = name.trim(),
+            penName = finalPenName,
+            role = role
+        )
+        _currentUser.value = updated
+        userPreferences.saveUserProfile(updated)
     }
 
     // ==========================================
@@ -162,6 +168,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         subtitle: String,
         workType: WorkType,
         authorName: String,
+        authorPenName: String,
         publisher: String,
         year: String,
         dedication: String,
@@ -169,15 +176,23 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         onCreated: (Long) -> Unit
     ) {
         viewModelScope.launch {
+            val author = authorName.ifBlank { _currentUser.value.name }
+            val pen = authorPenName.trim()
+            val pub = publisher.ifBlank { "Bwriter Editions" }
+            val yr = year.ifBlank { "2026" }
+            val byline = if (pen.isNotBlank()) pen else author.ifBlank { "Author" }
+            val dynamicCopyright = "Copyright © $yr by $byline.\nAll rights reserved under International and Pan-American Copyright Conventions.\nPublished by $pub in accordance with The Chicago Manual of Style.\nPrinted in the United States of America."
+
             val manuscript = ManuscriptEntity(
                 title = title.trim(),
                 subtitle = subtitle.trim(),
                 workType = workType,
-                authorName = authorName.ifBlank { _currentUser.value.name },
-                authorPenName = _currentUser.value.penName,
+                authorName = author,
+                authorPenName = pen,
                 authorEmail = _currentUser.value.email,
-                publisher = publisher.ifBlank { "Bwriter Editions" },
-                year = year.ifBlank { "2026" },
+                publisher = pub,
+                year = yr,
+                copyrightText = dynamicCopyright,
                 dedication = dedication.trim(),
                 epigraphText = epigraph.trim()
             )
@@ -220,7 +235,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 subtitle = subtitle,
                 orderIndex = maxOrder,
                 content = content,
-                assignedAuthor = _currentUser.value.name,
+                assignedAuthor = _currentUser.value.displayName,
                 assignedRole = _currentUser.value.role,
                 status = SectionStatus.DRAFT,
                 startOnRecto = sectionType.requiresRectoStart
@@ -261,7 +276,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             val comment = EditorialCommentEntity(
                 sectionId = sectionId,
                 manuscriptId = manuscriptId,
-                authorName = _currentUser.value.name,
+                authorName = _currentUser.value.displayName,
                 authorRole = _currentUser.value.role,
                 commentText = text,
                 cmosRuleReference = cmosRef

@@ -164,7 +164,7 @@ fun ManuscriptListScreen(
                             RoleBadge(role = currentUser.role)
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = currentUser.name.split(" ").firstOrNull() ?: "Author",
+                                text = currentUser.displayName,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -522,7 +522,7 @@ fun ManuscriptCard(
 
             // Author and Publisher
             Text(
-                text = "By ${manuscript.authorName} • ${manuscript.publisher}",
+                text = "By ${manuscript.effectiveAuthorByline} • ${manuscript.publisher}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

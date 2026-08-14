@@ -25,10 +25,17 @@ enum class WorkRole(
 data class UserProfile(
     val id: String = "user_google_1",
     val email: String = "real.artistry@gmail.com",
-    val name: String = "Dr. Arthur Vance",
-    val penName: String = "A. V. Hawthorne",
+    val name: String = "Author",
+    val penName: String = "",
     val role: WorkRole = WorkRole.AUTHOR,
     val avatarUrl: String = "",
-    val organization: String = "Chicago Literary Guild",
+    val organization: String = "Author Studio",
     val preferredCmosEdition: String = "17th Edition"
-)
+) {
+    val displayName: String
+        get() = when {
+            penName.isNotBlank() -> penName
+            name.isNotBlank() -> name
+            else -> "Author"
+        }
+}

@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,12 +49,14 @@ import com.example.ui.theme.BookGoldDark
 @Composable
 fun NewWorkDialog(
     initialAuthorName: String,
+    initialPenName: String = "",
     onDismiss: () -> Unit,
     onCreate: (
         title: String,
         subtitle: String,
         workType: WorkType,
         author: String,
+        penName: String,
         publisher: String,
         year: String,
         dedication: String,
@@ -63,10 +67,17 @@ fun NewWorkDialog(
     var subtitle by remember { mutableStateOf("") }
     var selectedWorkType by remember { mutableStateOf(WorkType.NOVEL) }
     var authorName by remember { mutableStateOf(initialAuthorName) }
-    var publisher by remember { mutableStateOf("University Press & Chicago Editorial Arts") }
+    var authorPenName by remember { mutableStateOf(initialPenName) }
+    var publisher by remember { mutableStateOf("Bwriter Editions") }
     var year by remember { mutableStateOf("2026") }
     var dedication by remember { mutableStateOf("") }
     var epigraph by remember { mutableStateOf("") }
+
+    val effectiveByline = when {
+        authorPenName.isNotBlank() -> authorPenName.trim()
+        authorName.isNotBlank() -> authorName.trim()
+        else -> "Author"
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -90,7 +101,7 @@ fun NewWorkDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Create New Work",
+                        text = "Create New Manuscript",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
@@ -101,7 +112,7 @@ fun NewWorkDialog(
                 }
 
                 Text(
-                    text = "Every work scaffolds Front Matter, Body Matter, and Back Matter with Chicago Manual of Style recto/verso leaf placement.",
+                    text = "Scaffolds Front Matter, Body Matter, and Back Matter with Chicago Manual of Style recto/verso leaf placement.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -207,38 +218,84 @@ fun NewWorkDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Author & Publisher
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = authorName,
-                        onValueChange = { authorName = it },
-                        label = { Text("Author Byline") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1.3f)
-                    )
-                    OutlinedTextField(
-                        value = year,
-                        onValueChange = { year = it },
-                        label = { Text("Year") },
-                        singleLine = true,
-                        modifier = Modifier.weight(0.7f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
+                // Author Legal Name & Pen Name
                 OutlinedTextField(
-                    value = publisher,
-                    onValueChange = { publisher = it },
-                    label = { Text("Publisher / Colophon Imprint") },
+                    value = authorName,
+                    onValueChange = { authorName = it },
+                    label = { Text("Author Legal Name") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = authorPenName,
+                    onValueChange = { authorPenName = it },
+                    label = { Text("Pen Name / Byline (Optional)") },
+                    placeholder = { Text("Overrides author name for book byline & copyright") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.DriveFileRenameOutline,
+                            contentDescription = "Pen Name",
+                            tint = BookGoldDark
+                        )
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Year & Publisher
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = year,
+                        onValueChange = { year = it },
+                        label = { Text("Publication Year") },
+                        singleLine = true,
+                        modifier = Modifier.weight(0.8f)
+                    )
+                    OutlinedTextField(
+                        value = publisher,
+                        onValueChange = { publisher = it },
+                        label = { Text("Publisher / Imprint") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Dynamic Copyright Preview Box
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Dynamic Copyright Notice Preview (Verso p. iv):",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Copyright © ${year.ifBlank { "2026" }} by $effectiveByline.\nAll rights reserved.\nPublished by ${publisher.ifBlank { "Bwriter Editions" }} in accordance with The Chicago Manual of Style.",
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = dedication,
@@ -282,6 +339,7 @@ fun NewWorkDialog(
                                     subtitle.trim(),
                                     selectedWorkType,
                                     authorName.trim(),
+                                    authorPenName.trim(),
                                     publisher.trim(),
                                     year.trim(),
                                     dedication.trim(),

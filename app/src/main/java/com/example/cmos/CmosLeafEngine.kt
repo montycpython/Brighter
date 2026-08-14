@@ -82,7 +82,7 @@ object CmosLeafEngine {
                 sectionTitle = "Title Page",
                 sectionType = SectionType.TITLE_PAGE,
                 displayType = LeafDisplayType.TITLE_PAGE,
-                contentSnippet = "${manuscript.title}\n${manuscript.subtitle}\n\nBy ${manuscript.authorName}\n${manuscript.publisher}",
+                contentSnippet = "${manuscript.title}\n${manuscript.subtitle}\n\nBy ${manuscript.effectiveAuthorByline}\n${manuscript.publisher}",
                 isOpener = true,
                 hasBlindFolio = true
             )
@@ -101,7 +101,7 @@ object CmosLeafEngine {
                 sectionTitle = "Copyright & Colophon",
                 sectionType = SectionType.COPYRIGHT_COLOPHON,
                 displayType = LeafDisplayType.COPYRIGHT,
-                contentSnippet = manuscript.copyrightText + "\nISBN: " + manuscript.isbn,
+                contentSnippet = manuscript.effectiveCopyrightText + (if (manuscript.isbn.isNotBlank()) "\nISBN: " + manuscript.isbn else ""),
                 isOpener = false,
                 hasBlindFolio = true
             )

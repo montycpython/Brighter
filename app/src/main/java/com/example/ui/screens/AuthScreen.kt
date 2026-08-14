@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,8 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
@@ -31,11 +30,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,27 +46,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
 import com.example.model.UserProfile
 import com.example.model.WorkRole
-import com.example.ui.components.RoleBadge
 import com.example.ui.theme.BookGold
 import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.CrimsonSeal
-import com.example.ui.theme.ForestCloth
-import com.example.ui.theme.InkNavy
 
 @Composable
 fun AuthScreen(
     currentUser: UserProfile,
     onRoleSelected: (WorkRole) -> Unit,
-    onGoogleSignIn: (String, String, WorkRole) -> Unit,
+    onGoogleSignIn: (email: String, name: String, penName: String, role: WorkRole) -> Unit,
     onContinue: () -> Unit
 ) {
     var selectedRole by remember { mutableStateOf(currentUser.role) }
@@ -127,7 +118,7 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // Google Sign-In Card
+            // Google Sign-In & Author Profile Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -178,11 +169,12 @@ fun AuthScreen(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Author name input
+                    // Author real / legal name input
                     OutlinedTextField(
                         value = authorName,
                         onValueChange = { authorName = it },
                         label = { Text("Author / Legal Name") },
+                        placeholder = { Text("e.g. John Doe") },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -191,10 +183,22 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // Pen name input
                     OutlinedTextField(
                         value = penName,
                         onValueChange = { penName = it },
-                        label = { Text("Pen Name / Byline (Optional)") },
+                        label = { Text("Pen Name / Author Byline (Optional)") },
+                        placeholder = { Text("e.g. J. D. Cross") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.DriveFileRenameOutline,
+                                contentDescription = "Pen Name",
+                                tint = BookGoldDark
+                            )
+                        },
+                        supportingText = {
+                            Text("When specified, your pen name is automatically used for Book Title Pages, Byline, Running Heads, and Copyright ownership.")
+                        },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -295,7 +299,7 @@ fun AuthScreen(
             // Enter Studio Button
             Button(
                 onClick = {
-                    onGoogleSignIn(authorEmail, authorName, selectedRole)
+                    onGoogleSignIn(authorEmail, authorName, penName, selectedRole)
                     onContinue()
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -314,7 +318,7 @@ fun AuthScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Open Manuscript Studio",
+                    text = "Save & Open Manuscript Studio",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )

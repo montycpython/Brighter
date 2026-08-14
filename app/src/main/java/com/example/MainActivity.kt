@@ -79,8 +79,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             AuthScreen(
                 currentUser = currentUser,
                 onRoleSelected = { role -> viewModel.updateRole(role) },
-                onGoogleSignIn = { email, name, role ->
-                    viewModel.signInWithGoogleAccount(email, name, role)
+                onGoogleSignIn = { email, name, penName, role ->
+                    viewModel.signInWithGoogleAccount(email, name, penName, role)
                 },
                 onContinue = {
                     navController.popBackStack()
@@ -256,13 +256,15 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     if (showNewWorkDialog) {
         NewWorkDialog(
             initialAuthorName = currentUser.name,
+            initialPenName = currentUser.penName,
             onDismiss = { showNewWorkDialog = false },
-            onCreate = { title, subtitle, workType, author, publisher, year, dedication, epigraph ->
+            onCreate = { title, subtitle, workType, author, penName, publisher, year, dedication, epigraph ->
                 viewModel.createManuscript(
                     title = title,
                     subtitle = subtitle,
                     workType = workType,
                     authorName = author,
+                    authorPenName = penName,
                     publisher = publisher,
                     year = year,
                     dedication = dedication,

@@ -350,7 +350,7 @@ fun BookLeafView(
                 )
                 Spacer(modifier = Modifier.height(40.dp))
                 Text(
-                    text = "by\n${manuscript.authorName.uppercase()}",
+                    text = "by\n${manuscript.effectiveAuthorByline.uppercase()}",
                     fontFamily = FontFamily.Serif,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,

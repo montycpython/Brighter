@@ -10,19 +10,45 @@ data class ManuscriptEntity(
     val title: String,
     val subtitle: String = "",
     val workType: WorkType = WorkType.NOVEL,
-    val authorName: String = "Dr. Arthur Vance",
-    val authorPenName: String = "A. V. Hawthorne",
-    val authorEmail: String = "real.artistry@gmail.com",
-    val editorName: String = "Eleanor Rigby, Senior Editor",
-    val publisher: String = "University Press & Chicago Editorial Arts",
+    val authorName: String = "",
+    val authorPenName: String = "",
+    val authorEmail: String = "",
+    val editorName: String = "",
+    val publisher: String = "Bwriter Editions",
     val edition: String = "First Edition",
     val year: String = "2026",
     val isbn: String = "978-0-226-10403-4",
-    val copyrightText: String = "Copyright © 2026 by Arthur Vance. All rights reserved.\nPublished in accordance with The Chicago Manual of Style.\nPrinted in the United States of America.",
-    val dedication: String = "For the meticulous editors and discerning readers.",
-    val epigraphText: String = "“Style is the dress of thought; a modest dress, neat, but not gaudy, will true respect command.”",
-    val epigraphAuthor: String = "Samuel Johnson",
+    val copyrightText: String = "",
+    val dedication: String = "",
+    val epigraphText: String = "",
+    val epigraphAuthor: String = "",
     val targetPageSize: String = "Trade 6\" x 9\"",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
-)
+) {
+    /**
+     * Returns the Pen Name if provided, otherwise the Author Name, or fallback to 'Author'.
+     */
+    val effectiveAuthorByline: String
+        get() {
+            return when {
+                authorPenName.isNotBlank() -> authorPenName.trim()
+                authorName.isNotBlank() -> authorName.trim()
+                else -> "Author"
+            }
+        }
+
+    /**
+     * Dynamically generates the Chicago Manual of Style Copyright notice attributed to the Author or Pen Name.
+     */
+    val effectiveCopyrightText: String
+        get() {
+            if (copyrightText.isNotBlank() && !copyrightText.contains("Arthur Vance")) {
+                return copyrightText
+            }
+            val byline = effectiveAuthorByline
+            val yr = year.ifBlank { "2026" }
+            val pub = publisher.ifBlank { "Bwriter Editions" }
+            return "Copyright © $yr by $byline.\nAll rights reserved under International and Pan-American Copyright Conventions.\nPublished by $pub in accordance with The Chicago Manual of Style.\nPrinted in the United States of America."
+        }
+}

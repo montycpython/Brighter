@@ -877,10 +877,12 @@ fun ManuscriptSettingsDialog(
     var title by remember { mutableStateOf(manuscript.title) }
     var subtitle by remember { mutableStateOf(manuscript.subtitle) }
     var authorName by remember { mutableStateOf(manuscript.authorName) }
+    var authorPenName by remember { mutableStateOf(manuscript.authorPenName) }
     var publisher by remember { mutableStateOf(manuscript.publisher) }
     var edition by remember { mutableStateOf(manuscript.edition) }
     var year by remember { mutableStateOf(manuscript.year) }
     var isbn by remember { mutableStateOf(manuscript.isbn) }
+    var copyrightText by remember { mutableStateOf(manuscript.effectiveCopyrightText) }
     var dedication by remember { mutableStateOf(manuscript.dedication) }
     var epigraphText by remember { mutableStateOf(manuscript.epigraphText) }
     var epigraphAuthor by remember { mutableStateOf(manuscript.epigraphAuthor) }
@@ -927,7 +929,18 @@ fun ManuscriptSettingsDialog(
                     OutlinedTextField(
                         value = authorName,
                         onValueChange = { authorName = it },
-                        label = { Text("Author Byline") },
+                        label = { Text("Author Legal Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = authorPenName,
+                        onValueChange = { authorPenName = it },
+                        label = { Text("Pen Name / Author Byline (Optional)") },
+                        placeholder = { Text("e.g. J. D. Cross") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -968,6 +981,41 @@ fun ManuscriptSettingsDialog(
                         label = { Text("ISBN / Identifier") },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Dynamic Copyright Editor with Reset Button
+                item {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Copyright Notice (Verso p. iv)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                onClick = {
+                                    val byline = if (authorPenName.isNotBlank()) authorPenName.trim() else authorName.ifBlank { "Author" }
+                                    val yr = year.ifBlank { "2026" }
+                                    val pub = publisher.ifBlank { "Bwriter Editions" }
+                                    copyrightText = "Copyright © $yr by $byline.\nAll rights reserved under International and Pan-American Copyright Conventions.\nPublished by $pub in accordance with The Chicago Manual of Style.\nPrinted in the United States of America."
+                                }
+                            ) {
+                                Text("Regenerate", fontSize = 12.sp)
+                            }
+                        }
+                        OutlinedTextField(
+                            value = copyrightText,
+                            onValueChange = { copyrightText = it },
+                            label = { Text("Copyright Notice") },
+                            maxLines = 4,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
@@ -1018,10 +1066,12 @@ fun ManuscriptSettingsDialog(
                                         title = title.trim(),
                                         subtitle = subtitle.trim(),
                                         authorName = authorName.trim(),
+                                        authorPenName = authorPenName.trim(),
                                         publisher = publisher.trim(),
                                         edition = edition.trim(),
                                         year = year.trim(),
                                         isbn = isbn.trim(),
+                                        copyrightText = copyrightText.trim(),
                                         dedication = dedication.trim(),
                                         epigraphText = epigraphText.trim(),
                                         epigraphAuthor = epigraphAuthor.trim()
