@@ -555,14 +555,33 @@ object CmosLeafEngine {
     }
 
     /**
-     * Formats a single Table of Contents entry line with standard Chicago dot leaders.
+     * Formats a single Table of Contents entry line with a clean tab delimiter.
      */
-    fun formatTocLine(title: String, page: String, totalChars: Int = 42): String {
+    fun formatTocLine(title: String, page: String): String {
         val cleanTitle = title.trim()
         val cleanPage = page.trim()
-        val dotsNeeded = (totalChars - cleanTitle.length - cleanPage.length - 2).coerceAtLeast(4)
-        val dots = " " + ". ".repeat(dotsNeeded / 2).trimEnd() + " "
-        return "$cleanTitle$dots$cleanPage"
+        return "$cleanTitle\t$cleanPage"
+    }
+
+    /**
+     * Robustly extracts title and page number from a TOC line.
+     */
+    fun extractTocTitleAndPage(line: String): Pair<String, String> {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || trimmed.equals("CONTENTS", ignoreCase = true)) {
+            return Pair(trimmed, "")
+        }
+        if (trimmed.contains("\t")) {
+            val parts = trimmed.split("\t")
+            return Pair(parts[0].trim(), parts.getOrElse(1) { "" }.trim())
+        }
+        // Match legacy or custom lines formatted with dot leaders or trailing numbers
+        val regex = Regex("""^(.*?)(?:\s*[\.\s]{2,}\s*)([0-9ivxlcIVXLC]+)$""")
+        val match = regex.find(trimmed)
+        if (match != null) {
+            return Pair(match.groupValues[1].trim(), match.groupValues[2].trim())
+        }
+        return Pair(trimmed, "")
     }
 
     /**

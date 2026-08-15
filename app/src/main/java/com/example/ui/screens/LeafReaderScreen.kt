@@ -404,9 +404,11 @@ fun SingleLeafView(
                     text = leaf.contentSnippet,
                     fontFamily = FontFamily.Serif,
                     fontStyle = FontStyle.Italic,
-                    fontSize = 10.5.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.padding(start = 12.dp)
+                    fontSize = 10.sp,
+                    lineHeight = 16.sp,
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .align(Alignment.CenterHorizontally)
                 )
             }
             LeafDisplayType.BLANK_INTENTIONAL -> {
@@ -440,20 +442,62 @@ fun SingleLeafView(
                 )
                 Spacer(modifier = Modifier.height(14.dp))
 
-                val lines = leaf.contentSnippet.lines().filter { it.isNotBlank() && it.trim() != "CONTENTS" }
+                val lines = leaf.contentSnippet.lines().filter { it.trim() != "CONTENTS" }
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp)
                 ) {
                     for (line in lines) {
-                        Text(
-                            text = line,
-                            fontFamily = FontFamily.Serif,
-                            fontSize = 9.sp,
-                            lineHeight = 14.5.sp,
-                            color = InkBlack,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        val trimmed = line.trim()
+                        if (trimmed.isBlank()) {
+                            Spacer(modifier = Modifier.height(3.dp))
+                            continue
+                        }
+                        val (title, pageNum) = CmosLeafEngine.extractTocTitleAndPage(trimmed)
+                        if (pageNum.isEmpty()) {
+                            Text(
+                                text = title,
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.5.sp,
+                                color = InkBlack,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                Text(
+                                    text = title,
+                                    fontFamily = FontFamily.Serif,
+                                    fontSize = 9.sp,
+                                    color = InkBlack,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ",
+                                    fontFamily = FontFamily.Serif,
+                                    fontSize = 8.5.sp,
+                                    letterSpacing = 1.sp,
+                                    color = Color.Gray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Clip,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = pageNum,
+                                    fontFamily = FontFamily.Serif,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = InkBlack
+                                )
+                            }
+                        }
                     }
                 }
             }

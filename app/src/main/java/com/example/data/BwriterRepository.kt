@@ -107,7 +107,18 @@ class BwriterRepository(private val database: BwriterDatabase) {
 
     suspend fun seedInitialWorksIfEmpty() = withContext(Dispatchers.IO) {
         val existing = manuscriptDao.getManuscriptByIdOnce(1)
-        if (existing != null) return@withContext
+        if (existing != null) {
+            // Clean up any obsolete hardcoded TABLE_OF_CONTENTS sections from legacy seeds
+            for (mId in 1L..4L) {
+                val secList = sectionDao.getSectionsForManuscriptOnce(mId)
+                for (sec in secList) {
+                    if (sec.sectionType == SectionType.TABLE_OF_CONTENTS || sec.title.equals("Table of Contents", ignoreCase = true)) {
+                        sectionDao.deleteSectionById(sec.id)
+                    }
+                }
+            }
+            return@withContext
+        }
 
         // 1. Novel Seed
         val novel = ManuscriptEntity(
@@ -353,14 +364,14 @@ class BwriterRepository(private val database: BwriterDatabase) {
             SectionEntity(
                 manuscriptId = manuscriptId,
                 matterType = MatterType.FRONT_MATTER,
-                sectionType = SectionType.TABLE_OF_CONTENTS,
-                title = "Table of Contents",
+                sectionType = SectionType.PREFACE,
+                title = "Typographic Standards & Principles",
                 orderIndex = 1,
-                content = "Front Matter:\n  Half-Title (p. i)\n  Title Page (p. iii)\n  Copyright & Colophon (p. iv)\n  Dedication (p. v)\n  Table of Contents (p. vii)\n\nText / Body:\n  Chapter 1: The Anatomy of the Leaf (p. 1)\n  Chapter 2: Recto and Verso Disciplines (p. 5)\n\nBack Matter:\n  Glossary of Typographical Terms (p. 15)\n  Colophon (p. 18)",
+                content = "This manual establishes the typographic benchmarks for Chicago Manual of Style composition, leaf pagination, recto-verso balance, and dynamic table of contents generation. Adherence to these classical standards ensures that digital manuscripts achieve the structural elegance of hot-metal presscraft.",
                 assignedAuthor = "The Editorial Guild",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.FINAL,
-                wordCount = 52
+                wordCount = 45
             ),
             SectionEntity(
                 manuscriptId = manuscriptId,
@@ -505,10 +516,10 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 SectionEntity(
                     manuscriptId = manuscriptId,
                     matterType = MatterType.FRONT_MATTER,
-                    sectionType = SectionType.TABLE_OF_CONTENTS,
-                    title = "Table of Contents",
+                    sectionType = SectionType.PREFACE,
+                    title = "Manual Scope & Overview",
                     orderIndex = 1,
-                    content = "Front Matter, System Architecture, Operations Guide, Reference Glossary.",
+                    content = "System architecture, procedural conventions, and operations guide.",
                     assignedAuthor = authorName,
                     assignedRole = WorkRole.AUTHOR,
                     status = SectionStatus.DRAFT

@@ -758,27 +758,33 @@ object CmosPdfExporter {
     }
 
     private fun drawDedicationPage(canvas: Canvas, text: String, leftMargin: Float, width: Int, pageHeightPt: Int, italicPaint: TextPaint) {
-        val paint = TextPaint(italicPaint).apply { textSize = 11f }
-        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
+        val paint = TextPaint(italicPaint).apply { textSize = 10.5f }
+        val spanned = CmosFormatter.toSpanned(text)
+        val dedicationWidth = (width * 0.80f).toInt()
+        val dedicationLeft = leftMargin + (width - dedicationWidth) / 2f
+        val layout = StaticLayout.Builder.obtain(spanned, 0, spanned.length, paint, dedicationWidth)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .setLineSpacing(4f, 1.3f)
             .build()
 
         canvas.save()
-        canvas.translate(leftMargin, pageHeightPt * 0.35f)
+        canvas.translate(dedicationLeft, pageHeightPt * 0.35f)
         layout.draw(canvas)
         canvas.restore()
     }
 
     private fun drawEpigraphPage(canvas: Canvas, text: String, leftMargin: Float, width: Int, pageHeightPt: Int, italicPaint: TextPaint, textPaint: TextPaint) {
         val paint = TextPaint(italicPaint).apply { textSize = 10f }
-        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
+        val spanned = CmosFormatter.toSpanned(text)
+        val epigraphWidth = (width * 0.70f).toInt()
+        val epigraphLeft = leftMargin + (width - epigraphWidth) / 2f
+        val layout = StaticLayout.Builder.obtain(spanned, 0, spanned.length, paint, epigraphWidth)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setLineSpacing(4f, 1.3f)
             .build()
 
         canvas.save()
-        canvas.translate(leftMargin + width * 0.15f, pageHeightPt * 0.32f)
+        canvas.translate(epigraphLeft, pageHeightPt * 0.32f)
         layout.draw(canvas)
         canvas.restore()
     }
@@ -808,28 +814,113 @@ object CmosPdfExporter {
             strokeWidth = 1f
         }
         canvas.drawLine(centerX - 20f, currentY, centerX + 20f, currentY, rulePaint)
-        currentY += 24f
+        currentY += 28f
 
-        val lines = tocContent.lines().filter { it.isNotBlank() && it.trim() != "CONTENTS" }
-        val printableWidth = rightMargin - leftMargin
-
+        val printableWidth = (rightMargin - leftMargin).toFloat()
         val entryPaint = TextPaint(textPaint).apply {
             textSize = 9.5f
+            letterSpacing = 0.01f
+        }
+        val leaderPaint = TextPaint(textPaint).apply {
+            textSize = 9.5f
+            letterSpacing = 0.05f
+            color = Color.rgb(120, 120, 120)
+        }
+        val pagePaint = TextPaint(textPaint).apply {
+            textSize = 9.5f
             letterSpacing = 0.02f
+            color = Color.rgb(20, 20, 20)
         }
 
+        val lines = tocContent.lines().filter { it.trim() != "CONTENTS" }
+
         for (line in lines) {
-            val layout = StaticLayout.Builder.obtain(line, 0, line.length, entryPaint, printableWidth)
-                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-                .setLineSpacing(0f, 1.25f)
-                .build()
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) {
+                currentY += 8f
+                continue
+            }
 
-            canvas.save()
-            canvas.translate(leftMargin.toFloat(), currentY)
-            layout.draw(canvas)
-            canvas.restore()
+            val (entryTitle, pageNum) = CmosLeafEngine.extractTocTitleAndPage(trimmed)
 
-            currentY += layout.height + 6f
+            if (pageNum.isEmpty()) {
+                val partPaint = TextPaint(boldPaint).apply {
+                    textSize = 10f
+                    letterSpacing = 0.04f
+                }
+                val layout = StaticLayout.Builder.obtain(entryTitle, 0, entryTitle.length, partPaint, printableWidth.toInt())
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .build()
+
+                currentY += 4f
+                canvas.save()
+                canvas.translate(leftMargin.toFloat(), currentY)
+                layout.draw(canvas)
+                canvas.restore()
+                currentY += layout.height + 6f
+            } else {
+                val pageNumWidth = pagePaint.measureText(pageNum)
+                val maxTitleWidth = printableWidth - pageNumWidth - 24f
+                val titleMeasure = entryPaint.measureText(entryTitle)
+
+                if (titleMeasure <= maxTitleWidth) {
+                    val baselineY = currentY + entryPaint.textSize
+
+                    // Draw Title flush left
+                    canvas.drawText(entryTitle, leftMargin.toFloat(), baselineY, entryPaint)
+
+                    // Draw Page Number flush right
+                    val pageX = rightMargin.toFloat() - pageNumWidth
+                    canvas.drawText(pageNum, pageX, baselineY, pagePaint)
+
+                    // Draw Dot Leaders spanning the gap from title to page number
+                    val startDotX = leftMargin.toFloat() + titleMeasure + 6f
+                    val endDotX = pageX - 6f
+                    if (endDotX > startDotX) {
+                        val singleDot = " . "
+                        val singleDotWidth = leaderPaint.measureText(singleDot)
+                        val numDots = ((endDotX - startDotX) / singleDotWidth).toInt()
+                        if (numDots > 0) {
+                            val dotString = singleDot.repeat(numDots)
+                            canvas.drawText(dotString, startDotX, baselineY, leaderPaint)
+                        }
+                    }
+
+                    currentY += entryPaint.textSize + 8f
+                } else {
+                    val spannedTitle = CmosFormatter.toSpanned(entryTitle)
+                    val titleLayout = StaticLayout.Builder.obtain(spannedTitle, 0, spannedTitle.length, entryPaint, maxTitleWidth.toInt())
+                        .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                        .setLineSpacing(0f, 1.2f)
+                        .build()
+
+                    canvas.save()
+                    canvas.translate(leftMargin.toFloat(), currentY)
+                    titleLayout.draw(canvas)
+                    canvas.restore()
+
+                    val lastLineIdx = titleLayout.lineCount - 1
+                    val lastLineWidth = titleLayout.getLineWidth(lastLineIdx)
+                    val lastLineBaseline = currentY + titleLayout.getLineBaseline(lastLineIdx)
+
+                    val pageX = rightMargin.toFloat() - pageNumWidth
+                    canvas.drawText(pageNum, pageX, lastLineBaseline, pagePaint)
+
+                    val startDotX = leftMargin.toFloat() + lastLineWidth + 6f
+                    val endDotX = pageX - 6f
+                    if (endDotX > startDotX) {
+                        val singleDot = " . "
+                        val singleDotWidth = leaderPaint.measureText(singleDot)
+                        val numDots = ((endDotX - startDotX) / singleDotWidth).toInt()
+                        if (numDots > 0) {
+                            val dotString = singleDot.repeat(numDots)
+                            canvas.drawText(dotString, startDotX, lastLineBaseline, leaderPaint)
+                        }
+                    }
+
+                    currentY += titleLayout.height + 6f
+                }
+            }
         }
     }
 

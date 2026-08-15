@@ -270,7 +270,7 @@ fun ManuscriptListScreen(
                         FilterChip(
                             selected = selectedFilter == type,
                             onClick = { onSelectFilter(if (selectedFilter == type) null else type) },
-                            label = { Text("${type.displayName}s ($count)") },
+                            label = { Text("${type.pluralName} ($count)") },
                             leadingIcon = {
                                 WorkTypeIcon(workType = type, modifier = Modifier.size(16.dp))
                             },
