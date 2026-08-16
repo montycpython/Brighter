@@ -23,17 +23,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -95,10 +101,16 @@ fun ManuscriptListScreen(
     onSwitchRole: (WorkRole) -> Unit,
     onOpenAuthScreen: () -> Unit,
     onDeleteManuscript: (Long) -> Unit,
-    onCreateNewWorkClick: () -> Unit
+    onCreateNewWorkClick: () -> Unit,
+    onOpenCommunity: () -> Unit = {},
+    onOpenMailbox: () -> Unit = {},
+    onOpenAdminDashboard: () -> Unit = {},
+    onSyncManuscript: (ManuscriptEntity) -> Unit = {},
+    unreadMailCount: Int = 0
 ) {
     var showRoleSwitchDialog by remember { mutableStateOf(false) }
     var manuscriptToDelete by remember { mutableStateOf<ManuscriptEntity?>(null) }
+    val isEditorInChief = currentUser.email.equals(com.example.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
     Scaffold(
         topBar = {
@@ -136,6 +148,63 @@ fun ManuscriptListScreen(
                     }
                 },
                 actions = {
+                    // Community Book Directory
+                    IconButton(
+                        onClick = onOpenCommunity,
+                        modifier = Modifier.testTag("btn_top_community")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Public,
+                            contentDescription = "Community Directory",
+                            tint = BookGoldDark
+                        )
+                    }
+
+                    // Mailbox with unread badge
+                    IconButton(
+                        onClick = onOpenMailbox,
+                        modifier = Modifier.testTag("btn_top_mailbox")
+                    ) {
+                        if (unreadMailCount > 0) {
+                            BadgedBox(
+                                badge = {
+                                    Badge(
+                                        containerColor = Color(0xFFC62828),
+                                        contentColor = Color.White
+                                    ) {
+                                        Text("$unreadMailCount", fontSize = 9.sp)
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Mail,
+                                    contentDescription = "Editorial Mailbox",
+                                    tint = BookGoldDark
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Mail,
+                                contentDescription = "Editorial Mailbox",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Master Admin God-Mode Button (Editor in Chief)
+                    if (isEditorInChief) {
+                        IconButton(
+                            onClick = onOpenAdminDashboard,
+                            modifier = Modifier.testTag("btn_top_admin_god_mode")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AdminPanelSettings,
+                                contentDescription = "Master Shared Drive Admin",
+                                tint = Color(0xFFE5A93C)
+                            )
+                        }
+                    }
+
                     // CMOS Rulebook button
                     IconButton(
                         onClick = onOpenRulebook,
@@ -324,6 +393,7 @@ fun ManuscriptListScreen(
                         onOpen = { onOpenManuscript(manuscript.id) },
                         onRead = { onOpenReader(manuscript.id) },
                         onExport = { onOpenExport(manuscript.id) },
+                        onSync = { onSyncManuscript(manuscript) },
                         onDelete = { manuscriptToDelete = manuscript }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -429,6 +499,7 @@ fun ManuscriptCard(
     onOpen: () -> Unit,
     onRead: () -> Unit,
     onExport: () -> Unit,
+    onSync: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     Card(
@@ -481,6 +552,21 @@ fun ManuscriptCard(
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
+
+                // Sync button
+                IconButton(
+                    onClick = onSync,
+                    modifier = Modifier.size(28.dp).testTag("btn_sync_card_${manuscript.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudUpload,
+                        contentDescription = "Sync to Google Drive",
+                        tint = BookGoldDark,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
 
                 IconButton(
                     onClick = onDelete,

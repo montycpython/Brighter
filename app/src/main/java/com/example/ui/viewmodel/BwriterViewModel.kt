@@ -8,7 +8,12 @@ import com.example.cmos.CmosLeafEngine
 import com.example.data.BwriterDatabase
 import com.example.data.BwriterRepository
 import com.example.data.UserPreferences
+import com.example.data.GoogleDriveSyncService
 import com.example.export.CmosPdfExporter
+import com.example.model.DriveSyncStatus
+import com.example.model.GlobalBookIndexEntry
+import com.example.model.ServerlessMailMessage
+import com.example.model.SuspendedUserEntry
 import com.example.model.CalculatedLeaf
 import com.example.model.EditorialCommentEntity
 import com.example.model.ManuscriptEntity
@@ -45,6 +50,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         repository = BwriterRepository(db)
         viewModelScope.launch {
             repository.seedInitialWorksIfEmpty()
+            refreshDriveNetwork()
         }
     }
 
@@ -52,6 +58,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val updated = _currentUser.value.copy(role = newRole)
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
+        refreshDriveNetwork()
     }
 
     fun updateProfile(name: String, penName: String, email: String, role: WorkRole) {
@@ -63,6 +70,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         )
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
+        refreshDriveNetwork()
     }
 
     fun signInWithGoogleAccount(email: String, name: String, penName: String, role: WorkRole) {
@@ -75,6 +83,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         )
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
+        refreshDriveNetwork()
     }
 
     // ==========================================
@@ -410,18 +419,163 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _isExporting = MutableStateFlow(false)
     val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
 
-    fun exportActiveManuscriptToPdf(context: Context, onComplete: (CmosPdfExporter.ExportResult) -> Unit) {
+    fun exportActiveManuscriptToPdf(context: Context, onComplete: (com.example.export.CmosPdfExporter.ExportResult) -> Unit) {
         val m = activeManuscript.value ?: return
         val s = activeSections.value
         _isExporting.value = true
         viewModelScope.launch {
             try {
-                val result = CmosPdfExporter.exportToPdf(context, m, s)
+                val result = com.example.export.CmosPdfExporter.exportToPdf(context, m, s)
                 _exportResult.value = result
                 onComplete(result)
             } finally {
                 _isExporting.value = false
             }
+        }
+    }
+
+    // ==========================================
+    // Google Drive & Serverless Governance Ecosystem
+    // ==========================================
+    val googleDriveSyncService = GoogleDriveSyncService(application)
+
+    private val _driveSyncStatus = MutableStateFlow(DriveSyncStatus())
+    val driveSyncStatus: StateFlow<DriveSyncStatus> = _driveSyncStatus.asStateFlow()
+
+    private val _globalBookIndex = MutableStateFlow<List<GlobalBookIndexEntry>>(emptyList())
+    val globalBookIndex: StateFlow<List<GlobalBookIndexEntry>> = _globalBookIndex.asStateFlow()
+
+    private val _suspendedUsers = MutableStateFlow<List<SuspendedUserEntry>>(emptyList())
+    val suspendedUsers: StateFlow<List<SuspendedUserEntry>> = _suspendedUsers.asStateFlow()
+
+    private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
+    val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
+
+    private val _activeSuspension = MutableStateFlow<SuspendedUserEntry?>(null)
+    val activeSuspension: StateFlow<SuspendedUserEntry?> = _activeSuspension.asStateFlow()
+
+    fun checkAccountSuspension() {
+        viewModelScope.launch {
+            val suspension = googleDriveSyncService.checkUserSuspension(_currentUser.value.email)
+            _activeSuspension.value = suspension
+            _driveSyncStatus.value = _driveSyncStatus.value.copy(
+                isSuspended = suspension != null,
+                suspensionReason = suspension?.reason
+            )
+        }
+    }
+
+    fun refreshDriveNetwork() {
+        viewModelScope.launch {
+            checkAccountSuspension()
+
+            // Fetch index
+            val indexResult = googleDriveSyncService.fetchGlobalBookIndex(_currentUser.value)
+            if (indexResult.isSuccess) {
+                _globalBookIndex.value = indexResult.getOrNull() ?: emptyList()
+            }
+
+            // Fetch mail
+            val mailResult = googleDriveSyncService.fetchMailboxMessages(_currentUser.value.email)
+            if (mailResult.isSuccess) {
+                val msgs = mailResult.getOrNull() ?: emptyList()
+                _mailboxMessages.value = msgs
+                _driveSyncStatus.value = _driveSyncStatus.value.copy(unreadMailCount = msgs.count { !it.isRead })
+            }
+
+            // If Editor in Chief, refresh suspended users list
+            if (_currentUser.value.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+                _suspendedUsers.value = googleDriveSyncService.getSuspendedUsersFromStorage()
+            }
+        }
+    }
+
+    fun syncManuscriptToGoogleDrive(
+        manuscript: ManuscriptEntity,
+        isPublicInCommunity: Boolean,
+        onDone: (Result<GlobalBookIndexEntry>) -> Unit
+    ) {
+        _driveSyncStatus.value = _driveSyncStatus.value.copy(isSyncing = true, syncError = null)
+        viewModelScope.launch {
+            try {
+                val sections = repository.getSectionsForManuscriptOnce(manuscript.id)
+                val result = googleDriveSyncService.syncManuscriptToDrive(
+                    manuscript = manuscript,
+                    sections = sections,
+                    currentUser = _currentUser.value,
+                    isPublicInCommunity = isPublicInCommunity
+                )
+                if (result.isSuccess) {
+                    val entry = result.getOrNull()
+                    _driveSyncStatus.value = _driveSyncStatus.value.copy(
+                        isSyncing = false,
+                        lastSyncTime = entry?.lastSyncedTimestamp,
+                        lastSyncFileId = entry?.fileId
+                    )
+                    refreshDriveNetwork()
+                } else {
+                    val errorMsg = result.exceptionOrNull()?.message ?: "Unknown sync error"
+                    _driveSyncStatus.value = _driveSyncStatus.value.copy(
+                        isSyncing = false,
+                        syncError = errorMsg
+                    )
+                }
+                onDone(result)
+            } catch (e: Exception) {
+                _driveSyncStatus.value = _driveSyncStatus.value.copy(
+                    isSyncing = false,
+                    syncError = e.message
+                )
+                onDone(Result.failure(e))
+            }
+        }
+    }
+
+    fun markMailMessageAsRead(messageId: String) {
+        viewModelScope.launch {
+            googleDriveSyncService.markMailAsRead(_currentUser.value.email, messageId)
+            refreshDriveNetwork()
+        }
+    }
+
+    // ==========================================
+    // Editor in Chief / Superuser Actions
+    // ==========================================
+    fun suspendUserAccount(targetEmail: String, reason: String) {
+        viewModelScope.launch {
+            googleDriveSyncService.suspendUser(
+                adminEmail = _currentUser.value.email,
+                targetEmail = targetEmail,
+                reason = reason
+            )
+            refreshDriveNetwork()
+        }
+    }
+
+    fun unsuspendUserAccount(targetEmail: String) {
+        viewModelScope.launch {
+            googleDriveSyncService.unsuspendUser(
+                adminEmail = _currentUser.value.email,
+                targetEmail = targetEmail
+            )
+            refreshDriveNetwork()
+        }
+    }
+
+    fun revokeManuscriptDriveAccess(fileId: String) {
+        viewModelScope.launch {
+            googleDriveSyncService.revokeManuscriptAccess(
+                adminEmail = _currentUser.value.email,
+                fileId = fileId
+            )
+            refreshDriveNetwork()
+        }
+    }
+
+    fun sendServerlessMailDirective(message: ServerlessMailMessage) {
+        viewModelScope.launch {
+            googleDriveSyncService.sendServerlessMail(message)
+            refreshDriveNetwork()
         }
     }
 }

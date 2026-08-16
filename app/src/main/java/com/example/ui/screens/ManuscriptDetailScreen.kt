@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -101,7 +102,8 @@ fun ManuscriptDetailScreen(
     onOpenExport: () -> Unit,
     onAddSection: (MatterType, SectionType, String, String) -> Unit,
     onDeleteSection: (Long) -> Unit,
-    onUpdateManuscript: (ManuscriptEntity) -> Unit
+    onUpdateManuscript: (ManuscriptEntity) -> Unit,
+    onSyncToDrive: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(1) } // 0: Front Matter, 1: Text Body, 2: Back Matter, 3: Full Leaf Flow
     var showAddSectionDialog by remember { mutableStateOf(false) }
@@ -141,6 +143,9 @@ fun ManuscriptDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onSyncToDrive, modifier = Modifier.testTag("btn_action_sync_drive")) {
+                        Icon(imageVector = Icons.Default.CloudUpload, contentDescription = "Sync to Google Drive", tint = BookGoldDark)
+                    }
                     IconButton(onClick = onOpenReader, modifier = Modifier.testTag("btn_action_read_spreads")) {
                         Icon(imageVector = Icons.Default.AutoStories, contentDescription = "Read Spreads", tint = BookGoldDark)
                     }

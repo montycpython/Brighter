@@ -1,6 +1,7 @@
 package com.example
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,21 +16,28 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.model.ManuscriptEntity
 import com.example.model.WorkRole
 import com.example.model.WorkType
+import com.example.ui.screens.AdminGodModeDashboardScreen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.CmosRulebookScreen
+import com.example.ui.screens.CommunityDirectoryScreen
+import com.example.ui.screens.KillSwitchSuspensionScreen
 import com.example.ui.screens.LeafReaderScreen
+import com.example.ui.screens.MailboxInboxScreen
 import com.example.ui.screens.ManuscriptDetailScreen
 import com.example.ui.screens.ManuscriptListScreen
 import com.example.ui.screens.NewWorkDialog
 import com.example.ui.screens.PdfExportScreen
 import com.example.ui.screens.SectionEditorScreen
+import com.example.ui.screens.SyncToGoogleDriveDialog
 import com.example.ui.theme.BwriterTheme
 import com.example.ui.viewmodel.BwriterViewModel
 
@@ -55,6 +63,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun BwriterAppNavigation(viewModel: BwriterViewModel) {
+    val context = LocalContext.current
     val navController = rememberNavController()
 
     val currentUser by viewModel.currentUser.collectAsState()
@@ -71,7 +80,31 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val exportResult by viewModel.exportResult.collectAsState()
     val isExporting by viewModel.isExporting.collectAsState()
 
+    // Google Drive & Serverless Governance State
+    val driveSyncStatus by viewModel.driveSyncStatus.collectAsState()
+    val globalBookIndex by viewModel.globalBookIndex.collectAsState()
+    val suspendedUsers by viewModel.suspendedUsers.collectAsState()
+    val mailboxMessages by viewModel.mailboxMessages.collectAsState()
+    val activeSuspension by viewModel.activeSuspension.collectAsState()
+
     var showNewWorkDialog by remember { mutableStateOf(false) }
+    var manuscriptToSync by remember { mutableStateOf<ManuscriptEntity?>(null) }
+
+    // Hard-lock Kill-Switch: if this account is suspended in suspended_users.json
+    if (activeSuspension != null) {
+        KillSwitchSuspensionScreen(
+            userProfile = currentUser,
+            suspension = activeSuspension!!,
+            onRetrySync = {
+                viewModel.refreshDriveNetwork()
+                Toast.makeText(context, "Verifying Shared Drive status...", Toast.LENGTH_SHORT).show()
+            },
+            onSwitchUser = {
+                navController.navigate("auth")
+            }
+        )
+        return
+    }
 
     NavHost(
         navController = navController,
@@ -124,7 +157,23 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 },
                 onCreateNewWorkClick = {
                     showNewWorkDialog = true
-                }
+                },
+                onOpenCommunity = {
+                    viewModel.refreshDriveNetwork()
+                    navController.navigate("community_directory")
+                },
+                onOpenMailbox = {
+                    viewModel.refreshDriveNetwork()
+                    navController.navigate("mailbox_inbox")
+                },
+                onOpenAdminDashboard = {
+                    viewModel.refreshDriveNetwork()
+                    navController.navigate("admin_god_mode")
+                },
+                onSyncManuscript = { manuscript ->
+                    manuscriptToSync = manuscript
+                },
+                unreadMailCount = driveSyncStatus.unreadMailCount
             )
         }
 
@@ -162,6 +211,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     },
                     onUpdateManuscript = { updated ->
                         viewModel.updateManuscriptDetails(updated)
+                    },
+                    onSyncToDrive = {
+                        manuscriptToSync = currentM
                     }
                 )
             }
@@ -257,7 +309,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             val currentM = activeManuscript
 
             if (currentM != null) {
-                val context = androidx.compose.ui.platform.LocalContext.current
+                val context = LocalContext.current
                 PdfExportScreen(
                     manuscript = currentM,
                     sections = activeSections,
@@ -278,6 +330,75 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onBack = { navController.popBackStack() }
             )
         }
+
+        // Community Public/Private Book Directory
+        composable("community_directory") {
+            CommunityDirectoryScreen(
+                books = globalBookIndex,
+                currentUser = currentUser,
+                onBack = { navController.popBackStack() },
+                onRefresh = { viewModel.refreshDriveNetwork() }
+            )
+        }
+
+        // Serverless Mailbox Inbox
+        composable("mailbox_inbox") {
+            MailboxInboxScreen(
+                currentUser = currentUser,
+                messages = mailboxMessages,
+                onBack = { navController.popBackStack() },
+                onRefresh = { viewModel.refreshDriveNetwork() },
+                onMarkAsRead = { msgId -> viewModel.markMailMessageAsRead(msgId) }
+            )
+        }
+
+        // Master Admin God-Mode Control Panel (Editor in Chief)
+        composable("admin_god_mode") {
+            AdminGodModeDashboardScreen(
+                currentUser = currentUser,
+                globalIndex = globalBookIndex,
+                suspendedUsers = suspendedUsers,
+                onBack = { navController.popBackStack() },
+                onRefresh = { viewModel.refreshDriveNetwork() },
+                onSuspendUser = { email, reason ->
+                    viewModel.suspendUserAccount(email, reason)
+                    Toast.makeText(context, "User $email suspended (Kill-Switch deployed)", Toast.LENGTH_SHORT).show()
+                },
+                onUnsuspendUser = { email ->
+                    viewModel.unsuspendUserAccount(email)
+                    Toast.makeText(context, "User $email unsuspended", Toast.LENGTH_SHORT).show()
+                },
+                onRevokeManuscript = { fileId ->
+                    viewModel.revokeManuscriptDriveAccess(fileId)
+                    Toast.makeText(context, "Manuscript access revoked", Toast.LENGTH_SHORT).show()
+                },
+                onSendServerlessMail = { mail ->
+                    viewModel.sendServerlessMailDirective(mail)
+                    Toast.makeText(context, "Directive dispatched to ${mail.recipientEmail}", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+    }
+
+    // Google Drive Sync Modal Dialog
+    if (manuscriptToSync != null) {
+        SyncToGoogleDriveDialog(
+            manuscript = manuscriptToSync!!,
+            currentUser = currentUser,
+            isSyncing = driveSyncStatus.isSyncing,
+            onDismiss = { manuscriptToSync = null },
+            onConfirmSync = { isPublic ->
+                val target = manuscriptToSync!!
+                viewModel.syncManuscriptToGoogleDrive(target, isPublic) { res ->
+                    if (res.isSuccess) {
+                        Toast.makeText(context, "Synced “${target.title}” to Google Drive!", Toast.LENGTH_LONG).show()
+                        manuscriptToSync = null
+                    } else {
+                        Toast.makeText(context, "Sync Error: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        )
     }
 
     // New Work Scaffolding Dialog
