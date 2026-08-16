@@ -45,6 +45,14 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _currentUser = MutableStateFlow(userPreferences.getUserProfile())
     val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
 
+    private val _hasAcceptedTerms = MutableStateFlow(userPreferences.hasAcceptedTerms())
+    val hasAcceptedTerms: StateFlow<Boolean> = _hasAcceptedTerms.asStateFlow()
+
+    fun acceptTermsOfService(version: String = "1.0.0-PROD") {
+        userPreferences.setAcceptedTerms(version)
+        _hasAcceptedTerms.value = true
+    }
+
     init {
         val db = BwriterDatabase.getDatabase(application)
         repository = BwriterRepository(db)
@@ -227,28 +235,97 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // ==========================================
-    // AI Prose Generation State
+    // AI Prose Generation & Subscription State
     // ==========================================
     private val _isGeneratingAiProse = MutableStateFlow(false)
     val isGeneratingAiProse: StateFlow<Boolean> = _isGeneratingAiProse.asStateFlow()
 
+    private val _userAiSubscription = MutableStateFlow(userPreferences.getUserSubscription(_currentUser.value.email))
+    val userAiSubscription: StateFlow<com.example.model.UserAiSubscription> = _userAiSubscription.asStateFlow()
+
+    private val _tokenTransactions = MutableStateFlow(userPreferences.getTokenTransactions())
+    val tokenTransactions: StateFlow<List<com.example.model.AiTokenTransaction>> = _tokenTransactions.asStateFlow()
+
+    private val _paidMembersTelemetry = MutableStateFlow(userPreferences.getAllSubscribersTelemetry())
+    val paidMembersTelemetry: StateFlow<List<com.example.model.PaidMemberTelemetry>> = _paidMembersTelemetry.asStateFlow()
+
+    private val _showPaywall = MutableStateFlow(false)
+    val showPaywall: StateFlow<Boolean> = _showPaywall.asStateFlow()
+
+    fun openPaywall() {
+        _showPaywall.value = true
+    }
+
+    fun dismissPaywall() {
+        _showPaywall.value = false
+    }
+
+    fun updateSubscriptionPlan(plan: com.example.model.SubscriptionPlan) {
+        val current = _userAiSubscription.value
+        val updated = current.copy(
+            plan = plan,
+            creditsRemaining = plan.monthlyCredits,
+            monthlyRenewalTimestamp = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000),
+            isActive = true
+        )
+        _userAiSubscription.value = updated
+        userPreferences.saveUserSubscription(updated)
+        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
+        _showPaywall.value = false
+    }
+
+    fun adminGrantBonusCredits(targetEmail: String, bonusCredits: Int) {
+        userPreferences.adminGrantBonusCredits(targetEmail, bonusCredits)
+        _userAiSubscription.value = userPreferences.getUserSubscription(_currentUser.value.email)
+        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
+    }
+
     fun generateAiDraftFromPrompt(
         section: SectionEntity,
         prompt: String,
-        onGenerated: (String) -> Unit
+        onGenerated: (String) -> Unit,
+        onRequiresUpgrade: () -> Unit = { openPaywall() }
     ) {
+        val currentSub = _userAiSubscription.value
+        val isEditorInChief = _currentUser.value.email.equals("real.artistry@gmail.com", ignoreCase = true)
+
+        if (!isEditorInChief && currentSub.creditsRemaining <= 0) {
+            onRequiresUpgrade()
+            return
+        }
+
         _isGeneratingAiProse.value = true
         viewModelScope.launch {
             try {
                 val result = com.example.ai.GeminiProseGenerator.generateChapterProse(prompt)
-                val generatedText = result.getOrNull() ?: ""
-                if (generatedText.isNotBlank()) {
+                val aiResult = result.getOrNull()
+                if (aiResult != null && aiResult.text.isNotBlank()) {
+                    val generatedText = aiResult.text
                     val updatedContent = if (section.content.isBlank()) {
                         generatedText
                     } else {
                         "${section.content.trimEnd()}\n\n$generatedText"
                     }
                     repository.updateSection(section.copy(content = updatedContent, aiDraftPrompt = prompt))
+
+                    // Record Token burn and credit deduction in Ledger
+                    val promptTokens = aiResult.promptTokens
+                    val compTokens = aiResult.completionTokens
+                    val totalTokens = aiResult.totalTokens
+                    val modelUsed = aiResult.modelUsed
+
+                    val updatedSub = userPreferences.recordTokenUsage(
+                        email = _currentUser.value.email,
+                        sectionTitle = section.title,
+                        promptTokens = promptTokens,
+                        completionTokens = compTokens,
+                        totalTokens = totalTokens,
+                        modelUsed = modelUsed
+                    )
+                    _userAiSubscription.value = updatedSub
+                    _tokenTransactions.value = userPreferences.getTokenTransactions()
+                    _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
+
                     onGenerated(generatedText)
                 }
             } finally {
@@ -359,6 +436,23 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     fun updateSectionStatus(section: SectionEntity, newStatus: SectionStatus) {
         viewModelScope.launch {
             repository.updateSection(section.copy(status = newStatus))
+        }
+    }
+
+    fun updateSectionAssignment(
+        section: SectionEntity,
+        assignedAuthor: String,
+        assignedRole: WorkRole,
+        contributorNotes: String
+    ) {
+        viewModelScope.launch {
+            repository.updateSection(
+                section.copy(
+                    assignedAuthor = assignedAuthor,
+                    assignedRole = assignedRole,
+                    contributorNotes = contributorNotes
+                )
+            )
         }
     }
 
@@ -570,6 +664,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             )
             refreshDriveNetwork()
         }
+    }
+
+    fun sendMailMessage(message: ServerlessMailMessage) {
+        sendServerlessMailDirective(message)
     }
 
     fun sendServerlessMailDirective(message: ServerlessMailMessage) {

@@ -106,6 +106,8 @@ fun ManuscriptListScreen(
     onOpenMailbox: () -> Unit = {},
     onOpenAdminDashboard: () -> Unit = {},
     onSyncManuscript: (ManuscriptEntity) -> Unit = {},
+    onOpenUserAgreement: () -> Unit = {},
+    onOpenSubscription: () -> Unit = {},
     unreadMailCount: Int = 0
 ) {
     var showRoleSwitchDialog by remember { mutableStateOf(false) }
@@ -148,6 +150,18 @@ fun ManuscriptListScreen(
                     }
                 },
                 actions = {
+                    // AI Studio Subscription / Credits Wallet
+                    IconButton(
+                        onClick = onOpenSubscription,
+                        modifier = Modifier.testTag("btn_top_subscription_wallet")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "AI Studio Credits Pass",
+                            tint = BookGoldLight
+                        )
+                    }
+
                     // Community Book Directory
                     IconButton(
                         onClick = onOpenCommunity,
@@ -451,11 +465,25 @@ fun ManuscriptListScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showRoleSwitchDialog = false
-                    onOpenAuthScreen()
-                }) {
-                    Text("Account Settings")
+                Row {
+                    TextButton(onClick = {
+                        showRoleSwitchDialog = false
+                        onOpenSubscription()
+                    }) {
+                        Text("AI Studio Pass")
+                    }
+                    TextButton(onClick = {
+                        showRoleSwitchDialog = false
+                        onOpenUserAgreement()
+                    }) {
+                        Text("User Agreement")
+                    }
+                    TextButton(onClick = {
+                        showRoleSwitchDialog = false
+                        onOpenAuthScreen()
+                    }) {
+                        Text("Account")
+                    }
                 }
             },
             dismissButton = {

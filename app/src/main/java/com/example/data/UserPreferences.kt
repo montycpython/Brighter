@@ -54,5 +54,265 @@ class UserPreferences(context: Context) {
         private const val KEY_ROLE = "user_role"
         private const val KEY_ORG = "user_org"
         private const val KEY_CMOS = "user_cmos"
+        private const val KEY_TERMS_ACCEPTED_VERSION = "user_terms_accepted_version"
+        private const val KEY_TERMS_ACCEPTED_TIMESTAMP = "user_terms_accepted_timestamp"
+        private const val KEY_SUBSCRIPTION_PLAN = "user_subscription_plan"
+        private const val KEY_CREDITS_REMAINING = "user_credits_remaining"
+        private const val KEY_TOTAL_TOKENS_USED = "user_total_tokens_used"
+        private const val KEY_TOTAL_GENERATIONS = "user_total_generations"
+        private const val KEY_RENEWAL_TIMESTAMP = "user_renewal_timestamp"
+        private const val KEY_TOKEN_TRANSACTIONS_JSON = "user_token_transactions_json"
+        private const val KEY_ALL_SUBSCRIBERS_JSON = "admin_all_subscribers_json"
+    }
+
+    fun hasAcceptedTerms(): Boolean {
+        val acceptedVer = prefs.getString(KEY_TERMS_ACCEPTED_VERSION, null)
+        return !acceptedVer.isNullOrBlank()
+    }
+
+    fun getAcceptedTermsVersion(): String? {
+        return prefs.getString(KEY_TERMS_ACCEPTED_VERSION, null)
+    }
+
+    fun setAcceptedTerms(version: String) {
+        prefs.edit()
+            .putString(KEY_TERMS_ACCEPTED_VERSION, version)
+            .putLong(KEY_TERMS_ACCEPTED_TIMESTAMP, System.currentTimeMillis())
+            .apply()
+    }
+
+    fun getUserSubscription(email: String): com.example.model.UserAiSubscription {
+        val isEditorInChief = email.equals("real.artistry@gmail.com", ignoreCase = true)
+        val defaultPlan = if (isEditorInChief) com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.example.model.SubscriptionPlan.FREE
+        val defaultCredits = if (isEditorInChief) 999999 else 5
+
+        val planId = prefs.getString(KEY_SUBSCRIPTION_PLAN, defaultPlan.id) ?: defaultPlan.id
+        val plan = if (isEditorInChief) com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.example.model.SubscriptionPlan.fromId(planId)
+        val credits = prefs.getInt(KEY_CREDITS_REMAINING, defaultCredits)
+        val tokensUsed = prefs.getLong(KEY_TOTAL_TOKENS_USED, 0L)
+        val generationsCount = prefs.getInt(KEY_TOTAL_GENERATIONS, 0)
+        val renewalTime = prefs.getLong(KEY_RENEWAL_TIMESTAMP, System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000))
+
+        return com.example.model.UserAiSubscription(
+            userEmail = email,
+            plan = plan,
+            creditsRemaining = if (isEditorInChief) 999999 else credits,
+            totalTokensUsed = tokensUsed,
+            totalGenerationsCount = generationsCount,
+            monthlyRenewalTimestamp = renewalTime,
+            isActive = true
+        )
+    }
+
+    fun saveUserSubscription(subscription: com.example.model.UserAiSubscription) {
+        prefs.edit()
+            .putString(KEY_SUBSCRIPTION_PLAN, subscription.plan.id)
+            .putInt(KEY_CREDITS_REMAINING, subscription.creditsRemaining)
+            .putLong(KEY_TOTAL_TOKENS_USED, subscription.totalTokensUsed)
+            .putInt(KEY_TOTAL_GENERATIONS, subscription.totalGenerationsCount)
+            .putLong(KEY_RENEWAL_TIMESTAMP, subscription.monthlyRenewalTimestamp)
+            .apply()
+
+        recordTelemetryInRegistry(subscription)
+    }
+
+    fun recordTokenUsage(
+        email: String,
+        sectionTitle: String,
+        promptTokens: Int,
+        completionTokens: Int,
+        totalTokens: Int,
+        modelUsed: String
+    ): com.example.model.UserAiSubscription {
+        val current = getUserSubscription(email)
+        val isEditorInChief = email.equals("real.artistry@gmail.com", ignoreCase = true)
+        val newCredits = if (isEditorInChief) current.creditsRemaining else Math.max(0, current.creditsRemaining - 1)
+        val newTokensUsed = current.totalTokensUsed + totalTokens
+        val newGenerations = current.totalGenerationsCount + 1
+
+        val updated = current.copy(
+            creditsRemaining = newCredits,
+            totalTokensUsed = newTokensUsed,
+            totalGenerationsCount = newGenerations
+        )
+        saveUserSubscription(updated)
+
+        // Record transaction
+        val tx = com.example.model.AiTokenTransaction(
+            transactionId = "tx_" + System.currentTimeMillis() + "_" + (100..999).random(),
+            userEmail = email,
+            sectionTitle = sectionTitle,
+            timestamp = System.currentTimeMillis(),
+            promptTokens = promptTokens,
+            completionTokens = completionTokens,
+            totalTokens = totalTokens,
+            creditsDeducted = if (isEditorInChief) 0 else 1,
+            modelUsed = modelUsed,
+            isSuccess = true
+        )
+        appendTokenTransaction(tx)
+        return updated
+    }
+
+    private fun appendTokenTransaction(tx: com.example.model.AiTokenTransaction) {
+        try {
+            val raw = prefs.getString(KEY_TOKEN_TRANSACTIONS_JSON, "[]") ?: "[]"
+            val array = org.json.JSONArray(raw)
+            val obj = org.json.JSONObject().apply {
+                put("transactionId", tx.transactionId)
+                put("userEmail", tx.userEmail)
+                put("sectionTitle", tx.sectionTitle)
+                put("timestamp", tx.timestamp)
+                put("promptTokens", tx.promptTokens)
+                put("completionTokens", tx.completionTokens)
+                put("totalTokens", tx.totalTokens)
+                put("creditsDeducted", tx.creditsDeducted)
+                put("modelUsed", tx.modelUsed)
+                put("isSuccess", tx.isSuccess)
+            }
+            array.put(obj)
+            // Keep last 100 transactions
+            val trimmedArray = org.json.JSONArray()
+            val startIdx = Math.max(0, array.length() - 100)
+            for (i in startIdx until array.length()) {
+                trimmedArray.put(array.getJSONObject(i))
+            }
+            prefs.edit().putString(KEY_TOKEN_TRANSACTIONS_JSON, trimmedArray.toString()).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun getTokenTransactions(): List<com.example.model.AiTokenTransaction> {
+        val list = mutableListOf<com.example.model.AiTokenTransaction>()
+        try {
+            val raw = prefs.getString(KEY_TOKEN_TRANSACTIONS_JSON, "[]") ?: "[]"
+            val array = org.json.JSONArray(raw)
+            for (i in (array.length() - 1) downTo 0) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    com.example.model.AiTokenTransaction(
+                        transactionId = obj.optString("transactionId"),
+                        userEmail = obj.optString("userEmail"),
+                        sectionTitle = obj.optString("sectionTitle"),
+                        timestamp = obj.optLong("timestamp"),
+                        promptTokens = obj.optInt("promptTokens"),
+                        completionTokens = obj.optInt("completionTokens"),
+                        totalTokens = obj.optInt("totalTokens"),
+                        creditsDeducted = obj.optInt("creditsDeducted"),
+                        modelUsed = obj.optString("modelUsed"),
+                        isSuccess = obj.optBoolean("isSuccess", true)
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return list
+    }
+
+    private fun recordTelemetryInRegistry(sub: com.example.model.UserAiSubscription) {
+        try {
+            val raw = prefs.getString(KEY_ALL_SUBSCRIBERS_JSON, "[]") ?: "[]"
+            val array = org.json.JSONArray(raw)
+            val updatedArray = org.json.JSONArray()
+            var found = false
+
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                if (obj.optString("userEmail").equals(sub.userEmail, ignoreCase = true)) {
+                    val updatedObj = org.json.JSONObject().apply {
+                        put("userEmail", sub.userEmail)
+                        put("displayName", getUserProfile().name)
+                        put("planId", sub.plan.id)
+                        put("planTitle", sub.plan.title)
+                        put("creditsRemaining", sub.creditsRemaining)
+                        put("totalTokensUsed", sub.totalTokensUsed)
+                        put("totalGenerationsCount", sub.totalGenerationsCount)
+                        put("monthlyRenewalTimestamp", sub.monthlyRenewalTimestamp)
+                        put("lastActiveTimestamp", System.currentTimeMillis())
+                        put("status", if (sub.userEmail.equals("real.artistry@gmail.com", ignoreCase = true)) "UNLIMITED_SUPERUSER" else if (sub.isActive) "ACTIVE" else "EXPIRED")
+                    }
+                    updatedArray.put(updatedObj)
+                    found = true
+                } else {
+                    updatedArray.put(obj)
+                }
+            }
+
+            if (!found) {
+                val newObj = org.json.JSONObject().apply {
+                    put("userEmail", sub.userEmail)
+                    put("displayName", getUserProfile().name)
+                    put("planId", sub.plan.id)
+                    put("planTitle", sub.plan.title)
+                    put("creditsRemaining", sub.creditsRemaining)
+                    put("totalTokensUsed", sub.totalTokensUsed)
+                    put("totalGenerationsCount", sub.totalGenerationsCount)
+                    put("monthlyRenewalTimestamp", sub.monthlyRenewalTimestamp)
+                    put("lastActiveTimestamp", System.currentTimeMillis())
+                    put("status", if (sub.userEmail.equals("real.artistry@gmail.com", ignoreCase = true)) "UNLIMITED_SUPERUSER" else "ACTIVE")
+                }
+                updatedArray.put(newObj)
+            }
+            prefs.edit().putString(KEY_ALL_SUBSCRIBERS_JSON, updatedArray.toString()).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun getAllSubscribersTelemetry(): List<com.example.model.PaidMemberTelemetry> {
+        val list = mutableListOf<com.example.model.PaidMemberTelemetry>()
+        try {
+            val raw = prefs.getString(KEY_ALL_SUBSCRIBERS_JSON, "[]") ?: "[]"
+            val array = org.json.JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    com.example.model.PaidMemberTelemetry(
+                        userEmail = obj.optString("userEmail"),
+                        displayName = obj.optString("displayName", "Author"),
+                        planId = obj.optString("planId"),
+                        planTitle = obj.optString("planTitle", "Novelist Plan"),
+                        creditsRemaining = obj.optInt("creditsRemaining"),
+                        totalTokensUsed = obj.optLong("totalTokensUsed"),
+                        totalGenerationsCount = obj.optInt("totalGenerationsCount"),
+                        monthlyRenewalTimestamp = obj.optLong("monthlyRenewalTimestamp"),
+                        lastActiveTimestamp = obj.optLong("lastActiveTimestamp"),
+                        status = obj.optString("status", "ACTIVE")
+                    )
+                )
+            }
+
+            // Always ensure real.artistry@gmail.com is present with full metrics
+            if (list.none { it.userEmail.equals("real.artistry@gmail.com", ignoreCase = true) }) {
+                val superuserSub = getUserSubscription("real.artistry@gmail.com")
+                list.add(
+                    0,
+                    com.example.model.PaidMemberTelemetry(
+                        userEmail = "real.artistry@gmail.com",
+                        displayName = "Editor-in-Chief",
+                        planId = com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED.id,
+                        planTitle = com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED.title,
+                        creditsRemaining = superuserSub.creditsRemaining,
+                        totalTokensUsed = superuserSub.totalTokensUsed,
+                        totalGenerationsCount = superuserSub.totalGenerationsCount,
+                        monthlyRenewalTimestamp = superuserSub.monthlyRenewalTimestamp,
+                        lastActiveTimestamp = System.currentTimeMillis(),
+                        status = "UNLIMITED_SUPERUSER"
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return list
+    }
+
+    fun adminGrantBonusCredits(targetEmail: String, bonusCredits: Int) {
+        if (targetEmail.equals(getUserProfile().email, ignoreCase = true)) {
+            val current = getUserSubscription(targetEmail)
+            saveUserSubscription(current.copy(creditsRemaining = current.creditsRemaining + bonusCredits))
+        }
     }
 }

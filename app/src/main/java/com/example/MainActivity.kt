@@ -23,6 +23,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.model.ManuscriptEntity
+import com.example.model.ServerlessMailMessage
 import com.example.model.WorkRole
 import com.example.model.WorkType
 import com.example.ui.screens.AdminGodModeDashboardScreen
@@ -37,7 +38,9 @@ import com.example.ui.screens.ManuscriptListScreen
 import com.example.ui.screens.NewWorkDialog
 import com.example.ui.screens.PdfExportScreen
 import com.example.ui.screens.SectionEditorScreen
+import com.example.ui.screens.SubscriptionPaywallDialog
 import com.example.ui.screens.SyncToGoogleDriveDialog
+import com.example.ui.screens.UserAgreementScreen
 import com.example.ui.theme.BwriterTheme
 import com.example.ui.viewmodel.BwriterViewModel
 
@@ -86,9 +89,26 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val suspendedUsers by viewModel.suspendedUsers.collectAsState()
     val mailboxMessages by viewModel.mailboxMessages.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
+    val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
+    val userSubscription by viewModel.userAiSubscription.collectAsState()
+    val tokenTransactions by viewModel.tokenTransactions.collectAsState()
+    val paidMembersTelemetry by viewModel.paidMembersTelemetry.collectAsState()
+    val showPaywall by viewModel.showPaywall.collectAsState()
 
     var showNewWorkDialog by remember { mutableStateOf(false) }
     var manuscriptToSync by remember { mutableStateOf<ManuscriptEntity?>(null) }
+
+    // Mandatory First-Launch / First Sign-in User Agreement Gate
+    if (!hasAcceptedTerms) {
+        UserAgreementScreen(
+            isMandatoryOnboarding = true,
+            onAccept = {
+                viewModel.acceptTermsOfService()
+                Toast.makeText(context, "Welcome to Bwriter Studio!", Toast.LENGTH_SHORT).show()
+            }
+        )
+        return
+    }
 
     // Hard-lock Kill-Switch: if this account is suspended in suspended_users.json
     if (activeSuspension != null) {
@@ -172,6 +192,12 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 },
                 onSyncManuscript = { manuscript ->
                     manuscriptToSync = manuscript
+                },
+                onOpenUserAgreement = {
+                    navController.navigate("user_agreement")
+                },
+                onOpenSubscription = {
+                    viewModel.openPaywall()
                 },
                 unreadMailCount = driveSyncStatus.unreadMailCount
             )
@@ -273,7 +299,15 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     onGenerateAiDraft = { sec, prompt, onDone ->
                         viewModel.generateAiDraftFromPrompt(sec, prompt, onDone)
                     },
-                    isGeneratingAi = isGeneratingAiProse
+                    isGeneratingAi = isGeneratingAiProse,
+                    subscription = userSubscription,
+                    onOpenSubscription = { viewModel.openPaywall() },
+                    onSaveAssignment = { sec, author, role, notes ->
+                        viewModel.updateSectionAssignment(sec, author, role, notes)
+                    },
+                    onSendServerlessMail = { mail ->
+                        viewModel.sendMailMessage(mail)
+                    }
                 )
             }
         }
@@ -331,6 +365,20 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             )
         }
 
+        // User Agreement / EULA / Terms of Service (Viewable anytime)
+        composable("user_agreement") {
+            UserAgreementScreen(
+                isMandatoryOnboarding = false,
+                onAccept = {
+                    viewModel.acceptTermsOfService()
+                    navController.popBackStack()
+                },
+                onDecline = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
         // Community Public/Private Book Directory
         composable("community_directory") {
             CommunityDirectoryScreen(
@@ -358,6 +406,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 currentUser = currentUser,
                 globalIndex = globalBookIndex,
                 suspendedUsers = suspendedUsers,
+                paidSubscribers = paidMembersTelemetry,
+                tokenTransactions = tokenTransactions,
                 onBack = { navController.popBackStack() },
                 onRefresh = { viewModel.refreshDriveNetwork() },
                 onSuspendUser = { email, reason ->
@@ -375,9 +425,26 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onSendServerlessMail = { mail ->
                     viewModel.sendServerlessMailDirective(mail)
                     Toast.makeText(context, "Directive dispatched to ${mail.recipientEmail}", Toast.LENGTH_SHORT).show()
+                },
+                onGrantBonusCredits = { targetEmail, bonus ->
+                    viewModel.adminGrantBonusCredits(targetEmail, bonus)
+                    Toast.makeText(context, "Granted $bonus bonus credits to $targetEmail", Toast.LENGTH_SHORT).show()
                 }
             )
         }
+    }
+
+    // AI Studio Subscription & Token Ledger Dialog
+    if (showPaywall) {
+        SubscriptionPaywallDialog(
+            subscription = userSubscription,
+            recentTransactions = tokenTransactions,
+            onDismiss = { viewModel.dismissPaywall() },
+            onSelectPlan = { plan ->
+                viewModel.updateSubscriptionPlan(plan)
+                Toast.makeText(context, "Upgraded to ${plan.title}!", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 
     // Google Drive Sync Modal Dialog

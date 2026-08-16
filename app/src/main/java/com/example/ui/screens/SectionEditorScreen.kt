@@ -3,7 +3,9 @@ package com.example.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.ContentCopy
@@ -40,15 +43,19 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -100,7 +107,9 @@ import com.example.cmos.CmosFormatter
 import com.example.model.EditorialCommentEntity
 import com.example.model.SectionEntity
 import com.example.model.SectionStatus
+import com.example.model.ServerlessMailMessage
 import com.example.model.UserProfile
+import com.example.model.WorkRole
 import com.example.ui.theme.BookGold
 import com.example.ui.theme.BookGoldDark
 import com.example.ui.theme.InkBlack
@@ -146,7 +155,11 @@ fun SectionEditorScreen(
     onSaveSetting: (StorySettingEntity) -> Unit = {},
     onDeleteSetting: (Long) -> Unit = {},
     onGenerateAiDraft: (SectionEntity, String, (String) -> Unit) -> Unit = { _, _, _ -> },
-    isGeneratingAi: Boolean = false
+    isGeneratingAi: Boolean = false,
+    subscription: com.example.model.UserAiSubscription? = null,
+    onOpenSubscription: () -> Unit = {},
+    onSaveAssignment: (SectionEntity, String, WorkRole, String) -> Unit = { _, _, _, _ -> },
+    onSendServerlessMail: (ServerlessMailMessage) -> Unit = {}
 ) {
     val context = LocalContext.current
     val clipboardManager = remember { context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager }
@@ -159,6 +172,13 @@ fun SectionEditorScreen(
     var headerIllustrationCaption by remember(section.id) { mutableStateOf(section.headerIllustrationCaption) }
     var tailIllustrationUri by remember(section.id) { mutableStateOf(section.tailIllustrationUri) }
     var tailIllustrationCaption by remember(section.id) { mutableStateOf(section.tailIllustrationCaption) }
+
+    // Section Delegation & Contributor States
+    var assignedAuthor by remember(section.id) { mutableStateOf(section.assignedAuthor) }
+    var assignedRole by remember(section.id) { mutableStateOf(section.assignedRole) }
+    var contributorNotes by remember(section.id) { mutableStateOf(section.contributorNotes) }
+    var contributorEmailInput by remember(section.id) { mutableStateOf("") }
+    var showRoleDropdown by remember { mutableStateOf(false) }
 
     var aiDraftPrompt by remember(section.id) {
         mutableStateOf(
@@ -426,7 +446,7 @@ fun SectionEditorScreen(
                 }
             }
 
-            // Compact Navigation Tabs (32dp height)
+            // Compact Navigation Tabs (38dp height)
             TabRow(
                 selectedTabIndex = selectedEditorTab,
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -436,19 +456,25 @@ fun SectionEditorScreen(
                 Tab(
                     selected = selectedEditorTab == 0,
                     onClick = { selectedEditorTab = 0 },
-                    text = { Text("Prose Canvas", fontSize = 11.5.sp, fontWeight = if (selectedEditorTab == 0) FontWeight.Bold else FontWeight.Normal) },
+                    text = { Text("Prose Canvas", fontSize = 11.sp, fontWeight = if (selectedEditorTab == 0) FontWeight.Bold else FontWeight.Normal) },
                     modifier = Modifier.testTag("tab_manuscript_prose")
                 )
                 Tab(
                     selected = selectedEditorTab == 1,
                     onClick = { selectedEditorTab = 1 },
-                    text = { Text("Illustrations", fontSize = 11.5.sp, fontWeight = if (selectedEditorTab == 1) FontWeight.Bold else FontWeight.Normal) },
+                    text = { Text("Illustrations", fontSize = 11.sp, fontWeight = if (selectedEditorTab == 1) FontWeight.Bold else FontWeight.Normal) },
                     modifier = Modifier.testTag("tab_chapter_art")
                 )
                 Tab(
                     selected = selectedEditorTab == 2,
                     onClick = { selectedEditorTab = 2 },
-                    text = { Text("AI Workshop", fontSize = 11.5.sp, fontWeight = if (selectedEditorTab == 2) FontWeight.Bold else FontWeight.Normal) },
+                    text = { Text("Contributor & Roles", fontSize = 11.sp, fontWeight = if (selectedEditorTab == 2) FontWeight.Bold else FontWeight.Normal) },
+                    modifier = Modifier.testTag("tab_contributor_delegation")
+                )
+                Tab(
+                    selected = selectedEditorTab == 3,
+                    onClick = { selectedEditorTab = 3 },
+                    text = { Text("AI Workshop", fontSize = 11.sp, fontWeight = if (selectedEditorTab == 3) FontWeight.Bold else FontWeight.Normal) },
                     modifier = Modifier.testTag("tab_ai_prompt_workshop")
                 )
             }
@@ -799,6 +825,415 @@ fun SectionEditorScreen(
                     }
                 }
                 2 -> {
+                    // ==========================================
+                    // 2. CONTRIBUTOR & ROLES DELEGATION WORKSHOP
+                    // ==========================================
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF101018))
+                            .padding(14.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Group,
+                                        contentDescription = null,
+                                        tint = BookGoldLight,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Section Delegation & Roles",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = Color(0xFFF3EFE6)
+                                    )
+                                }
+                                Text(
+                                    text = "Assign chapters or front/back matter to co-authors, editors, or guest contributors.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFB0A89C)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // ACTIVE ASSIGNMENT STATUS CARD
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF181824)),
+                            border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.6f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "CURRENTLY ASSIGNED TO",
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BookGoldLight,
+                                            letterSpacing = 1.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = assignedAuthor.ifBlank { "Unassigned" },
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.5.sp,
+                                            color = Color(0xFFF3EFE6)
+                                        )
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = BookGoldDark.copy(alpha = 0.25f),
+                                        border = BorderStroke(1.dp, BookGoldLight)
+                                    ) {
+                                        Text(
+                                            text = assignedRole.badgeLabel,
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BookGoldLight,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                HorizontalDivider(color = Color(0xFF262638))
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Section: ${section.title} (${section.matterType.name})",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFE0DBD1)
+                                    )
+                                    Text(
+                                        text = "Status: ${currentStatus.displayName}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = BookGoldLight
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // ASSIGN RESPONSIBILITY SECTION
+                        Text(
+                            text = "Assign Responsibility:",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Quick Presets
+                        Text(
+                            text = "Quick Select Collaborator:",
+                            fontSize = 10.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val presets = listOf(
+                                "👑 Myself (${currentUser.displayName})" to (currentUser.displayName to currentUser.email),
+                                "Eleanor Vance" to ("Eleanor Vance" to "eleanor.types@bwriter.press"),
+                                "Silas Thorne" to ("Silas Thorne" to "silas.thorne@artisan.press"),
+                                "Arthur Vance (Editor)" to ("Arthur Vance" to "arthur.editor@bwriter.press")
+                            )
+
+                            presets.forEach { (label, data) ->
+                                val (name, email) = data
+                                val isSelected = assignedAuthor.equals(name, ignoreCase = true)
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (isSelected) BookGoldDark else Color(0xFF1E1E2A),
+                                    border = BorderStroke(1.dp, if (isSelected) BookGoldLight else Color(0xFF323246)),
+                                    modifier = Modifier.clickable {
+                                        assignedAuthor = name
+                                        contributorEmailInput = email
+                                    }
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color(0xFF0E0E14) else Color(0xFFE2DDD5),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Custom Name & Email Fields
+                        OutlinedTextField(
+                            value = assignedAuthor,
+                            onValueChange = { assignedAuthor = it },
+                            label = { Text("Contributor Display / Pen Name", color = Color.Gray, fontSize = 11.5.sp) },
+                            modifier = Modifier.fillMaxWidth().testTag("input_assigned_author"),
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color(0xFFF3EFE6), fontSize = 12.5.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BookGoldLight,
+                                unfocusedBorderColor = Color(0xFF2C2C3C),
+                                focusedContainerColor = Color(0xFF14141C),
+                                unfocusedContainerColor = Color(0xFF121218)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = contributorEmailInput,
+                            onValueChange = { contributorEmailInput = it },
+                            label = { Text("Contributor Gmail / Email Address (for Direct Invite)", color = Color.Gray, fontSize = 11.5.sp) },
+                            modifier = Modifier.fillMaxWidth().testTag("input_assigned_email"),
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color(0xFFF3EFE6), fontSize = 12.5.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BookGoldLight,
+                                unfocusedBorderColor = Color(0xFF2C2C3C),
+                                focusedContainerColor = Color(0xFF14141C),
+                                unfocusedContainerColor = Color(0xFF121218)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Role Selector
+                        Text(
+                            text = "Assigned Editorial Responsibility:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            WorkRole.values().forEach { role ->
+                                val isSelected = assignedRole == role
+                                Card(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { assignedRole = role },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) BookGoldDark.copy(alpha = 0.3f) else Color(0xFF161622)
+                                    ),
+                                    border = BorderStroke(1.dp, if (isSelected) BookGoldLight else Color(0xFF28283A))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = role.title,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) BookGoldLight else Color(0xFFE2DDD5)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = when (role) {
+                                                WorkRole.AUTHOR -> "Draft prose"
+                                                WorkRole.EDITOR -> "CMOS review"
+                                                WorkRole.CONTRIBUTOR -> "Foreword/Essay"
+                                            },
+                                            fontSize = 9.5.sp,
+                                            color = Color(0xFF9E988E)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Editorial Briefing & Directives Field
+                        Text(
+                            text = "Editorial Briefing & Scope Guidelines (CMOS 17th):",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = contributorNotes,
+                            onValueChange = { contributorNotes = it },
+                            placeholder = {
+                                Text(
+                                    "E.g., Focus on Chicago typecasting industry in 1893. Maintain first-person retrospective tone. Target 3,500 words. Due Sept 15.",
+                                    color = Color.Gray,
+                                    fontSize = 11.5.sp
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(95.dp)
+                                .testTag("input_contributor_notes"),
+                            textStyle = TextStyle(color = Color(0xFFF3EFE6), fontSize = 12.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BookGoldLight,
+                                unfocusedBorderColor = Color(0xFF2C2C3C),
+                                focusedContainerColor = Color(0xFF14141C),
+                                unfocusedContainerColor = Color(0xFF121218)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Save Assignment Button
+                        Button(
+                            onClick = {
+                                onSaveAssignment(section, assignedAuthor, assignedRole, contributorNotes)
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Section assigned to $assignedAuthor as ${assignedRole.title}") }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                            modifier = Modifier.fillMaxWidth().testTag("btn_save_assignment")
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF0E0E14))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Save Assignment & Directives", fontWeight = FontWeight.Bold, color = Color(0xFF0E0E14), fontSize = 12.5.sp)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // ==========================================
+                        // INVITATION DISPATCH ACTIONS
+                        // ==========================================
+                        Text(
+                            text = "Dispatch Contributor Invitation:",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        val inviteSubject = "[Bwriter Assignment] Invitation to Contribute to \"${manuscript?.title ?: section.title}\""
+                        val inviteBody = """
+Dear ${assignedAuthor.ifBlank { "Colleague" }},
+
+You are invited to contribute to the publication of "${manuscript?.title ?: section.title}" on Bwriter as ${assignedRole.title}.
+
+--- SECTION DETAILS ---
+• Section: ${section.title} (${section.matterType.name})
+• Assigned Role: ${assignedRole.badgeLabel}
+• Format / Page Size: ${manuscript?.targetPageSize ?: "Trade 6\" x 9\""}
+• Current Status: ${currentStatus.displayName}
+
+--- EDITORIAL BRIEF & DIRECTIVES ---
+${contributorNotes.ifBlank { "Please draft or review this section adhering strictly to The Chicago Manual of Style (17th Edition)." }}
+
+--- CHICAGO MANUAL OF STYLE GUIDELINES ---
+1. Headline-style capitalization for chapter subheads.
+2. Em-dashes (—) without surrounding spaces for parenthetical pauses.
+3. Curly typographic smart quotes (“ ” / ‘ ’).
+4. Serial Oxford commas in all lists.
+
+Cordially,
+${currentUser.displayName}
+${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chief • Bwriter Editions" else "Lead Author • Bwriter Editions"}
+                        """.trimIndent()
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Gmail Intent Button
+                            Button(
+                                onClick = {
+                                    val targetEmail = contributorEmailInput.trim()
+                                    val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                        data = Uri.parse("mailto:${if (targetEmail.isNotBlank()) targetEmail else ""}")
+                                        putExtra(Intent.EXTRA_SUBJECT, inviteSubject)
+                                        putExtra(Intent.EXTRA_TEXT, inviteBody)
+                                    }
+                                    try {
+                                        context.startActivity(Intent.createChooser(emailIntent, "Send Invitation via Gmail / Email"))
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "No email client available. Text copied to clipboard.", Toast.LENGTH_SHORT).show()
+                                        clipboardManager.setPrimaryClip(ClipData.newPlainText("Bwriter Invite", inviteBody))
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC5221F)),
+                                modifier = Modifier.weight(1f).testTag("btn_invite_gmail")
+                            ) {
+                                Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Gmail Invite", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+
+                            // In-App Directive Button
+                            Button(
+                                onClick = {
+                                    val targetEmail = contributorEmailInput.ifBlank { "eleanor.types@bwriter.press" }.trim()
+                                    val mail = ServerlessMailMessage(
+                                        recipientEmail = targetEmail,
+                                        senderEmail = currentUser.email,
+                                        senderName = currentUser.displayName,
+                                        subject = inviteSubject,
+                                        body = inviteBody,
+                                        manuscriptId = section.manuscriptId,
+                                        manuscriptTitle = manuscript?.title ?: section.title,
+                                        messageType = "EDITORIAL_REVISION"
+                                    )
+                                    onSendServerlessMail(mail)
+                                    Toast.makeText(context, "In-App Directive dispatched to $targetEmail", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5)),
+                                modifier = Modifier.weight(1f).testTag("btn_dispatch_directive")
+                            ) {
+                                Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("App Directive", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Copy Brief Button
+                        OutlinedButton(
+                            onClick = {
+                                clipboardManager.setPrimaryClip(ClipData.newPlainText("Bwriter Assignment Brief", inviteBody))
+                                Toast.makeText(context, "Assignment brief copied to clipboard!", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("btn_copy_brief"),
+                            border = BorderStroke(1.dp, Color(0xFF38384C))
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(15.dp), tint = BookGoldLight)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Copy Complete Brief to Clipboard", fontSize = 11.5.sp, color = Color(0xFFE2DDD5))
+                        }
+                    }
+                }
+                3 -> {
                     // ==========================================
                     // 3. AI DRAFT PROMPT WORKSHOP (High-Contrast Black Theme)
                     // ==========================================
@@ -1371,7 +1806,67 @@ fun SectionEditorScreen(
                         Spacer(modifier = Modifier.height(14.dp))
 
                         // ==========================================
-                        // F. COMPILED CMOS PROMPT WORKSHOP
+                        // F. SUBSCRIPTION WALLET & CREDITS
+                        // ==========================================
+                        if (subscription != null) {
+                            val isSuper = currentUser.email.equals("real.artistry@gmail.com", ignoreCase = true) || subscription.plan == com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenSubscription() },
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1B26)),
+                                border = BorderStroke(1.dp, if (subscription.creditsRemaining > 0 || isSuper) BookGoldDark else Color(0xFFC62828))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = BookGoldLight,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = if (isSuper) "👑 Editor-in-Chief Unlimited Superuser" else "${subscription.plan.title} (${subscription.plan.priceMonthly})",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFF3EFE6)
+                                            )
+                                            Text(
+                                                text = if (isSuper) "Unlimited AI generations • Active Pass" else "${subscription.creditsRemaining} credits remaining (${subscription.totalTokensUsed} tokens burned)",
+                                                fontSize = 10.5.sp,
+                                                color = if (subscription.creditsRemaining > 0 || isSuper) Color(0xFFB0A89C) else Color(0xFFFF8A80)
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (subscription.creditsRemaining > 0 || isSuper) BookGoldDark.copy(alpha = 0.25f) else Color(0xFFC62828).copy(alpha = 0.3f),
+                                        border = BorderStroke(0.5.dp, if (subscription.creditsRemaining > 0 || isSuper) BookGoldLight else Color(0xFFFF5252))
+                                    ) {
+                                        Text(
+                                            text = if (subscription.creditsRemaining > 0 || isSuper) "Manage Pass" else "Get Credits",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (subscription.creditsRemaining > 0 || isSuper) BookGoldLight else Color(0xFFFF8A80),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+
+                        // ==========================================
+                        // G. COMPILED CMOS PROMPT WORKSHOP
                         // ==========================================
                         Text(
                             text = "Active CMOS Prompt & Directives:",

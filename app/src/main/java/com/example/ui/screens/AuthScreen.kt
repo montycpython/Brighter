@@ -324,6 +324,17 @@ fun AuthScreen(
                 )
             }
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = "By entering the studio, you agree to Bwriter's Terms of Service, EULA, Data Privacy Policy, and Chicago Manual of Style (17th Ed.) Governance.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                lineHeight = 15.sp,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
