@@ -107,12 +107,32 @@ import com.example.ui.theme.InkBlack
 import com.example.ui.theme.ParchmentCream
 import kotlinx.coroutines.launch
 
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Input
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import com.example.model.CharacterEntity
+import com.example.model.ManuscriptEntity
+import com.example.model.StorySettingEntity
+import com.example.ui.theme.BookGoldLight
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SectionEditorScreen(
     section: SectionEntity,
     comments: List<EditorialCommentEntity>,
     currentUser: UserProfile,
+    manuscript: ManuscriptEntity? = null,
+    characters: List<CharacterEntity> = emptyList(),
+    settings: List<StorySettingEntity> = emptyList(),
     onBack: () -> Unit,
     onSaveContent: (SectionEntity, String) -> Unit,
     onSaveAiPrompt: (SectionEntity, String) -> Unit,
@@ -120,7 +140,13 @@ fun SectionEditorScreen(
     onSaveIllustrations: (SectionEntity, String, String, String, String) -> Unit,
     onUpdateStatus: (SectionEntity, SectionStatus) -> Unit,
     onAddComment: (sectionId: Long, manuscriptId: Long, text: String, cmosRef: String) -> Unit,
-    onResolveComment: (commentId: Long, resolved: Boolean) -> Unit
+    onResolveComment: (commentId: Long, resolved: Boolean) -> Unit,
+    onSaveCharacter: (CharacterEntity) -> Unit = {},
+    onDeleteCharacter: (Long) -> Unit = {},
+    onSaveSetting: (StorySettingEntity) -> Unit = {},
+    onDeleteSetting: (Long) -> Unit = {},
+    onGenerateAiDraft: (SectionEntity, String, (String) -> Unit) -> Unit = { _, _, _ -> },
+    isGeneratingAi: Boolean = false
 ) {
     val context = LocalContext.current
     val clipboardManager = remember { context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager }
@@ -141,6 +167,21 @@ fun SectionEditorScreen(
         )
     }
     var currentStatus by remember(section.id) { mutableStateOf(section.status) }
+
+    // Dialog States
+    var showCharacterProfiler by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+
+    // Questionnaire States
+    var questionnaireGoal by remember(section.id) { mutableStateOf("") }
+    var questionnaireConflict by remember(section.id) { mutableStateOf("") }
+    var questionnairePacing by remember(section.id) { mutableStateOf("Contemplative & Atmospheric") }
+    var questionnaireSensory by remember(section.id) { mutableStateOf("") }
+    var intertextualTouchstones by remember(section.id) { mutableStateOf("") }
+    var customDirectives by remember(section.id) { mutableStateOf("") }
+    var selectedLiteraryDevices by remember { mutableStateOf(setOf<String>()) }
+    var selectedCharactersForPrompt by remember { mutableStateOf(setOf<CharacterEntity>()) }
+    var selectedSettingsForPrompt by remember { mutableStateOf(setOf<StorySettingEntity>()) }
 
     // 0 = Prose, 1 = Illustrations & Art, 2 = AI Workshop
     var selectedEditorTab by remember { mutableIntStateOf(0) }
@@ -759,29 +800,586 @@ fun SectionEditorScreen(
                 }
                 2 -> {
                     // ==========================================
-                    // 3. AI DRAFT PROMPT WORKSHOP
+                    // 3. AI DRAFT PROMPT WORKSHOP (High-Contrast Black Theme)
                     // ==========================================
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .background(Color(0xFFF9F7F4))
+                            .background(Color(0xFF0E0E12))
                             .padding(16.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        Text(
-                            text = "Chicago Style AI Prompt Workshop",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Serif
-                        )
-                        Text(
-                            text = "Direct Gemini with precise CMOS editorial constraints for this section.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Psychology,
+                                        contentDescription = null,
+                                        tint = BookGoldLight,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Chicago Style AI Workshop",
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Serif,
+                                        fontSize = 18.sp,
+                                        color = Color(0xFFF3EFE6)
+                                    )
+                                }
+                                Text(
+                                    text = "CMOS-guided chapter questionnaire, character profiling & intertextuality",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFFB0A89C)
+                                )
+                            }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                            if (isGeneratingAi) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .background(BookGoldDark.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        color = BookGoldLight,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Drafting...", fontSize = 11.sp, color = BookGoldLight, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // ==========================================
+                        // A. CHARACTER PROFILES STRIP
+                        // ==========================================
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF16161D)),
+                            border = BorderStroke(1.dp, Color(0xFF2C2C38))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Person, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Character Profiles in Work (${characters.size})",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.5.sp,
+                                            color = Color(0xFFF3EFE6)
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { showCharacterProfiler = true },
+                                        border = BorderStroke(1.dp, BookGoldDark),
+                                        modifier = Modifier.height(28.dp).testTag("btn_open_character_profiler")
+                                    ) {
+                                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(12.dp), tint = BookGoldLight)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Manage Dossiers", fontSize = 10.5.sp, color = BookGoldLight)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                if (characters.isEmpty()) {
+                                    Text(
+                                        text = "No characters profiled yet. Tap 'Manage Dossiers' to profile physical, psychological, and backstory traits.",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray,
+                                        fontStyle = FontStyle.Italic
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        characters.forEach { char ->
+                                            val isSelected = selectedCharactersForPrompt.contains(char)
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isSelected) BookGoldDark.copy(alpha = 0.35f) else Color(0xFF1F1F28),
+                                                border = BorderStroke(1.dp, if (isSelected) BookGold else Color(0xFF383848)),
+                                                modifier = Modifier.clickable {
+                                                    selectedCharactersForPrompt = if (isSelected) {
+                                                        selectedCharactersForPrompt - char
+                                                    } else {
+                                                        selectedCharactersForPrompt + char
+                                                    }
+                                                }
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column {
+                                                        Text(
+                                                            text = char.name,
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFFF3EFE6)
+                                                        )
+                                                        Text(
+                                                            text = char.role,
+                                                            fontSize = 9.5.sp,
+                                                            color = BookGoldLight
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = BookGoldDark,
+                                                        modifier = Modifier
+                                                            .clickable {
+                                                                val charSummary = "\n• Character [${char.name} - ${char.role}]: Physical: ${char.physicalDescription}; Psychology: ${char.psychologicalDescription}; Voice: ${char.voiceAndMannerisms}; Backstory: ${char.backstory}"
+                                                                aiDraftPrompt += charSummary
+                                                                onSaveAiPrompt(section, aiDraftPrompt)
+                                                                selectedCharactersForPrompt = selectedCharactersForPrompt + char
+                                                                coroutineScope.launch { snackbarHostState.showSnackbar("Inserted ${char.name} profile into prompt.") }
+                                                            }
+                                                            .testTag("btn_quick_insert_char_${char.id}")
+                                                    ) {
+                                                        Text(
+                                                            text = "+ Insert",
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color.White,
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // ==========================================
+                        // B. STORY SETTING & WORLDBUILDING STRIP
+                        // ==========================================
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF16161D)),
+                            border = BorderStroke(1.dp, Color(0xFF2C2C38))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Story Settings & World (${settings.size})",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.5.sp,
+                                            color = Color(0xFFF3EFE6)
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { showSettingsDialog = true },
+                                        border = BorderStroke(1.dp, BookGoldDark),
+                                        modifier = Modifier.height(28.dp).testTag("btn_open_settings_dialog")
+                                    ) {
+                                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(12.dp), tint = BookGoldLight)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Manage Settings", fontSize = 10.5.sp, color = BookGoldLight)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                if (settings.isEmpty()) {
+                                    Text(
+                                        text = "No custom settings configured. Tap 'Manage Settings' to define locations, eras, and sensory atmospheres.",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray,
+                                        fontStyle = FontStyle.Italic
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        settings.forEach { set ->
+                                            val isSelected = selectedSettingsForPrompt.contains(set)
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isSelected) BookGoldDark.copy(alpha = 0.35f) else Color(0xFF1F1F28),
+                                                border = BorderStroke(1.dp, if (isSelected) BookGold else Color(0xFF383848)),
+                                                modifier = Modifier.clickable {
+                                                    selectedSettingsForPrompt = if (isSelected) {
+                                                        selectedSettingsForPrompt - set
+                                                    } else {
+                                                        selectedSettingsForPrompt + set
+                                                    }
+                                                }
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column {
+                                                        Text(
+                                                            text = set.locationName,
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFFF3EFE6)
+                                                        )
+                                                        if (set.timePeriodOrEra.isNotBlank()) {
+                                                            Text(
+                                                                text = set.timePeriodOrEra,
+                                                                fontSize = 9.5.sp,
+                                                                color = BookGoldLight
+                                                            )
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = BookGoldDark,
+                                                        modifier = Modifier
+                                                            .clickable {
+                                                                val setSummary = "\n• Setting [${set.locationName} (${set.timePeriodOrEra})]: Atmosphere: ${set.atmosphereAndSensory}; Architecture: ${set.architecturalOrSpatialDetails}; Historical Context: ${set.historicalOrCulturalContext}"
+                                                                aiDraftPrompt += setSummary
+                                                                onSaveAiPrompt(section, aiDraftPrompt)
+                                                                selectedSettingsForPrompt = selectedSettingsForPrompt + set
+                                                                coroutineScope.launch { snackbarHostState.showSnackbar("Inserted setting into prompt.") }
+                                                            }
+                                                            .testTag("btn_quick_insert_setting_${set.id}")
+                                                    ) {
+                                                        Text(
+                                                            text = "+ Insert",
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color.White,
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // ==========================================
+                        // C. GUIDED CHAPTER QUESTIONNAIRE (Base Template)
+                        // ==========================================
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF15151D)),
+                            border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Quiz, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Guided Chapter Questionnaire (Author Blueprint)",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = Color(0xFFF3EFE6)
+                                    )
+                                }
+                                Text(
+                                    text = "Answer key narrative questions to shape the chapter's purpose, stakes, and sensory atmosphere.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFB0A89C)
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Question 1: Goal & Turning Point
+                                Text("1. Chapter Goal & Turning Point", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = BookGoldLight)
+                                OutlinedTextField(
+                                    value = questionnaireGoal,
+                                    onValueChange = { questionnaireGoal = it },
+                                    placeholder = { Text("e.g. Silas discovers the altered Aldine proof and confronts Eleanor before dawn.", color = Color.Gray, fontSize = 11.5.sp) },
+                                    modifier = Modifier.fillMaxWidth().height(68.dp).testTag("input_quest_goal"),
+                                    textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = BookGold,
+                                        unfocusedBorderColor = Color(0xFF3B3B4C),
+                                        focusedContainerColor = Color(0xFF1B1B24),
+                                        unfocusedContainerColor = Color(0xFF14141A)
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Question 2: Conflict & Stakes
+                                Text("2. Central Conflict & Emotional Friction", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = BookGoldLight)
+                                OutlinedTextField(
+                                    value = questionnaireConflict,
+                                    onValueChange = { questionnaireConflict = it },
+                                    placeholder = { Text("e.g. The pressure of impending commercial buyout vs. artisanal fidelity.", color = Color.Gray, fontSize = 11.5.sp) },
+                                    modifier = Modifier.fillMaxWidth().height(68.dp).testTag("input_quest_conflict"),
+                                    textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = BookGold,
+                                        unfocusedBorderColor = Color(0xFF3B3B4C),
+                                        focusedContainerColor = Color(0xFF1B1B24),
+                                        unfocusedContainerColor = Color(0xFF14141A)
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Question 3: Pacing & Mood
+                                Text("3. Pacing & Tone", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = BookGoldLight)
+                                val pacingOptions = listOf("Contemplative & Lyrical", "Tense & Suspenseful", "Urgent & Dramatic", "Melancholic", "Analytical & Precise")
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    pacingOptions.forEach { pace ->
+                                        FilterChip(
+                                            selected = questionnairePacing == pace,
+                                            onClick = { questionnairePacing = pace },
+                                            label = { Text(pace, fontSize = 10.5.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = BookGoldDark,
+                                                selectedLabelColor = Color.White,
+                                                containerColor = Color(0xFF1E1E28),
+                                                labelColor = Color(0xFFD0CAC0)
+                                            )
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // Question 4: Sensory & Physical Details
+                                Text("4. Sensory Atmosphere & Physical Artifacts", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = BookGoldLight)
+                                OutlinedTextField(
+                                    value = questionnaireSensory,
+                                    onValueChange = { questionnaireSensory = it },
+                                    placeholder = { Text("e.g. Smell of turpentine, rattle of Miehle cylinder press, cold Chicago rain.", color = Color.Gray, fontSize = 11.5.sp) },
+                                    modifier = Modifier.fillMaxWidth().height(68.dp).testTag("input_quest_sensory"),
+                                    textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = BookGold,
+                                        unfocusedBorderColor = Color(0xFF3B3B4C),
+                                        focusedContainerColor = Color(0xFF1B1B24),
+                                        unfocusedContainerColor = Color(0xFF14141A)
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // ==========================================
+                        // D. SCROLLABLE LITERARY DEVICES CATALOG
+                        // ==========================================
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF15151D)),
+                            border = BorderStroke(1.dp, Color(0xFF2C2C38))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.MenuBook, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Literary Devices & Narrative Craft (Scrollable)",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFFF3EFE6)
+                                    )
+                                }
+                                Text(
+                                    text = "Tap any literary device to incorporate its technique into the chapter prompt.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFB0A89C)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                val literaryDevices = listOf(
+                                    "Free Indirect Discourse (Blending 3rd-person narrator with character internal voice)",
+                                    "Foreshadowing & Omen (Subtle atmospheric warning of the coming crisis)",
+                                    "Dramatic Irony (The reader discovers the secret before the protagonist)",
+                                    "Chiaroscuro Imagery (High-contrast play of candlelight, gas jets, and shadows)",
+                                    "Stream of Consciousness (Associative, sensory-driven psychological monologue)",
+                                    "Motif & Leitmotif Echo (Recurring typographic symbol of the leaf and ink)",
+                                    "Epistolary Inset (A formal Chicago §13.8 indented historical letter fragment)",
+                                    "Sensory Synesthesia (Intertwining the smell of hot antimony with tactile rhythm)",
+                                    "Unspoken Subtext & Pauses (Chicago em-dash cadence reflecting emotional hesitation)",
+                                    "Objective Correlative (The brass composing stick embodying lost artisanal pride)",
+                                    "Pathetic Fallacy (Lake Michigan's freezing fog mirroring ideological isolation)",
+                                    "In Media Res Opening (Beginning immediately in the turning point)",
+                                    "Periodic Sentence Structure (CMOS §5.233 suspenseful delayed main clause)",
+                                    "Allegorical Resonance (The printing press as a metaphor for human mortality)",
+                                    "Lyrical Anaphora (Repetition of introductory cadence phrases)"
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    literaryDevices.forEach { device ->
+                                        val shortName = device.substringBefore(" (")
+                                        val isSelected = selectedLiteraryDevices.contains(device)
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = {
+                                                selectedLiteraryDevices = if (isSelected) {
+                                                    selectedLiteraryDevices - device
+                                                } else {
+                                                    aiDraftPrompt += "\n• Apply Literary Device: $device"
+                                                    onSaveAiPrompt(section, aiDraftPrompt)
+                                                    coroutineScope.launch { snackbarHostState.showSnackbar("Added '$shortName' to prompt.") }
+                                                    selectedLiteraryDevices + device
+                                                }
+                                            },
+                                            label = { Text("+ $shortName", fontSize = 10.5.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = BookGoldDark,
+                                                selectedLabelColor = Color.White,
+                                                containerColor = Color(0xFF1E1E28),
+                                                labelColor = Color(0xFFD0CAC0)
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // ==========================================
+                        // E. INTERTEXTUALITY & COMPANION TEXTS
+                        // ==========================================
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF15151D)),
+                            border = BorderStroke(1.dp, Color(0xFF2C2C38))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AutoStories, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Intertextuality Studio (Literary Touchstones)",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFFF3EFE6)
+                                    )
+                                }
+                                Text(
+                                    text = "Suggest companion texts and masterworks for your final draft to converse with.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFB0A89C)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                val intertextualPresets = listOf(
+                                    "Theodore Dreiser (Sister Carrie - Industrial grit & urban realism)",
+                                    "Henry James (Turn of the Screw - Psychological ambiguity & complex syntax)",
+                                    "Robert Bringhurst (The Elements of Typographic Style - Sacred leaf craft)",
+                                    "Herman Melville (Moby-Dick - Metaphysical inquiry & grandiose prose)",
+                                    "Virginia Woolf (To the Lighthouse - Fluid temporal consciousness)",
+                                    "Cormac McCarthy (Blood Meridian - Archaic cadence & stark atmosphere)",
+                                    "Mary Shelley (Frankenstein - Obsessive pursuit of artisanal creation)",
+                                    "Umberto Eco (The Name of the Rose - Archival intrigue & textual mystery)"
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    intertextualPresets.forEach { preset ->
+                                        val authorName = preset.substringBefore(" (")
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF1E1E28),
+                                            border = BorderStroke(0.5.dp, Color(0xFF3A3A4C)),
+                                            modifier = Modifier.clickable {
+                                                intertextualTouchstones = if (intertextualTouchstones.isBlank()) preset else "$intertextualTouchstones; $preset"
+                                                aiDraftPrompt += "\n• Intertextual Dialogue: $preset"
+                                                onSaveAiPrompt(section, aiDraftPrompt)
+                                                coroutineScope.launch { snackbarHostState.showSnackbar("Added $authorName to intertextuality.") }
+                                            }
+                                        ) {
+                                            Text(
+                                                text = "+ $authorName",
+                                                fontSize = 10.5.sp,
+                                                color = BookGoldLight,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = intertextualTouchstones,
+                                    onValueChange = { intertextualTouchstones = it },
+                                    placeholder = { Text("Enter custom books, authors, or literary movements to communicate with...", color = Color.Gray, fontSize = 11.5.sp) },
+                                    modifier = Modifier.fillMaxWidth().height(60.dp).testTag("input_intertextuality"),
+                                    textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = BookGold,
+                                        unfocusedBorderColor = Color(0xFF3B3B4C),
+                                        focusedContainerColor = Color(0xFF1B1B24),
+                                        unfocusedContainerColor = Color(0xFF14141A)
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // ==========================================
+                        // F. COMPILED CMOS PROMPT WORKSHOP
+                        // ==========================================
+                        Text(
+                            text = "Active CMOS Prompt & Directives:",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp,
+                            color = BookGoldLight
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         OutlinedTextField(
                             value = aiDraftPrompt,
@@ -791,55 +1389,148 @@ fun SectionEditorScreen(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(160.dp)
+                                .height(140.dp)
                                 .testTag("input_ai_prompt"),
-                            label = { Text("Custom Editorial Prompt for Gemini") },
-                            textStyle = TextStyle(fontSize = 13.sp, lineHeight = 19.sp),
+                            label = { Text("Gemini CMOS Prompt", color = BookGoldLight) },
+                            textStyle = TextStyle(fontSize = 12.5.sp, lineHeight = 18.sp, color = Color(0xFFF3EFE6)),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BookGoldDark,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                focusedBorderColor = BookGold,
+                                unfocusedBorderColor = Color(0xFF3B3B4C),
+                                focusedContainerColor = Color(0xFF15151D),
+                                unfocusedContainerColor = Color(0xFF121218)
                             )
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Text(
-                            text = "Preset Chicago Style Constraints:",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        val presets = listOf(
-                            "Dialogue Pacing: Use smart quotation marks, commas before dialogue tags inside quotes, and em-dashes for interrupted speech.",
-                            "Historical & Narrative Rigor: Ensure evocative descriptive depth, sensory clarity, and period-accurate vocabulary without clichés.",
-                            "Chicago §13 Block Quotes: Format quotations of over 100 words with 0.5-inch paragraph indentation and no opening/closing quotes."
-                        )
-
-                        presets.forEach { preset ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clickable {
-                                        aiDraftPrompt += "\n\n$preset"
-                                        onSaveAiPrompt(section, aiDraftPrompt)
-                                        coroutineScope.launch { snackbarHostState.showSnackbar("Preset constraint added to prompt.") }
-                                    },
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        // COMPILE BUTTON & GENERATE BUTTON
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    val compiled = com.example.ai.GeminiProseGenerator.buildComprehensivePrompt(
+                                        manuscript = manuscript,
+                                        section = section,
+                                        questionnaireGoal = questionnaireGoal,
+                                        questionnaireConflict = questionnaireConflict,
+                                        questionnairePacing = questionnairePacing,
+                                        questionnaireSensory = questionnaireSensory,
+                                        selectedCharacters = selectedCharactersForPrompt.toList().ifEmpty { characters.take(2) },
+                                        selectedSettings = selectedSettingsForPrompt.toList().ifEmpty { settings.take(1) },
+                                        selectedLiteraryDevices = selectedLiteraryDevices.toList(),
+                                        intertextualTouchstones = intertextualTouchstones,
+                                        customDirectives = customDirectives
+                                    )
+                                    aiDraftPrompt = compiled
+                                    onSaveAiPrompt(section, compiled)
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Compiled comprehensive CMOS prompt.") }
+                                },
+                                border = BorderStroke(1.dp, BookGoldDark),
+                                modifier = Modifier.weight(1f).height(44.dp).testTag("btn_compile_prompt")
                             ) {
-                                Text(
-                                    text = "+ $preset",
-                                    fontSize = 11.5.sp,
-                                    modifier = Modifier.padding(10.dp),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                                Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(15.dp), tint = BookGoldLight)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Compile Prompt", fontSize = 11.5.sp, color = BookGoldLight, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    val promptToRun = if (aiDraftPrompt.isNotBlank()) aiDraftPrompt else {
+                                        com.example.ai.GeminiProseGenerator.buildComprehensivePrompt(
+                                            manuscript = manuscript,
+                                            section = section,
+                                            questionnaireGoal = questionnaireGoal,
+                                            questionnaireConflict = questionnaireConflict,
+                                            questionnairePacing = questionnairePacing,
+                                            questionnaireSensory = questionnaireSensory,
+                                            selectedCharacters = selectedCharactersForPrompt.toList().ifEmpty { characters },
+                                            selectedSettings = selectedSettingsForPrompt.toList().ifEmpty { settings },
+                                            selectedLiteraryDevices = selectedLiteraryDevices.toList(),
+                                            intertextualTouchstones = intertextualTouchstones,
+                                            customDirectives = customDirectives
+                                        )
+                                    }
+                                    onGenerateAiDraft(section, promptToRun) { generated ->
+                                        contentValue = TextFieldValue(
+                                            if (contentValue.text.isBlank()) generated
+                                            else "${contentValue.text.trimEnd()}\n\n$generated"
+                                        )
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Chapter prose generated & added to editor!")
+                                        }
+                                    }
+                                },
+                                enabled = !isGeneratingAi,
+                                colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                modifier = Modifier.weight(1.2f).height(44.dp).testTag("btn_generate_chapter_prose")
+                            ) {
+                                if (isGeneratingAi) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Generating...", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Generate Prose", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }
+        }
+
+        // ==========================================
+        // DIALOGS: CHARACTER PROFILER & SETTINGS STUDIO
+        // ==========================================
+        if (showCharacterProfiler) {
+            CharacterProfilerDialog(
+                manuscriptId = section.manuscriptId,
+                characters = characters,
+                onDismiss = { showCharacterProfiler = false },
+                onSaveCharacter = { char ->
+                    onSaveCharacter(char)
+                    coroutineScope.launch { snackbarHostState.showSnackbar("Character '${char.name}' saved.") }
+                },
+                onDeleteCharacter = { charId ->
+                    onDeleteCharacter(charId)
+                    coroutineScope.launch { snackbarHostState.showSnackbar("Character profile deleted.") }
+                },
+                onInsertIntoPrompt = { char ->
+                    val charSummary = "\n• Profile [${char.name} - ${char.role}]: Physical: ${char.physicalDescription}; Psychology: ${char.psychologicalDescription}; Voice: ${char.voiceAndMannerisms}; Backstory: ${char.backstory}"
+                    aiDraftPrompt += charSummary
+                    onSaveAiPrompt(section, aiDraftPrompt)
+                    selectedCharactersForPrompt = selectedCharactersForPrompt + char
+                    coroutineScope.launch { snackbarHostState.showSnackbar("Inserted ${char.name} into AI prompt.") }
+                }
+            )
+        }
+
+        if (showSettingsDialog) {
+            SettingIntertextualityDialog(
+                manuscriptId = section.manuscriptId,
+                settings = settings,
+                onDismiss = { showSettingsDialog = false },
+                onSaveSetting = { set ->
+                    onSaveSetting(set)
+                    coroutineScope.launch { snackbarHostState.showSnackbar("Setting '${set.locationName}' saved.") }
+                },
+                onDeleteSetting = { setId ->
+                    onDeleteSetting(setId)
+                    coroutineScope.launch { snackbarHostState.showSnackbar("Setting deleted.") }
+                },
+                onInsertSetting = { set ->
+                    val setSummary = "\n• Setting [${set.locationName} (${set.timePeriodOrEra})]: Atmosphere: ${set.atmosphereAndSensory}; Architecture: ${set.architecturalOrSpatialDetails}; Historical Context: ${set.historicalOrCulturalContext}"
+                    aiDraftPrompt += setSummary
+                    onSaveAiPrompt(section, aiDraftPrompt)
+                    selectedSettingsForPrompt = selectedSettingsForPrompt + set
+                    coroutineScope.launch { snackbarHostState.showSnackbar("Inserted ${set.locationName} into AI prompt.") }
+                }
+            )
         }
 
         // EDITORIAL COMMENTS BOTTOM SHEET

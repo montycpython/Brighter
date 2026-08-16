@@ -19,6 +19,8 @@ class BwriterRepository(private val database: BwriterDatabase) {
     private val manuscriptDao = database.manuscriptDao()
     private val sectionDao = database.sectionDao()
     private val commentDao = database.commentDao()
+    private val characterDao = database.characterDao()
+    private val settingDao = database.settingDao()
 
     val allManuscripts: Flow<List<ManuscriptEntity>> = manuscriptDao.getAllManuscripts()
 
@@ -47,6 +49,38 @@ class BwriterRepository(private val database: BwriterDatabase) {
 
     fun getCommentsForManuscript(manuscriptId: Long): Flow<List<EditorialCommentEntity>> =
         commentDao.getCommentsForManuscript(manuscriptId)
+
+    // Character Profiling
+    fun getCharactersForManuscript(manuscriptId: Long): Flow<List<com.example.model.CharacterEntity>> =
+        characterDao.getCharactersForManuscript(manuscriptId)
+
+    suspend fun getCharactersForManuscriptOnce(manuscriptId: Long): List<com.example.model.CharacterEntity> =
+        withContext(Dispatchers.IO) { characterDao.getCharactersForManuscriptOnce(manuscriptId) }
+
+    suspend fun insertCharacter(character: com.example.model.CharacterEntity): Long =
+        withContext(Dispatchers.IO) { characterDao.insertCharacter(character) }
+
+    suspend fun updateCharacter(character: com.example.model.CharacterEntity) =
+        withContext(Dispatchers.IO) { characterDao.updateCharacter(character) }
+
+    suspend fun deleteCharacterById(id: Long) =
+        withContext(Dispatchers.IO) { characterDao.deleteCharacterById(id) }
+
+    // Settings & Worldbuilding
+    fun getSettingsForManuscript(manuscriptId: Long): Flow<List<com.example.model.StorySettingEntity>> =
+        settingDao.getSettingsForManuscript(manuscriptId)
+
+    suspend fun getSettingsForManuscriptOnce(manuscriptId: Long): List<com.example.model.StorySettingEntity> =
+        withContext(Dispatchers.IO) { settingDao.getSettingsForManuscriptOnce(manuscriptId) }
+
+    suspend fun insertSetting(setting: com.example.model.StorySettingEntity): Long =
+        withContext(Dispatchers.IO) { settingDao.insertSetting(setting) }
+
+    suspend fun updateSetting(setting: com.example.model.StorySettingEntity) =
+        withContext(Dispatchers.IO) { settingDao.updateSetting(setting) }
+
+    suspend fun deleteSettingById(id: Long) =
+        withContext(Dispatchers.IO) { settingDao.deleteSettingById(id) }
 
     suspend fun createManuscript(
         manuscript: ManuscriptEntity,
@@ -117,6 +151,11 @@ class BwriterRepository(private val database: BwriterDatabase) {
                     }
                 }
             }
+            // Ensure sample characters exist for novel 1
+            val existingChars = characterDao.getCharactersForManuscriptOnce(1)
+            if (existingChars.isEmpty()) {
+                seedNovelCharactersAndSettings(1)
+            }
             return@withContext
         }
 
@@ -140,6 +179,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
         )
         val novelId = manuscriptDao.insertManuscript(novel)
         seedNovelSections(novelId)
+        seedNovelCharactersAndSettings(novelId)
 
         // 2. Biography Seed
         val bio = ManuscriptEntity(
@@ -550,5 +590,68 @@ class BwriterRepository(private val database: BwriterDatabase) {
             )
         }
         sectionDao.insertSections(sections)
+    }
+
+    private suspend fun seedNovelCharactersAndSettings(manuscriptId: Long) {
+        val characters = listOf(
+            com.example.model.CharacterEntity(
+                manuscriptId = manuscriptId,
+                name = "Silas Vance",
+                role = "Protagonist",
+                physicalDescription = "Tall and lean with silver-streaked hair, ink-stained fingertips, dark woolen vest, silver pocket watch chain, keen gray eyes behind round wire-rimmed spectacles.",
+                psychologicalDescription = "Obsessively meticulous master compositor. Haunted by the industrialization of the press trade; fiercely devoted to hot-metal craftsmanship, yet battling nocturnal doubts about his legacy.",
+                backstory = "Apprenticed in the renowned Edinburgh printshops in 1868 before emigrating to Chicago; founded the St. Jude Private Press shortly after the Great Chicago Fire.",
+                voiceAndMannerisms = "Speaks in measured, cadence-rich sentences with an undercurrent of dry Scots irony. Taps brass composing sticks rhythmically when contemplating layout problems.",
+                intertextualArchetype = "Faustian seeker of aesthetic perfection / Ahab-like devotion to typographic purity",
+                otherDetails = "Carries an 1874 brass pica rule passed down from his mentor; keeps a locked leather-bound diary of discarded font geometries."
+            ),
+            com.example.model.CharacterEntity(
+                manuscriptId = manuscriptId,
+                name = "Eleanor Rigby Vance",
+                role = "Deuteragonist",
+                physicalDescription = "Quick and energetic with raven curls pinned by boxwood bodkins, sharp hazel eyes, perpetually rolled linen sleeves, smudge of Prussian blue pigment on collarbone.",
+                psychologicalDescription = "Brilliant archival scholar and typographic historian. Radical in her aesthetic visions; impatient with timid editorial conventions and eager to merge classical leaves with modern storytelling.",
+                backstory = "Educated at the University of Chicago and the British Museum Library; returned to preserve her family's historic press amid rising commercial monopolies.",
+                voiceAndMannerisms = "Rapid, incisive speech punctuated with Latin typographic citations and swift hand gestures. Tilts head with skeptical amusement when evaluating proofs.",
+                intertextualArchetype = "Athena archetype / Dorothea Brooke's moral earnestness with a modern modernist edge",
+                otherDetails = "Discovered an uncataloged 16th-century Aldine italic specimen leaf that forms the central mystery of the chronicle."
+            ),
+            com.example.model.CharacterEntity(
+                manuscriptId = manuscriptId,
+                name = "Marcus Sterling",
+                role = "Antagonist / Foil",
+                physicalDescription = "Broad-shouldered, tailored charcoal worsted suit, gold signet ring on right index finger, slicked amber hair, heavy resonant voice.",
+                psychologicalDescription = "Ambitious industrial syndicate manager. Views printing solely through efficiency, automated high-speed matrices, and volume margins rather than typographic soul.",
+                backstory = "Financed by East Coast publishing syndicates to buy out independent midwestern foundries and convert them into automated newsprint factories.",
+                voiceAndMannerisms = "Projecting baritone, uses market metaphors, checks his gold repeater watch frequently during editorial disputes.",
+                intertextualArchetype = "Industrial Gilded Age titan / The unrelenting spirit of mechanization",
+                otherDetails = "Secretly respects Vance's artistry, making their clashes deeply philosophical rather than merely transactional."
+            )
+        )
+        characterDao.insertCharacters(characters)
+
+        val settings = listOf(
+            com.example.model.StorySettingEntity(
+                manuscriptId = manuscriptId,
+                locationName = "The St. Jude Pressroom at Dusk (Chicago, 1888)",
+                timePeriodOrEra = "Late 19th-Century Chicago (Autumn 1888)",
+                atmosphereAndSensory = "Smell of boiled linseed oil, turpentine, and molten antimony; warm amber lantern glow dancing on cast-iron Miehle cylinder presses; the cold autumn wind rattling Victorian mullioned glass.",
+                architecturalOrSpatialDetails = "Two-story brick warehouse on South Dearborn Street; heavy oak composing banks lined with California job cases; a central cast-iron stove glowing cherry-red.",
+                historicalOrCulturalContext = "The era immediately preceding the Linotype machine revolution; Chicago's Printers Row bustling with trade unions, immigrant craftsmen, and steam-driven competition.",
+                targetIntertextualTouchstones = "Theodore Dreiser's 'Sister Carrie' (industrial grit), Robert Bringhurst's 'Elements of Typographic Style' (sacred craftsmanship).",
+                otherNotes = "The heart of the story where all crucial recto-verso confrontations take place."
+            ),
+            com.example.model.StorySettingEntity(
+                manuscriptId = manuscriptId,
+                locationName = "The Newberry Rare Manuscripts Vault",
+                timePeriodOrEra = "Chicago Winter 1889",
+                atmosphereAndSensory = "Whispering quietude, dry scent of ancient rag vellum and calfskin leather, dust motes caught in pale northern sunlight.",
+                architecturalOrSpatialDetails = "Underground stone vaulted chamber with iron grille alcoves, mahogany reading lecterns, green-shaded banker lamps.",
+                historicalOrCulturalContext = "Post-fire intellectual renaissance of the Midwest; private collectors competing for Renaissance incunabula.",
+                targetIntertextualTouchstones = "Umberto Eco's 'The Name of the Rose', Henry James' 'The Turn of the Screw'.",
+                otherNotes = "Where Eleanor deciphers the watermark clues."
+            )
+        )
+        settingDao.insertSettings(settings)
     }
 }

@@ -65,6 +65,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val calculatedLeaves by viewModel.calculatedLeaves.collectAsState()
     val activeSection by viewModel.activeSection.collectAsState()
     val activeComments by viewModel.activeSectionComments.collectAsState()
+    val characters by viewModel.charactersForActiveManuscript.collectAsState()
+    val settings by viewModel.settingsForActiveManuscript.collectAsState()
+    val isGeneratingAiProse by viewModel.isGeneratingAiProse.collectAsState()
     val exportResult by viewModel.exportResult.collectAsState()
     val isExporting by viewModel.isExporting.collectAsState()
 
@@ -178,6 +181,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     section = currentSec,
                     comments = activeComments,
                     currentUser = currentUser,
+                    manuscript = activeManuscript,
+                    characters = characters,
+                    settings = settings,
                     onBack = { navController.popBackStack() },
                     onSaveContent = { sec, content ->
                         viewModel.updateSectionContent(sec, content)
@@ -199,7 +205,23 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     },
                     onResolveComment = { commentId, resolved ->
                         viewModel.resolveComment(commentId, resolved)
-                    }
+                    },
+                    onSaveCharacter = { char ->
+                        viewModel.saveCharacter(char)
+                    },
+                    onDeleteCharacter = { charId ->
+                        viewModel.deleteCharacter(charId)
+                    },
+                    onSaveSetting = { setting ->
+                        viewModel.saveSetting(setting)
+                    },
+                    onDeleteSetting = { settingId ->
+                        viewModel.deleteSetting(settingId)
+                    },
+                    onGenerateAiDraft = { sec, prompt, onDone ->
+                        viewModel.generateAiDraftFromPrompt(sec, prompt, onDone)
+                    },
+                    isGeneratingAi = isGeneratingAiProse
                 )
             }
         }

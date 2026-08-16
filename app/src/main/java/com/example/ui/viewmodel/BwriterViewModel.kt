@@ -163,6 +163,91 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
+    // ==========================================
+    // Character Profiling for Active Manuscript
+    // ==========================================
+    val charactersForActiveManuscript: StateFlow<List<com.example.model.CharacterEntity>> = _selectedManuscriptId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList()) else repository.getCharactersForManuscript(id)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun saveCharacter(character: com.example.model.CharacterEntity) {
+        viewModelScope.launch {
+            if (character.id == 0L) {
+                repository.insertCharacter(character)
+            } else {
+                repository.updateCharacter(character)
+            }
+        }
+    }
+
+    fun deleteCharacter(characterId: Long) {
+        viewModelScope.launch {
+            repository.deleteCharacterById(characterId)
+        }
+    }
+
+    // ==========================================
+    // Story Settings & Intertextuality
+    // ==========================================
+    val settingsForActiveManuscript: StateFlow<List<com.example.model.StorySettingEntity>> = _selectedManuscriptId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList()) else repository.getSettingsForManuscript(id)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun saveSetting(setting: com.example.model.StorySettingEntity) {
+        viewModelScope.launch {
+            if (setting.id == 0L) {
+                repository.insertSetting(setting)
+            } else {
+                repository.updateSetting(setting)
+            }
+        }
+    }
+
+    fun deleteSetting(settingId: Long) {
+        viewModelScope.launch {
+            repository.deleteSettingById(settingId)
+        }
+    }
+
+    // ==========================================
+    // AI Prose Generation State
+    // ==========================================
+    private val _isGeneratingAiProse = MutableStateFlow(false)
+    val isGeneratingAiProse: StateFlow<Boolean> = _isGeneratingAiProse.asStateFlow()
+
+    fun generateAiDraftFromPrompt(
+        section: SectionEntity,
+        prompt: String,
+        onGenerated: (String) -> Unit
+    ) {
+        _isGeneratingAiProse.value = true
+        viewModelScope.launch {
+            try {
+                val result = com.example.ai.GeminiProseGenerator.generateChapterProse(prompt)
+                val generatedText = result.getOrNull() ?: ""
+                if (generatedText.isNotBlank()) {
+                    val updatedContent = if (section.content.isBlank()) {
+                        generatedText
+                    } else {
+                        "${section.content.trimEnd()}\n\n$generatedText"
+                    }
+                    repository.updateSection(section.copy(content = updatedContent, aiDraftPrompt = prompt))
+                    onGenerated(generatedText)
+                }
+            } finally {
+                _isGeneratingAiProse.value = false
+            }
+        }
+    }
+
     fun createManuscript(
         title: String,
         subtitle: String,

@@ -4,23 +4,29 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.model.CharacterEntity
 import com.example.model.EditorialCommentEntity
 import com.example.model.ManuscriptEntity
 import com.example.model.SectionEntity
+import com.example.model.StorySettingEntity
 
 @Database(
     entities = [
         ManuscriptEntity::class,
         SectionEntity::class,
-        EditorialCommentEntity::class
+        EditorialCommentEntity::class,
+        CharacterEntity::class,
+        StorySettingEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class BwriterDatabase : RoomDatabase() {
     abstract fun manuscriptDao(): ManuscriptDao
     abstract fun sectionDao(): SectionDao
     abstract fun commentDao(): CommentDao
+    abstract fun characterDao(): CharacterDao
+    abstract fun settingDao(): StorySettingDao
 
     companion object {
         @Volatile
