@@ -211,9 +211,9 @@ object CmosPdfExporter {
         // Dynamic Table of Contents in Front Matter
         // ==========================================
         val calculatedLeaves = CmosLeafEngine.calculateLeaves(manuscript, sections)
-        val tocLeaf = calculatedLeaves.find { it.displayType == LeafDisplayType.TABLE_OF_CONTENTS }
+        val tocLeaves = calculatedLeaves.filter { it.displayType == LeafDisplayType.TABLE_OF_CONTENTS }
 
-        if (tocLeaf != null && tocLeaf.contentSnippet.isNotBlank()) {
+        if (tocLeaves.isNotEmpty()) {
             // Ensure TOC starts on Recto (odd global page)
             if (globalPageNumber % 2 == 0) {
                 val (blankPage, _) = createNewPage(isRecto = false)
@@ -222,25 +222,43 @@ object CmosPdfExporter {
                 frontMatterRomanPage++
             }
 
-            val (page, canvas) = createNewPage(isRecto = true)
-            drawTableOfContentsPage(
-                canvas = canvas,
-                tocContent = tocLeaf.contentSnippet,
-                leftMargin = gutterMargin.toInt(),
-                rightMargin = (pageWidthPt - outerMargin).toInt(),
-                pageHeightPt = pageHeightPt,
-                boldPaint = boldPaint,
-                textPaint = textPaint
-            )
-            pdfDocument.finishPage(page)
-            globalPageNumber++
-            frontMatterRomanPage++
+            for ((tocPageIdx, leaf) in tocLeaves.withIndex()) {
+                val isRecto = (globalPageNumber % 2 != 0)
+                val (page, canvas) = createNewPage(isRecto = isRecto)
 
-            // Blank verso after TOC to ensure next section starts on Recto
-            val (blankAfterToc, _) = createNewPage(isRecto = false)
-            pdfDocument.finishPage(blankAfterToc)
-            globalPageNumber++
-            frontMatterRomanPage++
+                val leftMargin = if (isRecto) gutterMargin.toInt() else outerMargin.toInt()
+                val rightMargin = if (isRecto) (pageWidthPt - outerMargin).toInt() else (pageWidthPt - gutterMargin).toInt()
+
+                drawTableOfContentsPage(
+                    canvas = canvas,
+                    tocContent = leaf.contentSnippet,
+                    isOpener = (tocPageIdx == 0),
+                    isRecto = isRecto,
+                    currentPageDisplay = CmosFormatter.toRoman(frontMatterRomanPage),
+                    bookTitle = manuscript.title,
+                    leftMargin = leftMargin,
+                    rightMargin = rightMargin,
+                    topMargin = topMargin.toInt(),
+                    pageWidthPt = pageWidthPt,
+                    pageHeightPt = pageHeightPt,
+                    boldPaint = boldPaint,
+                    textPaint = textPaint,
+                    headerPaint = headerPaint,
+                    folioPaint = folioPaint,
+                    rulePaint = rulePaint
+                )
+                pdfDocument.finishPage(page)
+                globalPageNumber++
+                frontMatterRomanPage++
+            }
+
+            // If TOC finished on Recto (odd page), insert Blank Verso so next front section starts on Recto
+            if (globalPageNumber % 2 == 0) {
+                val (blankAfterToc, _) = createNewPage(isRecto = false)
+                pdfDocument.finishPage(blankAfterToc)
+                globalPageNumber++
+                frontMatterRomanPage++
+            }
         }
 
         // Custom Front Matter Sections
@@ -792,29 +810,69 @@ object CmosPdfExporter {
     private fun drawTableOfContentsPage(
         canvas: Canvas,
         tocContent: String,
+        isOpener: Boolean,
+        isRecto: Boolean,
+        currentPageDisplay: String,
+        bookTitle: String,
         leftMargin: Int,
         rightMargin: Int,
+        topMargin: Int,
+        pageWidthPt: Int,
         pageHeightPt: Int,
         boldPaint: TextPaint,
-        textPaint: TextPaint
+        textPaint: TextPaint,
+        headerPaint: TextPaint,
+        folioPaint: TextPaint,
+        rulePaint: Paint
     ) {
-        var currentY = pageHeightPt * 0.14f
-        val titleText = "CONTENTS"
-        val titlePaint = TextPaint(boldPaint).apply {
-            textSize = 14f
-            letterSpacing = 0.12f
-        }
-        val titleWidth = titlePaint.measureText(titleText)
-        val centerX = leftMargin + (rightMargin - leftMargin) / 2f
-        canvas.drawText(titleText, centerX - titleWidth / 2f, currentY, titlePaint)
+        var currentY: Float
 
-        currentY += 12f
-        val rulePaint = Paint().apply {
-            color = Color.rgb(180, 150, 80)
-            strokeWidth = 1f
+        if (isOpener) {
+            currentY = pageHeightPt * 0.14f
+            val titleText = "CONTENTS"
+            val titlePaint = TextPaint(boldPaint).apply {
+                textSize = 14f
+                letterSpacing = 0.12f
+            }
+            val titleWidth = titlePaint.measureText(titleText)
+            val centerX = leftMargin + (rightMargin - leftMargin) / 2f
+            canvas.drawText(titleText, centerX - titleWidth / 2f, currentY, titlePaint)
+
+            currentY += 12f
+            val goldRulePaint = Paint().apply {
+                color = Color.rgb(180, 150, 80)
+                strokeWidth = 1f
+            }
+            canvas.drawLine(centerX - 20f, currentY, centerX + 20f, currentY, goldRulePaint)
+            currentY += 28f
+        } else {
+            // Continuation page (Leaf 2, 3, etc.) - draw running headers with folios
+            val yHeader = topMargin.toFloat() - 12f
+
+            if (isRecto) {
+                val headText = "TABLE OF CONTENTS"
+                val headWidth = headerPaint.measureText(headText)
+                val folioWidth = folioPaint.measureText(currentPageDisplay)
+
+                val headX = (rightMargin.toFloat() - headWidth - folioWidth - 16f).coerceAtLeast(leftMargin.toFloat())
+                val folioX = rightMargin.toFloat() - folioWidth
+
+                canvas.drawText(headText, headX, yHeader, headerPaint)
+                canvas.drawText(currentPageDisplay, folioX, yHeader, folioPaint)
+            } else {
+                val headText = bookTitle.ifBlank { "TABLE OF CONTENTS" }
+                val folioWidth = folioPaint.measureText(currentPageDisplay)
+
+                val folioX = leftMargin.toFloat()
+                val headX = leftMargin.toFloat() + folioWidth + 16f
+
+                canvas.drawText(currentPageDisplay, folioX, yHeader, folioPaint)
+                canvas.drawText(headText, headX, yHeader, headerPaint)
+            }
+            canvas.drawLine(leftMargin.toFloat(), topMargin.toFloat() - 4f, rightMargin.toFloat(), topMargin.toFloat() - 4f, rulePaint)
+
+            currentY = topMargin.toFloat() + 14f
         }
-        canvas.drawLine(centerX - 20f, currentY, centerX + 20f, currentY, rulePaint)
-        currentY += 28f
 
         val printableWidth = (rightMargin - leftMargin).toFloat()
         val entryPaint = TextPaint(textPaint).apply {

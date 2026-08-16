@@ -212,10 +212,10 @@ object CmosLeafEngine {
         }
 
         // ==========================================
-        // DYNAMIC TABLE OF CONTENTS (Recto Leaf)
+        // DYNAMIC TABLE OF CONTENTS (Multi-Leaf Pagination)
         // ==========================================
-        val tocLeafIndex = if (sections.isNotEmpty()) {
-            // Ensure TOC starts on Recto
+        if (sections.isNotEmpty()) {
+            // Ensure TOC starts on Recto (odd leaf)
             if ((leaves.size + 1) % 2 == 0) {
                 leaves.add(
                     CalculatedLeaf(
@@ -236,45 +236,139 @@ object CmosLeafEngine {
                 frontMatterPage++
             }
 
-            val tIndex = leaves.size
-            leaves.add(
-                CalculatedLeaf(
-                    leafIndex = leaves.size + 1,
-                    pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
-                    pageNumberRaw = frontMatterPage,
-                    side = LeafSide.RECTO,
-                    matterType = MatterType.FRONT_MATTER,
-                    sectionId = null,
-                    sectionTitle = "Contents",
-                    sectionType = SectionType.TABLE_OF_CONTENTS,
-                    displayType = LeafDisplayType.TABLE_OF_CONTENTS,
-                    contentSnippet = "Contents\n\nGenerating dynamically...",
-                    isOpener = true,
-                    hasBlindFolio = true
-                )
-            )
-            frontMatterPage++
+            // Estimate Body & Back section start pages (Arabic numbering starts at 1)
+            val sectionStartPageMap = mutableMapOf<Long, String>()
+            var tempBodyPage = 1
 
-            // Blank Verso after TOC to ensure next section starts on Recto
-            leaves.add(
-                CalculatedLeaf(
-                    leafIndex = leaves.size + 1,
-                    pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
-                    pageNumberRaw = frontMatterPage,
-                    side = LeafSide.VERSO,
-                    matterType = MatterType.FRONT_MATTER,
-                    sectionId = null,
-                    sectionTitle = "Blank Verso",
-                    sectionType = null,
-                    displayType = LeafDisplayType.BLANK_INTENTIONAL,
-                    contentSnippet = "",
-                    isOpener = false,
-                    hasBlindFolio = true
+            for (sec in bodySections) {
+                if (sec.startOnRecto && tempBodyPage % 2 == 0) {
+                    tempBodyPage++
+                }
+                sectionStartPageMap[sec.id] = tempBodyPage.toString()
+                val pageSnippets = paginateSectionProse(
+                    content = sec.content,
+                    trimSize = trimSize,
+                    hasHeaderIllustration = sec.headerIllustrationUri.isNotBlank(),
+                    hasSubtitle = sec.subtitle.isNotBlank()
                 )
-            )
-            frontMatterPage++
-            tIndex
-        } else null
+                tempBodyPage += maxOf(1, pageSnippets.size)
+            }
+
+            for (sec in backSections) {
+                if (sec.startOnRecto && tempBodyPage % 2 == 0) {
+                    tempBodyPage++
+                }
+                sectionStartPageMap[sec.id] = tempBodyPage.toString()
+                val pageSnippets = paginateSectionProse(
+                    content = sec.content,
+                    trimSize = trimSize,
+                    hasHeaderIllustration = sec.headerIllustrationUri.isNotBlank(),
+                    hasSubtitle = sec.subtitle.isNotBlank()
+                )
+                tempBodyPage += maxOf(1, pageSnippets.size)
+            }
+
+            // Build raw TOC entry lines
+            fun buildRawTocLines(frontStartPage: Int): List<String> {
+                val lines = mutableListOf<String>()
+                var curFront = frontStartPage
+
+                if (frontSections.isNotEmpty()) {
+                    for (sec in frontSections) {
+                        if (sec.startOnRecto && curFront % 2 == 0) {
+                            curFront++
+                        }
+                        lines.add(formatTocLine(sec.title, CmosFormatter.toRoman(curFront)))
+                        val pageSnippets = paginateSectionProse(
+                            content = sec.content,
+                            trimSize = trimSize,
+                            hasHeaderIllustration = sec.headerIllustrationUri.isNotBlank(),
+                            hasSubtitle = sec.subtitle.isNotBlank()
+                        )
+                        curFront += maxOf(1, pageSnippets.size)
+                    }
+                    lines.add("")
+                }
+
+                for (sec in bodySections) {
+                    val page = sectionStartPageMap[sec.id] ?: "1"
+                    val title = if (sec.sectionType == SectionType.PART_DIVIDER) sec.title.uppercase() else sec.title
+                    lines.add(formatTocLine(title, page))
+                }
+
+                if (backSections.isNotEmpty()) {
+                    lines.add("")
+                    for (sec in backSections) {
+                        val page = sectionStartPageMap[sec.id] ?: ""
+                        lines.add(formatTocLine(sec.title, page))
+                    }
+                }
+                return lines
+            }
+
+            // First pass to estimate TOC leaf count
+            val initialRawLines = buildRawTocLines(frontMatterPage + 1)
+            var paginatedTocPages = paginateTocLines(initialRawLines, trimSize)
+            val tocPagesCount = paginatedTocPages.size
+
+            // Starting roman page for custom front-matter sections after TOC:
+            // If TOC has odd number of pages, an intentional blank verso will follow to keep next section on Recto
+            val blankAfterToc = (tocPagesCount % 2 != 0)
+            val customFrontStartPage = frontMatterPage + tocPagesCount + (if (blankAfterToc) 1 else 0)
+
+            // Exact raw lines with precise roman numerals
+            val exactRawLines = buildRawTocLines(customFrontStartPage)
+            paginatedTocPages = paginateTocLines(exactRawLines, trimSize)
+
+            // Emit all TOC leaves across multiple pages/leaves
+            for ((pIdx, pageLines) in paginatedTocPages.withIndex()) {
+                val isOpener = (pIdx == 0)
+                val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
+                val romanPage = CmosFormatter.toRoman(frontMatterPage)
+
+                leaves.add(
+                    CalculatedLeaf(
+                        leafIndex = leaves.size + 1,
+                        pageNumberDisplay = romanPage,
+                        pageNumberRaw = frontMatterPage,
+                        side = side,
+                        matterType = MatterType.FRONT_MATTER,
+                        sectionId = null,
+                        sectionTitle = if (isOpener) "Contents" else "Contents (continued)",
+                        sectionType = SectionType.TABLE_OF_CONTENTS,
+                        displayType = LeafDisplayType.TABLE_OF_CONTENTS,
+                        contentSnippet = (if (isOpener) "CONTENTS\n\n" else "") + pageLines.joinToString("\n"),
+                        isOpener = isOpener,
+                        isCloser = (pIdx == paginatedTocPages.size - 1),
+                        hasBlindFolio = isOpener,
+                        runningHeadVerso = manuscript.title,
+                        runningHeadRecto = "Contents"
+                    )
+                )
+                frontMatterPage++
+            }
+
+            // If TOC finished on Recto (odd page), insert Blank Verso so next front section starts on Recto
+            if (leaves.size % 2 != 0) {
+                leaves.add(
+                    CalculatedLeaf(
+                        leafIndex = leaves.size + 1,
+                        pageNumberDisplay = CmosFormatter.toRoman(frontMatterPage),
+                        pageNumberRaw = frontMatterPage,
+                        side = LeafSide.VERSO,
+                        matterType = MatterType.FRONT_MATTER,
+                        sectionId = null,
+                        sectionTitle = "Blank Verso",
+                        sectionType = null,
+                        displayType = LeafDisplayType.BLANK_INTENTIONAL,
+                        contentSnippet = "",
+                        isOpener = false,
+                        hasBlindFolio = true
+                    )
+                )
+                frontMatterPage++
+            }
+        }
 
         // Custom Front Matter sections (Foreword, Preface, Acknowledgments, Introduction)
         val sectionStartPageMap = mutableMapOf<Long, String>()
@@ -517,41 +611,49 @@ object CmosLeafEngine {
             }
         }
 
-        // ==========================================
-        // DYNAMIC TABLE OF CONTENTS POPULATION
-        // ==========================================
-        if (tocLeafIndex != null && tocLeafIndex < leaves.size) {
-            val tocLines = mutableListOf<String>()
-            tocLines.add("CONTENTS\n")
+        return leaves
+    }
 
-            if (frontSections.isNotEmpty()) {
-                for (sec in frontSections) {
-                    val page = sectionStartPageMap[sec.id] ?: "v"
-                    tocLines.add(formatTocLine(sec.title, page))
-                }
-                tocLines.add("")
+    /**
+     * Slices raw TOC entry lines into physical pages/leaves so that long tables of contents
+     * (e.g. 25+ chapters, prefaces, forewords) automatically flow onto subsequent leaves without truncation.
+     */
+    fun paginateTocLines(
+        lines: List<String>,
+        trimSize: BookTrimSize
+    ): List<List<String>> {
+        val cleanLines = lines.filter { it.trim() != "CONTENTS" }
+        if (cleanLines.isEmpty()) return listOf(emptyList())
+
+        val entryHeight = 17.5f
+        val openerHeaderHeight = trimSize.heightPt * 0.14f + 40f
+        val continuationHeaderHeight = trimSize.topMarginPt + 24f
+        val bottomMargin = trimSize.bottomMarginPt
+
+        val availableHeightOpener = (trimSize.heightPt - openerHeaderHeight - bottomMargin).coerceAtLeast(200f)
+        val maxLinesOpener = (availableHeightOpener / entryHeight).toInt().coerceIn(16, 26)
+
+        val availableHeightContinuation = (trimSize.heightPt - continuationHeaderHeight - bottomMargin).coerceAtLeast(250f)
+        val maxLinesContinuation = (availableHeightContinuation / entryHeight).toInt().coerceIn(20, 32)
+
+        val pages = mutableListOf<List<String>>()
+        var currentPageLines = mutableListOf<String>()
+        var currentLimit = maxLinesOpener
+
+        for (line in cleanLines) {
+            if (currentPageLines.isNotEmpty() && currentPageLines.size >= currentLimit) {
+                pages.add(currentPageLines)
+                currentPageLines = mutableListOf()
+                currentLimit = maxLinesContinuation
             }
-
-            for (sec in bodySections) {
-                val page = sectionStartPageMap[sec.id] ?: "1"
-                val title = if (sec.sectionType == SectionType.PART_DIVIDER) sec.title.uppercase() else sec.title
-                tocLines.add(formatTocLine(title, page))
-            }
-
-            if (backSections.isNotEmpty()) {
-                tocLines.add("")
-                for (sec in backSections) {
-                    val page = sectionStartPageMap[sec.id] ?: ""
-                    tocLines.add(formatTocLine(sec.title, page))
-                }
-            }
-
-            leaves[tocLeafIndex] = leaves[tocLeafIndex].copy(
-                contentSnippet = tocLines.joinToString("\n").trimEnd()
-            )
+            currentPageLines.add(line)
         }
 
-        return leaves
+        if (currentPageLines.isNotEmpty()) {
+            pages.add(currentPageLines)
+        }
+
+        return if (pages.isEmpty()) listOf(emptyList()) else pages
     }
 
     /**

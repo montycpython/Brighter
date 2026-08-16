@@ -425,24 +425,40 @@ fun SingleLeafView(
                 )
             }
             LeafDisplayType.TABLE_OF_CONTENTS -> {
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = "CONTENTS",
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    letterSpacing = 2.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(32.dp, 1.dp)
-                        .background(BookGoldDark)
-                        .align(Alignment.CenterHorizontally)
-                )
-                Spacer(modifier = Modifier.height(14.dp))
+                if (leaf.isOpener) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "CONTENTS",
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        letterSpacing = 2.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp, 1.dp)
+                            .background(BookGoldDark)
+                            .align(Alignment.CenterHorizontally)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                } else {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "CONTENTS (continued)",
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 10.sp,
+                        fontStyle = FontStyle.Italic,
+                        letterSpacing = 1.sp,
+                        color = Color.DarkGray,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
 
                 val lines = leaf.contentSnippet.lines().filter { it.trim() != "CONTENTS" }
                 Column(

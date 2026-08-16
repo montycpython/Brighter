@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -95,6 +96,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -162,6 +164,7 @@ fun SectionEditorScreen(
     onSendServerlessMail: (ServerlessMailMessage) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val clipboardManager = remember { context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager }
 
     var title by remember(section.id) { mutableStateOf(section.title) }
@@ -179,6 +182,18 @@ fun SectionEditorScreen(
     var contributorNotes by remember(section.id) { mutableStateOf(section.contributorNotes) }
     var contributorEmailInput by remember(section.id) { mutableStateOf("") }
     var showRoleDropdown by remember { mutableStateOf(false) }
+
+    val handleBackAndSave: () -> Unit = {
+        focusManager.clearFocus()
+        onSaveContent(section, contentValue.text)
+        onSaveTitle(section, title, subtitle)
+        onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+        onBack()
+    }
+
+    BackHandler {
+        handleBackAndSave()
+    }
 
     var aiDraftPrompt by remember(section.id) {
         mutableStateOf(
@@ -262,12 +277,7 @@ fun SectionEditorScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = {
-                            onSaveContent(section, contentValue.text)
-                            onSaveTitle(section, title, subtitle)
-                            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
-                            onBack()
-                        },
+                        onClick = { handleBackAndSave() },
                         modifier = Modifier.testTag("btn_back_editor")
                     ) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
