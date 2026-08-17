@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.example.model.ContributorCredit
 import com.example.model.GlobalBookIndexEntry
+import com.example.model.BookVersionSnapshot
 import com.example.model.ManuscriptEntity
 import com.example.model.MatterType
 import com.example.model.SectionEntity
@@ -35,6 +36,7 @@ class GoogleDriveSyncService(private val context: Context) {
         private const val PREF_SUSPENDED_USERS = "suspended_users_cache"
         private const val PREF_MAILBOX_PREFIX = "mailbox_"
         private const val PREF_CLOUD_MANUSCRIPTS = "cloud_manuscripts_payload_store"
+        private const val PREF_VERSION_HISTORY_PREFIX = "version_history_"
     }
 
     init {
@@ -259,7 +261,23 @@ class GoogleDriveSyncService(private val context: Context) {
             }
             saveGlobalIndexToStorage(currentIndex)
 
-            // 5. Send notification to Editor in Chief if by a contributor/author
+            // 5. Record version snapshot in Version History ledger
+            val snapshot = BookVersionSnapshot(
+                manuscriptId = manuscript.id,
+                title = manuscript.title,
+                versionTag = manuscript.edition.ifBlank { "v1.0" },
+                changeSummary = "Cloud backup & sync (${sections.size} divisions, $totalWords words)",
+                authorPenName = resolvedAuthorName,
+                authorEmail = currentUser.email,
+                wordCount = totalWords,
+                totalLeaves = estimatedLeaves,
+                timestamp = System.currentTimeMillis(),
+                driveFileId = fileId,
+                driveUrl = driveUrl
+            )
+            saveVersionSnapshotToStorage(manuscript.id, snapshot)
+
+            // 6. Send notification to Editor in Chief if by a contributor/author
             if (!currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 sendServerlessMail(
                     ServerlessMailMessage(
@@ -687,6 +705,70 @@ class GoogleDriveSyncService(private val context: Context) {
             list
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    suspend fun getVersionHistory(manuscriptId: Long): List<BookVersionSnapshot> = withContext(Dispatchers.IO) {
+        getVersionSnapshotsFromStorage(manuscriptId)
+    }
+
+    private fun getVersionSnapshotsFromStorage(manuscriptId: Long): List<BookVersionSnapshot> {
+        val key = "${PREF_VERSION_HISTORY_PREFIX}$manuscriptId"
+        val raw = prefs.getString(key, null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            val list = mutableListOf<BookVersionSnapshot>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    BookVersionSnapshot(
+                        snapshotId = obj.optString("snapshotId", java.util.UUID.randomUUID().toString()),
+                        manuscriptId = obj.optLong("manuscriptId", manuscriptId),
+                        title = obj.optString("title", ""),
+                        versionTag = obj.optString("versionTag", "v1.0"),
+                        changeSummary = obj.optString("changeSummary", ""),
+                        authorPenName = obj.optString("authorPenName", ""),
+                        authorEmail = obj.optString("authorEmail", ""),
+                        wordCount = obj.optInt("wordCount", 0),
+                        totalLeaves = obj.optInt("totalLeaves", 0),
+                        timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                        driveFileId = obj.optString("driveFileId", ""),
+                        driveUrl = obj.optString("driveUrl", "")
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun saveVersionSnapshotToStorage(manuscriptId: Long, snapshot: BookVersionSnapshot) {
+        try {
+            val currentSnapshots = getVersionSnapshotsFromStorage(manuscriptId).toMutableList()
+            currentSnapshots.add(0, snapshot)
+            val key = "${PREF_VERSION_HISTORY_PREFIX}$manuscriptId"
+            val arr = JSONArray()
+            currentSnapshots.forEach { s ->
+                val obj = JSONObject().apply {
+                    put("snapshotId", s.snapshotId)
+                    put("manuscriptId", s.manuscriptId)
+                    put("title", s.title)
+                    put("versionTag", s.versionTag)
+                    put("changeSummary", s.changeSummary)
+                    put("authorPenName", s.authorPenName)
+                    put("authorEmail", s.authorEmail)
+                    put("wordCount", s.wordCount)
+                    put("totalLeaves", s.totalLeaves)
+                    put("timestamp", s.timestamp)
+                    put("driveFileId", s.driveFileId)
+                    put("driveUrl", s.driveUrl)
+                }
+                arr.put(obj)
+            }
+            prefs.edit().putString(key, arr.toString()).apply()
+        } catch (e: Exception) {
+            Log.e("GoogleDriveSync", "Failed to save version snapshot", e)
         }
     }
 

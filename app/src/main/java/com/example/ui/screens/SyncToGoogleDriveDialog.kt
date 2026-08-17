@@ -112,17 +112,38 @@ fun SyncToGoogleDriveDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = manuscript.title,
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = Color(0xFFF3EFE6)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = manuscript.title,
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFFF3EFE6),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Surface(
+                                color = BookGoldDark.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = manuscript.edition.ifBlank { "v1.0" },
+                                    color = BookGoldLight,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Format: Chicago Manual of Style JSON • Account: ${currentUser.email}",
                             fontSize = 10.5.sp,
                             color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = "Status: ${manuscript.manuscriptStatus} • Sync creates an immutable backup record",
+                            fontSize = 10.sp,
+                            color = BookGoldLight
                         )
                     }
                 }

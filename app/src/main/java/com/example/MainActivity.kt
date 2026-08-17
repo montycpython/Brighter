@@ -96,6 +96,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val tokenTransactions by viewModel.tokenTransactions.collectAsState()
     val paidMembersTelemetry by viewModel.paidMembersTelemetry.collectAsState()
     val showPaywall by viewModel.showPaywall.collectAsState()
+    val versionHistory by viewModel.versionHistory.collectAsState()
 
     var showNewWorkDialog by remember { mutableStateOf(false) }
     var manuscriptToSync by remember { mutableStateOf<ManuscriptEntity?>(null) }
@@ -249,6 +250,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         ) { backStackEntry ->
             val manuscriptId = backStackEntry.arguments?.getLong("manuscriptId") ?: return@composable
             viewModel.selectManuscript(manuscriptId)
+            viewModel.loadVersionHistory(manuscriptId)
 
             val currentM = activeManuscript
             if (currentM != null) {
@@ -257,6 +259,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     sections = activeSections,
                     calculatedLeaves = calculatedLeaves,
                     currentUser = currentUser,
+                    versionSnapshots = versionHistory,
                     onBack = { navController.popBackStack() },
                     onOpenSection = { secId ->
                         viewModel.selectSection(secId)

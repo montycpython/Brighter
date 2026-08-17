@@ -12,6 +12,7 @@ import com.example.data.GoogleDriveSyncService
 import com.example.export.CmosPdfExporter
 import com.example.model.DriveSyncStatus
 import com.example.model.GlobalBookIndexEntry
+import com.example.model.BookVersionSnapshot
 import com.example.model.ServerlessMailMessage
 import com.example.model.SuspendedUserEntry
 import com.example.model.CalculatedLeaf
@@ -300,6 +301,18 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    // ==========================================
+    // Book Version Snapshots & History Ledger
+    // ==========================================
+    private val _versionHistory = MutableStateFlow<List<BookVersionSnapshot>>(emptyList())
+    val versionHistory: StateFlow<List<BookVersionSnapshot>> = _versionHistory.asStateFlow()
+
+    fun loadVersionHistory(manuscriptId: Long) {
+        viewModelScope.launch {
+            _versionHistory.value = googleDriveSyncService.getVersionHistory(manuscriptId)
+        }
+    }
 
     fun saveSetting(setting: com.example.model.StorySettingEntity) {
         viewModelScope.launch {

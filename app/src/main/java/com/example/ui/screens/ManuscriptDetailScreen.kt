@@ -21,10 +21,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -97,6 +99,7 @@ fun ManuscriptDetailScreen(
     sections: List<SectionEntity>,
     calculatedLeaves: List<CalculatedLeaf>,
     currentUser: UserProfile,
+    versionSnapshots: List<com.example.model.BookVersionSnapshot> = emptyList(),
     onBack: () -> Unit,
     onOpenSection: (Long) -> Unit,
     onOpenReader: () -> Unit,
@@ -106,7 +109,7 @@ fun ManuscriptDetailScreen(
     onUpdateManuscript: (ManuscriptEntity) -> Unit,
     onSyncToDrive: () -> Unit = {}
 ) {
-    var selectedTab by remember { mutableIntStateOf(1) } // 0: Front Matter, 1: Text Body, 2: Back Matter, 3: Full Leaf Flow
+    var selectedTab by remember { mutableIntStateOf(1) } // 0: Front Matter, 1: Text Body, 2: Back Matter, 3: Full Leaf Flow, 4: Versions
     var showAddSectionDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
 
@@ -279,6 +282,12 @@ fun ManuscriptDetailScreen(
                     text = { Text("Leaf Flow ($totalLeaves)", fontWeight = FontWeight.Bold) },
                     modifier = Modifier.testTag("tab_leaf_flow")
                 )
+                Tab(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    text = { Text("Versions (${versionSnapshots.size.coerceAtLeast(1)})", fontWeight = FontWeight.SemiBold) },
+                    modifier = Modifier.testTag("tab_version_history")
+                )
             }
 
             // Tab Content
@@ -305,6 +314,11 @@ fun ManuscriptDetailScreen(
                     onOpenSection = { secId ->
                         if (secId != null) onOpenSection(secId)
                     }
+                )
+                4 -> VersionHistoryTab(
+                    manuscript = manuscript,
+                    snapshots = versionSnapshots,
+                    onSyncNow = onSyncToDrive
                 )
             }
         }
@@ -650,6 +664,174 @@ fun LeafFlowTab(
                                 text = if (leaf.side == LeafSide.VERSO) "Running Head: ${leaf.runningHeadVerso}" else "Running Head: ${leaf.runningHeadRecto}",
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(60.dp)) }
+    }
+}
+
+@Composable
+fun VersionHistoryTab(
+    manuscript: ManuscriptEntity,
+    snapshots: List<com.example.model.BookVersionSnapshot>,
+    onSyncNow: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = InkNavy),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Bookmark,
+                            contentDescription = null,
+                            tint = BookGoldLight,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "CURRENT WORKING EDITION: ${manuscript.edition.ifBlank { "First Edition" }}",
+                            color = BookGoldLight,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Chicago Press Cloud Registry & Rebuild Resilience",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Every sync to Google Drive generates an immutable cryptographic snapshot with word counts, division hierarchy, and author credits. Any rebuilt app can restore from this record.",
+                        color = Color(0xFFD0CCE0),
+                        fontSize = 11.5.sp,
+                        lineHeight = 15.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onSyncNow,
+                        colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Create Version Snapshot & Sync to Drive", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "Version Snapshots & Sync Ledger (${snapshots.size})",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        if (snapshots.isEmpty()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(imageVector = Icons.Default.History, contentDescription = null, tint = BookGoldDark, modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "No Cloud Snapshots Yet",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Tap 'Create Version Snapshot & Sync to Drive' to backup your manuscript and initialize its version history.",
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            items(snapshots, key = { it.snapshotId }) { snapshot ->
+                val dateStr = java.text.SimpleDateFormat("MMM dd, yyyy • hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(snapshot.timestamp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, BookGold.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Surface(
+                                color = BookGoldDark.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = snapshot.versionTag,
+                                    color = BookGoldDark,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            Text(
+                                text = dateStr,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = snapshot.changeSummary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "By ${snapshot.authorPenName} (${snapshot.authorEmail}) • ${snapshot.wordCount} words • ~${snapshot.totalLeaves} leaves",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (snapshot.driveFileId.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Drive File: ${snapshot.driveFileId}",
+                                fontSize = 10.sp,
+                                color = BookGoldDark,
+                                fontFamily = FontFamily.Monospace
                             )
                         }
                     }

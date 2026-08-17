@@ -48,3 +48,19 @@ data class DriveSyncStatus(
     val suspensionReason: String? = null,
     val unreadMailCount: Int = 0
 )
+
+data class BookVersionSnapshot(
+    val snapshotId: String = java.util.UUID.randomUUID().toString(),
+    val manuscriptId: Long,
+    val title: String,
+    val versionTag: String, // e.g. "v1.0", "v1.1", "v2.0-FINAL"
+    val changeSummary: String, // e.g. "Synced to Google Drive with 14 chapters"
+    val authorPenName: String,
+    val authorEmail: String,
+    val wordCount: Int,
+    val totalLeaves: Int,
+    val timestamp: Long = System.currentTimeMillis(),
+    val driveFileId: String = "",
+    val driveUrl: String = ""
+)
+
