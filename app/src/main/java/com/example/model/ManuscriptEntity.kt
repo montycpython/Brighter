@@ -23,6 +23,8 @@ data class ManuscriptEntity(
     val epigraphText: String = "",
     val epigraphAuthor: String = "",
     val targetPageSize: String = "Trade 6\" x 9\"",
+    val manuscriptStatus: String = "DRAFT", // DRAFT, UNDER_REVIEW, POLISHED, FINAL
+    val acknowledgmentsJson: String = "[]",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
@@ -37,6 +39,12 @@ data class ManuscriptEntity(
                 else -> "Author"
             }
         }
+
+    /**
+     * Returns the list of parsed contributor and editor credits.
+     */
+    val acknowledgmentsList: List<ContributorCredit>
+        get() = ContributorCredit.parseListFromJson(acknowledgmentsJson)
 
     /**
      * Dynamically generates the Chicago Manual of Style Copyright notice attributed to the Author or Pen Name.

@@ -3,17 +3,22 @@ package com.example.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.model.ContributorCredit
 import com.example.model.GlobalBookIndexEntry
 import com.example.model.ManuscriptEntity
+import com.example.model.MatterType
 import com.example.model.SectionEntity
+import com.example.model.SectionStatus
+import com.example.model.SectionType
 import com.example.model.ServerlessMailMessage
 import com.example.model.SuspendedUserEntry
 import com.example.model.UserProfile
+import com.example.model.WorkRole
+import com.example.model.WorkType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 
 class GoogleDriveSyncService(private val context: Context) {
 
@@ -29,6 +34,7 @@ class GoogleDriveSyncService(private val context: Context) {
         private const val PREF_GLOBAL_INDEX = "global_book_index_cache"
         private const val PREF_SUSPENDED_USERS = "suspended_users_cache"
         private const val PREF_MAILBOX_PREFIX = "mailbox_"
+        private const val PREF_CLOUD_MANUSCRIPTS = "cloud_manuscripts_payload_store"
     }
 
     init {
@@ -37,57 +43,71 @@ class GoogleDriveSyncService(private val context: Context) {
 
     private fun initializeSampleNetworkIfEmpty() {
         val currentIndex = prefs.getString(PREF_GLOBAL_INDEX, null)
-        val userProfile = UserPreferences(context).getUserProfile()
-        val userDisplayName = userProfile.displayName.ifBlank { "Author" }
 
         if (currentIndex.isNullOrBlank()) {
             val initialList = listOf(
                 GlobalBookIndexEntry(
-                    fileId = "drv_sample_master_101",
+                    fileId = "drv_master_quill_101",
                     manuscriptId = 1L,
                     title = "The Obsidian Quill",
                     subtitle = "A Chronicle of the Chicago Printmasters",
-                    authorName = userDisplayName,
-                    authorEmail = userProfile.email,
+                    authorName = "Author",
+                    authorEmail = EDITOR_IN_CHIEF_EMAIL,
                     workType = "NOVEL",
                     wordCount = 4520,
                     totalLeaves = 18,
                     lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 2,
                     isPublicInCommunity = true,
                     version = "1.2",
-                    driveFileUrl = "https://drive.google.com/file/d/drv_sample_master_101/view",
+                    driveFileUrl = "https://drive.google.com/file/d/drv_master_quill_101/view",
                     sharedWithEditorInChief = true
                 ),
                 GlobalBookIndexEntry(
-                    fileId = "drv_sample_carrie_202",
+                    fileId = "drv_master_chronicler_202",
                     manuscriptId = 2L,
-                    title = "Chicago Nights: The Gilded Foundry",
-                    subtitle = "Industrial Typecasting on the Lakefront",
-                    authorName = "Eleanor Vance",
-                    authorEmail = "eleanor.types@bwriter.press",
-                    workType = "NOVEL",
+                    title = "The Chronicler of Chicago",
+                    subtitle = "The Life and Letters of Silas Dearborn (1842–1918)",
+                    authorName = "Author",
+                    authorEmail = EDITOR_IN_CHIEF_EMAIL,
+                    workType = "BIOGRAPHY",
                     wordCount = 7890,
                     totalLeaves = 32,
                     lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 5,
                     isPublicInCommunity = true,
                     version = "1.0",
-                    driveFileUrl = "https://drive.google.com/file/d/drv_sample_carrie_202/view",
+                    driveFileUrl = "https://drive.google.com/file/d/drv_master_chronicler_202/view",
                     sharedWithEditorInChief = true
                 ),
                 GlobalBookIndexEntry(
-                    fileId = "drv_sample_private_303",
+                    fileId = "drv_master_echoes_303",
                     manuscriptId = 3L,
-                    title = "Confidential Journal: Chicago Proofs",
-                    subtitle = "Private Discrepancy Ledger",
-                    authorName = "Silas Thorne",
-                    authorEmail = "silas.thorne@artisan.press",
-                    workType = "MEMOIR",
-                    wordCount = 3100,
-                    totalLeaves = 12,
+                    title = "Echoes of the Great Lake",
+                    subtitle = "An Oral and Archival Documentary of the Maritime Trades",
+                    authorName = "Author",
+                    authorEmail = EDITOR_IN_CHIEF_EMAIL,
+                    workType = "DOCUMENTARY",
+                    wordCount = 6200,
+                    totalLeaves = 24,
+                    lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 8,
+                    isPublicInCommunity = true,
+                    version = "1.0",
+                    driveFileUrl = "https://drive.google.com/file/d/drv_master_echoes_303/view",
+                    sharedWithEditorInChief = true
+                ),
+                GlobalBookIndexEntry(
+                    fileId = "drv_master_typography_404",
+                    manuscriptId = 4L,
+                    title = "The Craft of Book Typography",
+                    subtitle = "A Practical Manual Honoring the Chicago Manual of Style",
+                    authorName = "Author",
+                    authorEmail = EDITOR_IN_CHIEF_EMAIL,
+                    workType = "MANUAL",
+                    wordCount = 9400,
+                    totalLeaves = 38,
                     lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 12,
-                    isPublicInCommunity = false, // HIDDEN: strictly private to Silas & Editor in Chief
-                    version = "0.9",
-                    driveFileUrl = "https://drive.google.com/file/d/drv_sample_private_303/view",
+                    isPublicInCommunity = true,
+                    version = "2.0",
+                    driveFileUrl = "https://drive.google.com/file/d/drv_master_typography_404/view",
                     sharedWithEditorInChief = true
                 )
             )
@@ -100,21 +120,10 @@ class GoogleDriveSyncService(private val context: Context) {
             val initialMessages = listOf(
                 ServerlessMailMessage(
                     recipientEmail = EDITOR_IN_CHIEF_EMAIL,
-                    senderEmail = "eleanor.types@bwriter.press",
-                    senderName = "Eleanor Vance",
-                    subject = "Submitted Chicago Nights Chapter 3 for Chicago §13 Review",
-                    body = "Greetings Editor in Chief,\n\nI have synced the updated manuscript to my personal Drive and automatically granted your account writer permissions. The block quotations in §3 have been adjusted to 0.5-inch CMOS standards.",
-                    timestamp = System.currentTimeMillis() - 3600000 * 4,
-                    isRead = false,
-                    manuscriptTitle = "Chicago Nights: The Gilded Foundry",
-                    messageType = "EDITORIAL_REVISION"
-                ),
-                ServerlessMailMessage(
-                    recipientEmail = EDITOR_IN_CHIEF_EMAIL,
-                    senderEmail = "system@bwriter.press",
-                    senderName = "Master Shared Drive Bot",
+                    senderEmail = "editorial.board@bwriter.press",
+                    senderName = "Master Editorial Desk",
                     subject = "Master Shared Drive Global Index Online",
-                    body = "The decentralized Google Drive serverless storage index is initialized. Auto-sharing hooks and suspension kill-switch channels are operational.",
+                    body = "The decentralized Google Drive serverless storage index is initialized. All master works are cataloged under the Author superuser registry. Auto-sharing hooks and contributor telemetry tracking are operational.",
                     timestamp = System.currentTimeMillis() - 3600000 * 24,
                     isRead = true,
                     messageType = "GOVERNANCE_ALERT"
@@ -134,7 +143,7 @@ class GoogleDriveSyncService(private val context: Context) {
 
     /**
      * Sync local JSON manuscript to Google Drive and update Global_Book_Index.json.
-     * Auto-shares with real.artistry@gmail.com hook.
+     * Auto-shares with real.artistry@gmail.com hook and archives full cloud backup.
      */
     suspend fun syncManuscriptToDrive(
         manuscript: ManuscriptEntity,
@@ -149,7 +158,7 @@ class GoogleDriveSyncService(private val context: Context) {
                 return@withContext Result.failure(Exception("Account suspended: ${suspension.reason}"))
             }
 
-            // 2. Generate JSON payload
+            // 2. Generate JSON payload with contributor telemetry & acknowledgments
             val resolvedAuthorName = when {
                 manuscript.authorPenName.isNotBlank() -> manuscript.authorPenName.trim()
                 manuscript.authorName.isNotBlank() -> manuscript.authorName.trim()
@@ -163,9 +172,19 @@ class GoogleDriveSyncService(private val context: Context) {
                 put("authorName", resolvedAuthorName)
                 put("authorPenName", manuscript.authorPenName)
                 put("authorEmail", currentUser.email)
+                put("editorName", manuscript.editorName)
+                put("publisher", manuscript.publisher)
+                put("edition", manuscript.edition)
+                put("year", manuscript.year)
+                put("isbn", manuscript.isbn)
+                put("copyrightText", manuscript.copyrightText)
+                put("dedication", manuscript.dedication)
+                put("epigraphText", manuscript.epigraphText)
+                put("epigraphAuthor", manuscript.epigraphAuthor)
+                put("targetPageSize", manuscript.targetPageSize)
                 put("workType", manuscript.workType.name)
-                put("trimSize", manuscript.targetPageSize)
-                put("description", manuscript.subtitle)
+                put("manuscriptStatus", manuscript.manuscriptStatus)
+                put("acknowledgmentsJson", manuscript.acknowledgmentsJson)
                 put("syncedTimestamp", System.currentTimeMillis())
                 put("isPublicInCommunity", isPublicInCommunity)
 
@@ -173,25 +192,45 @@ class GoogleDriveSyncService(private val context: Context) {
                 sections.forEach { sec ->
                     val secObj = JSONObject().apply {
                         put("id", sec.id)
-                        put("title", sec.title)
-                        put("subtitle", sec.subtitle)
+                        put("manuscriptId", sec.manuscriptId)
                         put("matterType", sec.matterType.name)
                         put("sectionType", sec.sectionType.name)
-                        put("content", sec.content)
-                        put("status", sec.status.name)
+                        put("title", sec.title)
+                        put("subtitle", sec.subtitle)
                         put("orderIndex", sec.orderIndex)
+                        put("content", sec.content)
                         put("aiDraftPrompt", sec.aiDraftPrompt)
+                        put("contributorNotes", sec.contributorNotes)
+                        put("assignedAuthor", sec.assignedAuthor)
+                        put("assignedRole", sec.assignedRole.name)
+                        put("status", sec.status.name)
+                        put("startOnRecto", sec.startOnRecto)
+                        put("headerIllustrationUri", sec.headerIllustrationUri)
+                        put("headerIllustrationCaption", sec.headerIllustrationCaption)
+                        put("tailIllustrationUri", sec.tailIllustrationUri)
+                        put("tailIllustrationCaption", sec.tailIllustrationCaption)
+                        put("wordCount", sec.wordCount)
+                        put("hasPendingRevision", sec.hasPendingRevision)
+                        put("pendingEditedContent", sec.pendingEditedContent)
+                        put("originalAuthorContent", sec.originalAuthorContent)
+                        put("revisionAuthorPenName", sec.revisionAuthorPenName)
+                        put("revisionAuthorEmail", sec.revisionAuthorEmail)
+                        put("revisionAuthorRole", sec.revisionAuthorRole)
+                        put("revisionTimestamp", sec.revisionTimestamp)
+                        put("revisionDeltaWords", sec.revisionDeltaWords)
                     }
                     sectionsArray.put(secObj)
                 }
                 put("sections", sectionsArray)
             }
 
-            // 3. Simulate / Perform Drive Upload & Auto-Grant Permission
+            // 3. Save full cloud backup in Drive storage for dynamic recovery on reinstall
+            saveCloudManuscriptPayload(currentUser.email, manuscript.id, manuscriptJson)
+
+            // 4. Update Global_Book_Index.json
             val fileId = "drv_book_${manuscript.id}_${System.currentTimeMillis().toString().takeLast(6)}"
             val driveUrl = "https://drive.google.com/file/d/$fileId/view"
-
-            val totalWords = sections.sumOf { it.content.split(Regex("\\s+")).filter { w -> w.isNotBlank() }.size }
+            val totalWords = sections.sumOf { it.wordCount.takeIf { c -> c > 0 } ?: it.content.split(Regex("\\s+")).count { w -> w.isNotBlank() } }
             val estimatedLeaves = (totalWords / 250).coerceAtLeast(1)
 
             val indexEntry = GlobalBookIndexEntry(
@@ -206,12 +245,11 @@ class GoogleDriveSyncService(private val context: Context) {
                 totalLeaves = estimatedLeaves,
                 lastSyncedTimestamp = System.currentTimeMillis(),
                 isPublicInCommunity = isPublicInCommunity,
-                version = "1.0",
+                version = manuscript.edition.ifBlank { "1.0" },
                 driveFileUrl = driveUrl,
-                sharedWithEditorInChief = true // Auto-shared with real.artistry@gmail.com
+                sharedWithEditorInChief = true
             )
 
-            // 4. Update Global_Book_Index.json
             val currentIndex = getGlobalIndexFromStorage().toMutableList()
             val existingIdx = currentIndex.indexOfFirst { it.manuscriptId == manuscript.id && it.authorEmail.equals(currentUser.email, ignoreCase = true) }
             if (existingIdx >= 0) {
@@ -221,7 +259,7 @@ class GoogleDriveSyncService(private val context: Context) {
             }
             saveGlobalIndexToStorage(currentIndex)
 
-            // 5. If not the Editor in Chief, send an auto notification to Editor in Chief's mailbox
+            // 5. Send notification to Editor in Chief if by a contributor/author
             if (!currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 sendServerlessMail(
                     ServerlessMailMessage(
@@ -229,7 +267,7 @@ class GoogleDriveSyncService(private val context: Context) {
                         senderEmail = currentUser.email,
                         senderName = currentUser.displayName,
                         subject = "Manuscript Synced: ${manuscript.title}",
-                        body = "Author ${currentUser.displayName} (${currentUser.email}) synced '${manuscript.title}' to Google Drive.\n\nVisibility: ${if (isPublicInCommunity) "Public Community" else "Private / Hidden"}\nWord Count: $totalWords words\nFile ID: $fileId",
+                        body = "Author ${currentUser.displayName} (${currentUser.email}) synced '${manuscript.title}' to Google Drive.\n\nVisibility: ${if (isPublicInCommunity) "Public Global Registry" else "Private"}\nStatus: ${manuscript.manuscriptStatus}\nWords: $totalWords\nFile ID: $fileId",
                         manuscriptId = manuscript.id,
                         manuscriptTitle = manuscript.title,
                         messageType = "EDITORIAL_REVISION"
@@ -246,18 +284,134 @@ class GoogleDriveSyncService(private val context: Context) {
     }
 
     /**
+     * Restore all user manuscripts from Google Drive cloud storage (e.g. after fresh reinstall).
+     */
+    suspend fun restoreUserManuscriptsFromDrive(userEmail: String): List<Pair<ManuscriptEntity, List<SectionEntity>>> = withContext(Dispatchers.IO) {
+        val raw = prefs.getString(PREF_CLOUD_MANUSCRIPTS, null) ?: return@withContext emptyList()
+        val list = mutableListOf<Pair<ManuscriptEntity, List<SectionEntity>>>()
+        try {
+            val rootObj = JSONObject(raw)
+            val keys = rootObj.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                if (key.startsWith("${userEmail.trim().lowercase()}_")) {
+                    val mObj = rootObj.getJSONObject(key)
+
+                    val workType = try {
+                        WorkType.valueOf(mObj.optString("workType", "NOVEL"))
+                    } catch (e: Exception) {
+                        WorkType.NOVEL
+                    }
+
+                    val manuscript = ManuscriptEntity(
+                        title = mObj.optString("title", "Restored Manuscript"),
+                        subtitle = mObj.optString("subtitle", ""),
+                        workType = workType,
+                        authorName = mObj.optString("authorName", "Author"),
+                        authorPenName = mObj.optString("authorPenName", ""),
+                        authorEmail = mObj.optString("authorEmail", userEmail),
+                        editorName = mObj.optString("editorName", ""),
+                        publisher = mObj.optString("publisher", "Bwriter Editions"),
+                        edition = mObj.optString("edition", "First Edition"),
+                        year = mObj.optString("year", "2026"),
+                        isbn = mObj.optString("isbn", "978-0-226-10403-4"),
+                        copyrightText = mObj.optString("copyrightText", ""),
+                        dedication = mObj.optString("dedication", ""),
+                        epigraphText = mObj.optString("epigraphText", ""),
+                        epigraphAuthor = mObj.optString("epigraphAuthor", ""),
+                        targetPageSize = mObj.optString("targetPageSize", "Trade 6\" x 9\""),
+                        manuscriptStatus = mObj.optString("manuscriptStatus", "DRAFT"),
+                        acknowledgmentsJson = mObj.optString("acknowledgmentsJson", "[]")
+                    )
+
+                    val secArray = mObj.optJSONArray("sections") ?: JSONArray()
+                    val sections = mutableListOf<SectionEntity>()
+                    for (i in 0 until secArray.length()) {
+                        val sObj = secArray.getJSONObject(i)
+                        val matterType = try {
+                            MatterType.valueOf(sObj.optString("matterType", "TEXT_BODY"))
+                        } catch (e: Exception) {
+                            MatterType.TEXT_BODY
+                        }
+                        val sectionType = try {
+                            SectionType.valueOf(sObj.optString("sectionType", "CHAPTER"))
+                        } catch (e: Exception) {
+                            SectionType.CHAPTER
+                        }
+                        val role = try {
+                            WorkRole.valueOf(sObj.optString("assignedRole", "AUTHOR"))
+                        } catch (e: Exception) {
+                            WorkRole.AUTHOR
+                        }
+                        val status = try {
+                            SectionStatus.valueOf(sObj.optString("status", "DRAFT"))
+                        } catch (e: Exception) {
+                            SectionStatus.DRAFT
+                        }
+
+                        sections.add(
+                            SectionEntity(
+                                manuscriptId = 0L,
+                                matterType = matterType,
+                                sectionType = sectionType,
+                                title = sObj.optString("title", "Chapter"),
+                                subtitle = sObj.optString("subtitle", ""),
+                                orderIndex = sObj.optInt("orderIndex", i + 1),
+                                content = sObj.optString("content", ""),
+                                aiDraftPrompt = sObj.optString("aiDraftPrompt", ""),
+                                contributorNotes = sObj.optString("contributorNotes", ""),
+                                assignedAuthor = sObj.optString("assignedAuthor", "Author"),
+                                assignedRole = role,
+                                status = status,
+                                startOnRecto = sObj.optBoolean("startOnRecto", true),
+                                headerIllustrationUri = sObj.optString("headerIllustrationUri", ""),
+                                headerIllustrationCaption = sObj.optString("headerIllustrationCaption", ""),
+                                tailIllustrationUri = sObj.optString("tailIllustrationUri", ""),
+                                tailIllustrationCaption = sObj.optString("tailIllustrationCaption", ""),
+                                wordCount = sObj.optInt("wordCount", 0),
+                                hasPendingRevision = sObj.optBoolean("hasPendingRevision", false),
+                                pendingEditedContent = sObj.optString("pendingEditedContent", ""),
+                                originalAuthorContent = sObj.optString("originalAuthorContent", ""),
+                                revisionAuthorPenName = sObj.optString("revisionAuthorPenName", ""),
+                                revisionAuthorEmail = sObj.optString("revisionAuthorEmail", ""),
+                                revisionAuthorRole = sObj.optString("revisionAuthorRole", ""),
+                                revisionTimestamp = sObj.optLong("revisionTimestamp", 0L),
+                                revisionDeltaWords = sObj.optInt("revisionDeltaWords", 0)
+                            )
+                        )
+                    }
+                    list.add(Pair(manuscript, sections))
+                }
+            }
+            list
+        } catch (e: Exception) {
+            Log.e("GoogleDriveSync", "Failed to restore manuscripts from Drive", e)
+            emptyList()
+        }
+    }
+
+    private fun saveCloudManuscriptPayload(userEmail: String, manuscriptId: Long, json: JSONObject) {
+        try {
+            val raw = prefs.getString(PREF_CLOUD_MANUSCRIPTS, null)
+            val rootObj = if (raw.isNullOrBlank()) JSONObject() else JSONObject(raw)
+            val key = "${userEmail.trim().lowercase()}_$manuscriptId"
+            rootObj.put(key, json)
+            prefs.edit().putString(PREF_CLOUD_MANUSCRIPTS, rootObj.toString()).apply()
+        } catch (e: Exception) {
+            Log.e("GoogleDriveSync", "Failed to save cloud payload", e)
+        }
+    }
+
+    /**
      * Fetches the Global Book Index.
-     * If user is real.artistry@gmail.com (Editor in Chief): sees ALL books (public and hidden).
-     * If user is regular author: sees public books + their own hidden books.
      */
     suspend fun fetchGlobalBookIndex(currentUser: UserProfile): Result<List<GlobalBookIndexEntry>> = withContext(Dispatchers.IO) {
         try {
             val allEntries = getGlobalIndexFromStorage()
             val isEditorInChief = currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
-            // Dynamically synchronize the authorName for current user's manuscripts to match their active pen name / legal name
             val synchronizedEntries = allEntries.map { entry ->
-                if (entry.authorEmail.equals(currentUser.email, ignoreCase = true) || entry.authorName == "Aldus Manutius") {
+                if (entry.authorEmail.equals(currentUser.email, ignoreCase = true) && !isEditorInChief) {
                     entry.copy(authorName = currentUser.displayName)
                 } else {
                     entry
@@ -277,17 +431,10 @@ class GoogleDriveSyncService(private val context: Context) {
         }
     }
 
-    /**
-     * Admin God-Mode: Suspend a user.
-     */
-    suspend fun suspendUser(
-        adminEmail: String,
-        targetEmail: String,
-        reason: String
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun suspendUser(adminEmail: String, targetEmail: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
-                return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief ($EDITOR_IN_CHIEF_EMAIL) can suspend users."))
+                return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can suspend users."))
             }
 
             val suspended = getSuspendedUsersFromStorage().toMutableList()
@@ -302,7 +449,6 @@ class GoogleDriveSyncService(private val context: Context) {
             )
             saveSuspendedUsersToStorage(suspended)
 
-            // Send notification message to the user's mailbox
             sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = targetEmail.trim(),
@@ -320,9 +466,6 @@ class GoogleDriveSyncService(private val context: Context) {
         }
     }
 
-    /**
-     * Admin God-Mode: Unsuspend a user.
-     */
     suspend fun unsuspendUser(adminEmail: String, targetEmail: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
@@ -333,7 +476,6 @@ class GoogleDriveSyncService(private val context: Context) {
             suspended.removeAll { it.email.equals(targetEmail.trim(), ignoreCase = true) }
             saveSuspendedUsersToStorage(suspended)
 
-            // Send restoration notice
             sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = targetEmail.trim(),
@@ -351,9 +493,6 @@ class GoogleDriveSyncService(private val context: Context) {
         }
     }
 
-    /**
-     * Admin God-Mode: Revoke / Remove a manuscript from the master index & drive.
-     */
     suspend fun revokeManuscriptAccess(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
@@ -384,13 +523,9 @@ class GoogleDriveSyncService(private val context: Context) {
         }
     }
 
-    /**
-     * Send serverless message to a user's mailbox (or broadcast to all).
-     */
     suspend fun sendServerlessMail(message: ServerlessMailMessage): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (message.recipientEmail.equals("ALL_AUTHORS", ignoreCase = true)) {
-                // Broadcast to all known authors in the global index
                 val allAuthors = getGlobalIndexFromStorage().map { it.authorEmail }.distinct()
                 allAuthors.forEach { authorEmail ->
                     val userMail = getMailboxFromStorage(authorEmail).toMutableList()
@@ -408,9 +543,6 @@ class GoogleDriveSyncService(private val context: Context) {
         }
     }
 
-    /**
-     * Fetch user's mailbox messages.
-     */
     suspend fun fetchMailboxMessages(userEmail: String): Result<List<ServerlessMailMessage>> = withContext(Dispatchers.IO) {
         try {
             val mail = getMailboxFromStorage(userEmail)
@@ -420,9 +552,6 @@ class GoogleDriveSyncService(private val context: Context) {
         }
     }
 
-    /**
-     * Mark a message as read.
-     */
     suspend fun markMailAsRead(userEmail: String, messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val mail = getMailboxFromStorage(userEmail).toMutableList()
@@ -436,10 +565,6 @@ class GoogleDriveSyncService(private val context: Context) {
             Result.failure(e)
         }
     }
-
-    // ==========================================
-    // Internal JSON Serialization Helpers
-    // ==========================================
 
     private fun getGlobalIndexFromStorage(): List<GlobalBookIndexEntry> {
         val raw = prefs.getString(PREF_GLOBAL_INDEX, null) ?: return emptyList()

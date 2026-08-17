@@ -1,6 +1,7 @@
 package com.example.data
 
 import com.example.cmos.CmosFormatter
+import com.example.model.ContributorCredit
 import com.example.model.EditorialCommentEntity
 import com.example.model.ManuscriptEntity
 import com.example.model.MatterType
@@ -13,6 +14,7 @@ import com.example.model.WorkType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
 class BwriterRepository(private val database: BwriterDatabase) {
 
@@ -128,6 +130,144 @@ class BwriterRepository(private val database: BwriterDatabase) {
         commentDao.setResolved(commentId, resolved)
     }
 
+    /**
+     * Propose an edit / revision by an Editor or Contributor on a section they did not author.
+     * Marks the section as UNDER_REVIEW with red-highlight tracked changes and logs acknowledgment telemetry.
+     */
+    suspend fun proposeRevision(
+        section: SectionEntity,
+        newContent: String,
+        editorUser: UserProfile
+    ) = withContext(Dispatchers.IO) {
+        val originalText = if (section.hasPendingRevision && section.originalAuthorContent.isNotBlank()) {
+            section.originalAuthorContent
+        } else {
+            section.content
+        }
+
+        val originalWords = countWords(originalText)
+        val newWords = countWords(newContent)
+        val deltaWords = abs(newWords - originalWords).coerceAtLeast(newWords.coerceAtLeast(1))
+
+        val updatedSection = section.copy(
+            hasPendingRevision = true,
+            pendingEditedContent = newContent,
+            originalAuthorContent = originalText,
+            revisionAuthorPenName = if (editorUser.penName.isNotBlank()) editorUser.penName else editorUser.name,
+            revisionAuthorEmail = editorUser.email,
+            revisionAuthorRole = editorUser.role.displayName,
+            revisionTimestamp = System.currentTimeMillis(),
+            revisionDeltaWords = deltaWords,
+            status = SectionStatus.UNDER_REVIEW,
+            updatedAt = System.currentTimeMillis()
+        )
+        sectionDao.updateSection(updatedSection)
+
+        // Update manuscript acknowledgment telemetry and status
+        val manuscript = manuscriptDao.getManuscriptByIdOnce(section.manuscriptId)
+        if (manuscript != null) {
+            val existingCredits = manuscript.acknowledgmentsList.toMutableList()
+            val contributorPenName = if (editorUser.penName.isNotBlank()) editorUser.penName else editorUser.name
+
+            // Find existing credit for this contributor or add new
+            val existingIndex = existingCredits.indexOfFirst {
+                it.email.equals(editorUser.email, ignoreCase = true) || it.penName.equals(contributorPenName, ignoreCase = true)
+            }
+            if (existingIndex >= 0) {
+                val existing = existingCredits[existingIndex]
+                existingCredits[existingIndex] = existing.copy(
+                    penName = contributorPenName,
+                    role = editorUser.role.displayName,
+                    wordsContributed = existing.wordsContributed + deltaWords,
+                    commitTimestamp = System.currentTimeMillis(),
+                    chapterTitle = section.title
+                )
+            } else {
+                existingCredits.add(
+                    ContributorCredit(
+                        penName = contributorPenName,
+                        email = editorUser.email,
+                        role = editorUser.role.displayName,
+                        wordsContributed = deltaWords,
+                        commitTimestamp = System.currentTimeMillis(),
+                        chapterTitle = section.title
+                    )
+                )
+            }
+
+            manuscriptDao.updateManuscript(
+                manuscript.copy(
+                    manuscriptStatus = "UNDER_REVIEW",
+                    acknowledgmentsJson = ContributorCredit.listToJsonString(existingCredits),
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    /**
+     * Author accepts the proposed revision: merges the edited content into the official text.
+     */
+    suspend fun acceptRevision(section: SectionEntity) = withContext(Dispatchers.IO) {
+        val mergedContent = if (section.pendingEditedContent.isNotBlank()) section.pendingEditedContent else section.content
+        val wordCount = countWords(mergedContent)
+
+        val updatedSection = section.copy(
+            content = mergedContent,
+            hasPendingRevision = false,
+            pendingEditedContent = "",
+            status = SectionStatus.POLISHED,
+            wordCount = wordCount,
+            updatedAt = System.currentTimeMillis()
+        )
+        sectionDao.updateSection(updatedSection)
+
+        // Check if there are other pending revisions in the manuscript
+        val allSections = sectionDao.getSectionsForManuscriptOnce(section.manuscriptId)
+        val hasOtherPending = allSections.any { it.id != section.id && it.hasPendingRevision }
+
+        val manuscript = manuscriptDao.getManuscriptByIdOnce(section.manuscriptId)
+        if (manuscript != null) {
+            manuscriptDao.updateManuscript(
+                manuscript.copy(
+                    manuscriptStatus = if (hasOtherPending) "UNDER_REVIEW" else "POLISHED",
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    /**
+     * Author rejects the proposed revision: discards pending edits and restores original content.
+     */
+    suspend fun rejectRevision(section: SectionEntity) = withContext(Dispatchers.IO) {
+        val restoredContent = if (section.originalAuthorContent.isNotBlank()) section.originalAuthorContent else section.content
+        val wordCount = countWords(restoredContent)
+
+        val updatedSection = section.copy(
+            content = restoredContent,
+            hasPendingRevision = false,
+            pendingEditedContent = "",
+            status = SectionStatus.DRAFT,
+            wordCount = wordCount,
+            updatedAt = System.currentTimeMillis()
+        )
+        sectionDao.updateSection(updatedSection)
+
+        val allSections = sectionDao.getSectionsForManuscriptOnce(section.manuscriptId)
+        val hasOtherPending = allSections.any { it.id != section.id && it.hasPendingRevision }
+
+        val manuscript = manuscriptDao.getManuscriptByIdOnce(section.manuscriptId)
+        if (manuscript != null) {
+            manuscriptDao.updateManuscript(
+                manuscript.copy(
+                    manuscriptStatus = if (hasOtherPending) "UNDER_REVIEW" else "DRAFT",
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
     private suspend fun touchManuscript(manuscriptId: Long) {
         val m = manuscriptDao.getManuscriptByIdOnce(manuscriptId)
         if (m != null) {
@@ -159,12 +299,12 @@ class BwriterRepository(private val database: BwriterDatabase) {
             return@withContext
         }
 
-        // 1. Novel Seed
+        // 1. Novel Seed — Credited to Superuser "Author"
         val novel = ManuscriptEntity(
             title = "The Obsidian Quill",
             subtitle = "A Chronicle of the Chicago Printmasters",
             workType = WorkType.NOVEL,
-            authorName = "Dr. Arthur Vance",
+            authorName = "Author",
             authorPenName = "A. V. Hawthorne",
             authorEmail = "real.artistry@gmail.com",
             editorName = "Eleanor Rigby, Senior Editor",
@@ -172,74 +312,78 @@ class BwriterRepository(private val database: BwriterDatabase) {
             edition = "First Edition",
             year = "2026",
             isbn = "978-0-226-81932-1",
-            copyrightText = "Copyright © 2026 by Arthur Vance.\nAll rights reserved under International and Pan-American Copyright Conventions.\nPublished in Chicago by Great Lakes University Press.",
+            copyrightText = "Copyright © 2026 by Author.\nAll rights reserved under International and Pan-American Copyright Conventions.\nPublished in Chicago by Great Lakes University Press.",
             dedication = "To the linotype operators, hot-metal compositors, and proofreaders who gave body to the written thought.",
             epigraphText = "“There is a sanctity in the printed leaf which the spoken word can never claim.”",
-            epigraphAuthor = "William Morris, 1891"
+            epigraphAuthor = "William Morris, 1891",
+            manuscriptStatus = "POLISHED"
         )
         val novelId = manuscriptDao.insertManuscript(novel)
         seedNovelSections(novelId)
         seedNovelCharactersAndSettings(novelId)
 
-        // 2. Biography Seed
+        // 2. Biography Seed — Credited to Superuser "Author"
         val bio = ManuscriptEntity(
             title = "The Chronicler of Chicago",
             subtitle = "The Life and Letters of Silas Dearborn (1842–1918)",
             workType = WorkType.BIOGRAPHY,
-            authorName = "Eleanor Vance",
+            authorName = "Author",
             authorPenName = "E. R. Vance",
-            authorEmail = "eleanor.vance@chicago.edu",
+            authorEmail = "real.artistry@gmail.com",
             editorName = "Marcus Sterling",
             publisher = "Midwestern Historical Society Press",
             edition = "Definitive Edition",
             year = "2026",
             isbn = "978-0-300-24109-9",
-            copyrightText = "Copyright © 2026 by Eleanor Vance.\nManufactured in the United States of America.\nCataloging-in-Publication Data available from the Library of Congress.",
+            copyrightText = "Copyright © 2026 by Author.\nManufactured in the United States of America.\nCataloging-in-Publication Data available from the Library of Congress.",
             dedication = "In memory of the archival keepers of the Newberry Library.",
             epigraphText = "“Biography is the only true history.”",
-            epigraphAuthor = "Thomas Carlyle"
+            epigraphAuthor = "Thomas Carlyle",
+            manuscriptStatus = "POLISHED"
         )
         val bioId = manuscriptDao.insertManuscript(bio)
         seedBiographySections(bioId)
 
-        // 3. Documentary Seed
+        // 3. Documentary Seed — Credited to Superuser "Author"
         val doc = ManuscriptEntity(
             title = "Echoes of the Great Lake",
             subtitle = "An Oral and Archival Documentary of the Maritime Trades",
             workType = WorkType.DOCUMENTARY,
-            authorName = "Marcus Sterling",
+            authorName = "Author",
             authorPenName = "M. T. Sterling",
-            authorEmail = "m.sterling@documentaryarts.org",
+            authorEmail = "real.artistry@gmail.com",
             editorName = "Dr. Arthur Vance",
             publisher = "Maritime Documentary Editions",
             edition = "First Edition",
             year = "2026",
             isbn = "978-1-59853-702-4",
-            copyrightText = "Copyright © 2026 by Marcus Sterling.\nAll rights reserved. No part of this publication may be reproduced without prior written permission.",
+            copyrightText = "Copyright © 2026 by Author.\nAll rights reserved. No part of this publication may be reproduced without prior written permission.",
             dedication = "For the crews of the schooners and freighters of Lake Michigan.",
             epigraphText = "“The lake does not give up her secrets willingly; she writes them in deep water.”",
-            epigraphAuthor = "Captain John MacAlister, 1888"
+            epigraphAuthor = "Captain John MacAlister, 1888",
+            manuscriptStatus = "POLISHED"
         )
         val docId = manuscriptDao.insertManuscript(doc)
         seedDocumentarySections(docId)
 
-        // 4. Manual Seed
+        // 4. Manual Seed — Credited to Superuser "Author"
         val manual = ManuscriptEntity(
             title = "The Craft of Book Typography",
             subtitle = "A Practical Manual Honoring the Chicago Manual of Style",
             workType = WorkType.MANUAL,
-            authorName = "The Editorial Guild",
-            authorPenName = "Bwriter Editorial Staff",
-            authorEmail = "guild@bwriter.io",
+            authorName = "Author",
+            authorPenName = "Author",
+            authorEmail = "real.artistry@gmail.com",
             editorName = "Chief Typography Officer",
             publisher = "Bwriter Press & Chicago Typographic Guild",
             edition = "Second Revised Edition",
             year = "2026",
             isbn = "978-0-8047-9104-5",
-            copyrightText = "Copyright © 2026 by Bwriter Press.\nTypeset in Monotype Baskerville and Garamond.\nPrinted on 60# acid-free archival book paper.",
+            copyrightText = "Copyright © 2026 by Author.\nTypeset in Monotype Baskerville and Garamond.\nPrinted on 60# acid-free archival book paper.",
             dedication = "To every typographer who measures margins in points and preserves the dignity of the leaf.",
             epigraphText = "“Typography is the craft of endowing human language with a durable visual form.”",
-            epigraphAuthor = "Robert Bringhurst"
+            epigraphAuthor = "Robert Bringhurst",
+            manuscriptStatus = "POLISHED"
         )
         val manualId = manuscriptDao.insertManuscript(manual)
         seedManualSections(manualId)
@@ -254,7 +398,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 title = "Preface to the Reader",
                 orderIndex = 1,
                 content = "The narrative contained in these pages was drawn from the preserved logbooks of the Dearborn Foundry and the personal journals of Master Typesetter Alistair Thorne. In transcribing these records, we have adhered strictly to the punctuation and orthography of the late nineteenth century, while ensuring the typographic presentation conforms to modern editorial standards.\n\nEvery leaf has been composed with the understanding that a book is not merely a vehicle for text, but an intimate architectural space where author and reader converse.",
-                assignedAuthor = "Dr. Arthur Vance",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.FINAL,
                 wordCount = 85
@@ -267,7 +411,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 subtitle = "Wherein the Molten Lead Casts Its Spell",
                 orderIndex = 2,
                 content = "The fog rolled off Lake Michigan with the heavy, damp chill of late November, wrapping the brick warehouses of South Clark Street in a woolen shroud. Inside the Dearborn Foundry, the furnace glowed like a captive ember, throwing long, trembling shadows across the cases of pica and brevier type.\n\nAlistair Thorne stood before his imposing stone, a composing stick resting lightly in his left hand. His fingers moved with the instinctive rhythm of thirty years at the trade—picking sorts from the upper and lower cases, sliding brass thins into place, and verifying the alignment with the delicate touch of a jeweler.\n\n“Mind the gutter margin on the fifth leaf, Thorne,” warned Old Mercer, squinting over his wire-rimmed spectacles from the proofing press. “The University will reject the entire run if the binding swallows the inner folio.”\n\n“The Chicago rules are burned into my retinas, Mercer,” Thorne replied without breaking his stride. “Inner gutter set to forty-five points, running heads on the verso bearing the work title, and every chapter opener starting proudly on the recto.”\n\nOutside, the steam whistle of the evening freight sounded across the river, signaling the arrival of fresh rag paper from the Wisconsin mills.",
-                assignedAuthor = "Dr. Arthur Vance",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.POLISHED,
                 wordCount = 205
@@ -280,7 +424,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 subtitle = "The Discovery of the Uncorrected Proofs",
                 orderIndex = 3,
                 content = "Morning arrived with the shrill cry of newsboys along Michigan Avenue. Alistair found the galley proofs strewn across the mahogany table of the reader’s alcove, marked with vermilion ink in the decisive hand of Miss Eleanor Rigby.\n\n“Notice the missing serial commas in the second paragraph,” she said, stepping from behind the cedar screen. “The Chicago Manual of Style is unequivocal on this matter: in a series of three or more elements, the conjunction must be preceded by a comma. We do not permit ambiguity in our prose.”\n\nThorne examined the marks. Her annotations were razor-sharp, noting every straight quote that demanded replacement by typographical curly quotes and flagging parenthetical dashes that lacked the true em-width.\n\n“It shall be corrected before the cylinder press begins its run,” Thorne conceded, admiring the relentless precision of her editorial eye.",
-                assignedAuthor = "Dr. Arthur Vance",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.POLISHED,
                 wordCount = 155
@@ -291,16 +435,15 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 sectionType = SectionType.ABOUT_AUTHOR,
                 title = "About the Author",
                 orderIndex = 4,
-                content = "Dr. Arthur Vance is an author, bibliographic scholar, and Fellow of the Chicago Typographic Guild. He has spent two decades researching the industrial history of Midwestern book publishing. He resides in Hyde Park, Chicago.",
-                assignedAuthor = "Dr. Arthur Vance",
+                content = "Author is a dedicated bibliographic scholar and Fellow of the Chicago Typographic Guild. Residing in Chicago, they preserve the classical traditions of recto-verso leaf design.",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.FINAL,
-                wordCount = 38
+                wordCount = 28
             )
         )
         sectionDao.insertSections(sections)
 
-        // Seed an editorial comment
         val comment = EditorialCommentEntity(
             sectionId = 2,
             manuscriptId = manuscriptId,
@@ -321,11 +464,11 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 sectionType = SectionType.FOREWORD,
                 title = "Foreword",
                 orderIndex = 1,
-                content = "Silas Dearborn stood at the fulcrum of Chicago’s transformation from a muddy mercantile outpost to the printing capital of the American interior. In this definitive biography, Eleanor Vance brings an archival rigor that will stand as the benchmark for decades.",
-                assignedAuthor = "Marcus Sterling",
+                content = "Silas Dearborn stood at the fulcrum of Chicago’s transformation from a muddy mercantile outpost to the printing capital of the American interior. In this definitive biography, archival rigor stands as the benchmark for decades to come.",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.CONTRIBUTOR,
                 status = SectionStatus.FINAL,
-                wordCount = 42
+                wordCount = 38
             ),
             SectionEntity(
                 manuscriptId = manuscriptId,
@@ -335,9 +478,9 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 subtitle = "The Early Years in Sangamon County",
                 orderIndex = 2,
                 content = "Born in a timber cabin four miles south of Springfield in 1842, Silas Dearborn learned his letters from a battered copy of Franklin’s Autobiography. By the age of fourteen, he had secured an apprenticeship at the Sangamon Daily Gazette, where he washed ink rollers and set display advertisements by the flickering light of tallow candles.",
-                assignedAuthor = "Eleanor Vance",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
-                status = SectionStatus.UNDER_REVIEW,
+                status = SectionStatus.POLISHED,
                 wordCount = 60
             ),
             SectionEntity(
@@ -347,7 +490,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 title = "Selected Bibliography",
                 orderIndex = 3,
                 content = "Dearborn, Silas. Letters to a Young Typographer. Chicago: Prairie Press, 1898.\n\nFranklin, Benjamin. The Autobiography of Benjamin Franklin. Edited by Leonard W. Labaree. New Haven: Yale University Press, 1964.\n\nUniversity of Chicago Press. The Chicago Manual of Style. 17th ed. Chicago: University of Chicago Press, 2017.",
-                assignedAuthor = "Eleanor Vance",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.FINAL,
                 wordCount = 48
@@ -365,7 +508,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 title = "Introduction: The Frozen Waterway",
                 orderIndex = 1,
                 content = "Between 1870 and 1920, more than two thousand vessels foundered upon the treacherous waters of Lake Michigan. This documentary assembles for the first time the surviving telegrams, harbor master logs, and oral histories of the men and women who braved the gales.",
-                assignedAuthor = "Marcus Sterling",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.POLISHED,
                 wordCount = 45
@@ -378,7 +521,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 subtitle = "Surviving the Thirty-Six Hour Tempest",
                 orderIndex = 2,
                 content = "At 4:00 p.m. on November 16, the barometric pressure in Milwaukee plunged to 28.92 inches. Captain MacAlister ordered all canvas reefed aboard the three-masted schooner *Silver Wave*. By nightfall, sixty-knot winds had torn the rudder adrift.",
-                assignedAuthor = "Marcus Sterling",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.POLISHED,
                 wordCount = 40
@@ -390,7 +533,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 title = "Appendix A: Register of Shipwrecks",
                 orderIndex = 3,
                 content = "Table of Maritime Casualties on Southern Lake Michigan (1880–1900), compiled from United States Life-Saving Service annual reports and Chicago Board of Underwriters records.",
-                assignedAuthor = "Marcus Sterling",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.DRAFT,
                 wordCount = 26
@@ -408,7 +551,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 title = "Typographic Standards & Principles",
                 orderIndex = 1,
                 content = "This manual establishes the typographic benchmarks for Chicago Manual of Style composition, leaf pagination, recto-verso balance, and dynamic table of contents generation. Adherence to these classical standards ensures that digital manuscripts achieve the structural elegance of hot-metal presscraft.",
-                assignedAuthor = "The Editorial Guild",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.FINAL,
                 wordCount = 45
@@ -421,7 +564,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 subtitle = "Principles of Recto and Verso Placement",
                 orderIndex = 2,
                 content = "In classical book design, the fundamental unit of composition is not the individual page, but the physical leaf with its two facing sides: recto (right) and verso (left).\n\nUnder the Chicago Manual of Style:\n1. All major divisions (Half-title, Title page, TOC, Foreword, Preface, Chapter 1, and Back Matter) must commence upon a Recto leaf.\n2. When a preceding division terminates on an odd page, an intentionally blank verso leaf must be introduced.\n3. Running heads must distinguish between facing pages: Verso carries the general book title or author, while Recto carries the specific chapter or section.",
-                assignedAuthor = "The Editorial Guild",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.POLISHED,
                 wordCount = 105
@@ -433,7 +576,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 title = "Glossary of Typographical Terms",
                 orderIndex = 3,
                 content = "Blind Folio: A page number counted in pagination but suppressed in print on display leaves and chapter openers.\n\nDrop Folio: A page number positioned at the foot of the page, centered or flush with the margin.\n\nGutter: The inner margin of facing pages adjacent to the binding spine.\n\nRecto: The front side of a leaf, always positioned on the right in a two-page spread and assigned an odd page number.\n\nVerso: The back side of a leaf, always positioned on the left in a two-page spread and assigned an even page number.",
-                assignedAuthor = "The Editorial Guild",
+                assignedAuthor = "Author",
                 assignedRole = WorkRole.AUTHOR,
                 status = SectionStatus.FINAL,
                 wordCount = 98

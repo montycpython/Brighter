@@ -19,7 +19,9 @@ enum class WorkRole(
         title = "Contributor",
         badgeLabel = "Foreword / Contributor",
         description = "Drafting forewords, prefaces, specific chapters, or specialized appendices."
-    )
+    );
+
+    val displayName: String get() = title
 }
 
 data class UserProfile(
@@ -38,4 +40,7 @@ data class UserProfile(
             name.isNotBlank() -> name
             else -> "Author"
         }
+
+    val effectivePenName: String
+        get() = if (penName.isNotBlank()) penName else displayName
 }

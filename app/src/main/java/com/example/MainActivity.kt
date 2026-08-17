@@ -233,6 +233,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     viewModel.signOutGoogleAccount()
                     Toast.makeText(context, "Logged out of Google account", Toast.LENGTH_SHORT).show()
                 },
+                onRestoreFromDrive = {
+                    viewModel.restoreManuscriptsFromGoogleDrive { count ->
+                        Toast.makeText(context, "Restored $count manuscripts from Google Drive!", Toast.LENGTH_LONG).show()
+                    }
+                },
                 unreadMailCount = driveSyncStatus.unreadMailCount
             )
         }
@@ -341,6 +346,18 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     },
                     onSendServerlessMail = { mail ->
                         viewModel.sendMailMessage(mail)
+                    },
+                    onProposeRevision = { sec, revContent ->
+                        viewModel.proposeSectionRevision(sec, revContent)
+                    },
+                    onAcceptRevision = { sec ->
+                        viewModel.acceptSectionRevision(sec)
+                    },
+                    onRejectRevision = { sec ->
+                        viewModel.rejectSectionRevision(sec)
+                    },
+                    onSwitchRole = { newRole ->
+                        viewModel.updateRole(newRole)
                     }
                 )
             }
@@ -419,7 +436,15 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 books = globalBookIndex,
                 currentUser = currentUser,
                 onBack = { navController.popBackStack() },
-                onRefresh = { viewModel.refreshDriveNetwork() }
+                onRefresh = { viewModel.refreshDriveNetwork() },
+                onOpenReader = { bookId ->
+                    viewModel.selectManuscript(bookId)
+                    navController.navigate("leaf_reader/$bookId")
+                },
+                onOpenManuscript = { bookId ->
+                    viewModel.selectManuscript(bookId)
+                    navController.navigate("manuscript_detail/$bookId")
+                }
             )
         }
 

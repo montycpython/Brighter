@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
@@ -54,6 +55,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
@@ -162,11 +164,24 @@ fun SectionEditorScreen(
     subscription: com.example.model.UserAiSubscription? = null,
     onOpenSubscription: () -> Unit = {},
     onSaveAssignment: (SectionEntity, String, WorkRole, String) -> Unit = { _, _, _, _ -> },
-    onSendServerlessMail: (ServerlessMailMessage) -> Unit = {}
+    onSendServerlessMail: (ServerlessMailMessage) -> Unit = {},
+    onProposeRevision: (SectionEntity, String) -> Unit = { _, _ -> },
+    onAcceptRevision: (SectionEntity) -> Unit = {},
+    onRejectRevision: (SectionEntity) -> Unit = {},
+    onSwitchRole: (WorkRole) -> Unit = {}
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val clipboardManager = remember { context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager }
+
+    val isAuthorOfBook = manuscript?.authorEmail.equals(currentUser.email, ignoreCase = true) ||
+                         (currentUser.penName.isNotBlank() && manuscript?.authorPenName.equals(currentUser.penName, ignoreCase = true)) ||
+                         (currentUser.name.isNotBlank() && currentUser.name != "Author" && manuscript?.authorName.equals(currentUser.name, ignoreCase = true)) ||
+                         currentUser.email.equals(com.example.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+
+    val isNonAuthorMode = !isAuthorOfBook
+    val isAuthorRoleBlocked = isNonAuthorMode && currentUser.role == WorkRole.AUTHOR
+    val isCollaboratorMode = isNonAuthorMode && (currentUser.role == WorkRole.EDITOR || currentUser.role == WorkRole.CONTRIBUTOR)
 
     var title by remember(section.id) { mutableStateOf(section.title) }
     var subtitle by remember(section.id) { mutableStateOf(section.subtitle) }
@@ -500,6 +515,234 @@ fun SectionEditorScreen(
                             .fillMaxSize()
                             .background(Color(0xFFEFECE6))
                     ) {
+                        // Role & Collaboration Banners
+                        if (isAuthorRoleBlocked) {
+                            Surface(
+                                color = Color(0xFFFFF8E1),
+                                border = BorderStroke(1.dp, Color(0xFFFFB300)),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Author Read-Only Mode",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.5.sp,
+                                            color = Color(0xFFE65100)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "You are viewing a manuscript authored by ${manuscript?.effectiveAuthorByline ?: "Author"}. Under publishing rules, you must be in Editor or Contributor mode to edit books you did not author.",
+                                        fontSize = 11.5.sp,
+                                        color = Color(0xFF5D4037),
+                                        lineHeight = 15.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(
+                                            onClick = { onSwitchRole(WorkRole.EDITOR) },
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE65100)),
+                                            border = BorderStroke(1.dp, Color(0xFFE65100)),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Switch to Editor", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        OutlinedButton(
+                                            onClick = { onSwitchRole(WorkRole.CONTRIBUTOR) },
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE65100)),
+                                            border = BorderStroke(1.dp, Color(0xFFE65100)),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Switch to Contributor", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (isCollaboratorMode) {
+                            Surface(
+                                color = Color(0xFFE3F2FD),
+                                border = BorderStroke(1.dp, Color(0xFF1976D2)),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF0D47A1), modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Collaborating as ${currentUser.role.displayName}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF0D47A1)
+                                            )
+                                        }
+                                        Button(
+                                            onClick = {
+                                                onProposeRevision(section, contentValue.text)
+                                                coroutineScope.launch { snackbarHostState.showSnackbar("Tracked revision submitted to Author!") }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1)),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text("Submit Revision", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Edits you save will be marked Under Review and highlighted in Red. Your pen name (${currentUser.effectivePenName}) and words contributed will be logged in Acknowledgments upon sync.",
+                                        fontSize = 10.5.sp,
+                                        color = Color(0xFF1565C0),
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Prominent Redline Tracked Revisions Card (Under Review)
+                        if (section.hasPendingRevision) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF5F5)),
+                                border = BorderStroke(1.5.dp, Color(0xFFD32F2F)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = Color(0xFFD32F2F)
+                                            ) {
+                                                Text(
+                                                    text = "UNDER REVIEW",
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Tracked Revisions Proposed",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.5.sp,
+                                                color = Color(0xFFB71C1C)
+                                            )
+                                        }
+                                        Text(
+                                            text = "+${section.revisionDeltaWords} words",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFD32F2F)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "By: ${section.revisionAuthorPenName.ifBlank { "Contributor" }} (${section.revisionAuthorRole}) • ${section.revisionAuthorEmail}",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF5A1A1A),
+                                        fontFamily = FontFamily.Serif
+                                    )
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    // Red Highlight Diff Preview Box
+                                    Surface(
+                                        color = Color(0xFFFFEBEE),
+                                        border = BorderStroke(1.dp, Color(0xFFFFCDD2)),
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(8.dp)) {
+                                            Text(
+                                                text = "PROPOSED REDLINE DIFF:",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFC62828)
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = section.pendingEditedContent.ifBlank { "[Empty revision content]" },
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFB71C1C),
+                                                fontFamily = FontFamily.Serif,
+                                                lineHeight = 16.sp,
+                                                maxLines = 6
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    if (isAuthorOfBook) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Button(
+                                                onClick = {
+                                                    onAcceptRevision(section)
+                                                    contentValue = TextFieldValue(section.pendingEditedContent)
+                                                    coroutineScope.launch { snackbarHostState.showSnackbar("Revision accepted! Contributor credited in Acknowledgments.") }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                                shape = RoundedCornerShape(6.dp),
+                                                modifier = Modifier.weight(1f).testTag("btn_accept_revision")
+                                            ) {
+                                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Accept & Credit", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    onRejectRevision(section)
+                                                    contentValue = TextFieldValue(section.originalAuthorContent)
+                                                    coroutineScope.launch { snackbarHostState.showSnackbar("Revision rejected. Original prose restored.") }
+                                                },
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828)),
+                                                border = BorderStroke(1.dp, Color(0xFFC62828)),
+                                                shape = RoundedCornerShape(6.dp),
+                                                modifier = Modifier.weight(1f).testTag("btn_reject_revision")
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Reject Changes", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    } else {
+                                        Text(
+                                            text = "Awaiting decision by author ${manuscript?.effectiveAuthorByline ?: "Author"}.",
+                                            fontSize = 10.5.sp,
+                                            fontStyle = FontStyle.Italic,
+                                            color = Color(0xFF7F0000)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         // Resizing, scrollable paper canvas that stays fully visible
                         Box(
                             modifier = Modifier
@@ -543,9 +786,12 @@ fun SectionEditorScreen(
                                     BasicTextField(
                                         value = contentValue,
                                         onValueChange = {
-                                            contentValue = it
-                                            onSaveContent(section, it.text)
+                                            if (!isAuthorRoleBlocked) {
+                                                contentValue = it
+                                                onSaveContent(section, it.text)
+                                            }
                                         },
+                                        readOnly = isAuthorRoleBlocked,
                                         visualTransformation = markdownVisualTransformation,
                                         modifier = Modifier
                                             .fillMaxSize()
@@ -555,7 +801,7 @@ fun SectionEditorScreen(
                                             fontFamily = FontFamily.Serif,
                                             fontSize = 14.5.sp,
                                             lineHeight = 22.sp,
-                                            color = InkBlack
+                                            color = if (section.hasPendingRevision) Color(0xFFB71C1C) else InkBlack
                                         ),
                                         cursorBrush = SolidColor(BookGoldDark)
                                     )

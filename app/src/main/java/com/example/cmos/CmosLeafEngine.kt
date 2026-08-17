@@ -566,8 +566,27 @@ object CmosLeafEngine {
                 }
             }
 
+            val contentToPaginate = if (sec.sectionType == SectionType.ACKNOWLEDGMENTS && manuscript.acknowledgmentsJson.isNotBlank()) {
+                val credits = com.example.model.ContributorCredit.parseListFromJson(manuscript.acknowledgmentsJson)
+                if (credits.isNotEmpty()) {
+                    val dateFormat = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
+                    val creditLines = credits.joinToString("\n") { c ->
+                        "• ${c.penName} (${c.role.replace("_", " ")}) — ${c.wordsContributed} words contributed [${dateFormat.format(java.util.Date(c.commitTimestamp))}]"
+                    }
+                    if (sec.content.isBlank()) {
+                        "The author gratefully acknowledges the editorial craftsmanship and contributions of:\n\n$creditLines"
+                    } else {
+                        "${sec.content}\n\nEditorial & Contributor Registry:\n$creditLines"
+                    }
+                } else {
+                    sec.content
+                }
+            } else {
+                sec.content
+            }
+
             val pageSnippets = paginateSectionProse(
-                content = sec.content,
+                content = contentToPaginate,
                 trimSize = trimSize,
                 hasHeaderIllustration = sec.headerIllustrationUri.isNotBlank(),
                 hasSubtitle = sec.subtitle.isNotBlank()

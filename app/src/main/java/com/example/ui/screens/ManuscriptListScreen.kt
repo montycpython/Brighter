@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
@@ -40,6 +41,8 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +52,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,6 +62,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -110,6 +116,7 @@ fun ManuscriptListScreen(
     onOpenUserAgreement: () -> Unit = {},
     onOpenSubscription: () -> Unit = {},
     onSignOut: () -> Unit = {},
+    onRestoreFromDrive: () -> Unit = {},
     unreadMailCount: Int = 0
 ) {
     var showProfileDialog by remember { mutableStateOf(false) }
@@ -121,20 +128,19 @@ fun ManuscriptListScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(BookGoldDark),
-                            contentAlignment = Alignment.Center
+                        Surface(
+                            shape = CircleShape,
+                            border = BorderStroke(1.5.dp, BookGoldDark),
+                            color = Color(0xFF1E1A17),
+                            modifier = Modifier.size(34.dp)
                         ) {
-                            Text(
-                                text = "B",
-                                fontSize = 18.sp,
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.img_bwriter_emblem_1786987156557),
+                                    contentDescription = "Bwriter Logo",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -152,6 +158,18 @@ fun ManuscriptListScreen(
                     }
                 },
                 actions = {
+                    // Restore from Drive Action
+                    IconButton(
+                        onClick = onRestoreFromDrive,
+                        modifier = Modifier.testTag("btn_top_restore_drive")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudDownload,
+                            contentDescription = "Restore from Google Drive",
+                            tint = BookGoldDark
+                        )
+                    }
+
                     // AI Studio Subscription / Credits Wallet
                     IconButton(
                         onClick = onOpenSubscription,
@@ -373,33 +391,84 @@ fun ManuscriptListScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            .padding(vertical = 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                        border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.3f)),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(32.dp),
+                                .padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Surface(
+                                shape = CircleShape,
+                                color = BookGoldDark.copy(alpha = 0.15f),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(32.dp),
+                                        tint = BookGoldDark
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
                             Text(
-                                text = "No manuscripts found",
+                                text = "Welcome to Bwriter, ${currentUser.effectivePenName}!",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Create a novel, biography, documentary, or manual to begin drafting with Chicago Manual of Style precision.",
+                                text = "Your local workspace is clean. Author your first work in Chicago format, read published titles from the Global Registry, or restore your previous cloud library from Google Drive.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 16.sp
                             )
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth(0.9f)
+                            ) {
+                                Button(
+                                    onClick = onCreateNewWorkClick,
+                                    colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().testTag("btn_empty_create_work")
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Create New Work", fontWeight = FontWeight.Bold)
+                                }
+                                OutlinedButton(
+                                    onClick = onOpenCommunity,
+                                    border = BorderStroke(1.dp, BookGoldDark),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BookGoldDark),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().testTag("btn_empty_browse_registry")
+                                ) {
+                                    Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Browse Global Registry", fontWeight = FontWeight.Bold)
+                                }
+                                OutlinedButton(
+                                    onClick = onRestoreFromDrive,
+                                    border = BorderStroke(1.dp, Color(0xFF1976D2)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1976D2)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().testTag("btn_empty_restore_drive")
+                                ) {
+                                    Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Restore from Google Drive", fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
@@ -498,7 +567,7 @@ fun ManuscriptCard(
                         WorkType.MANUAL -> Color(0xFF9E2A2B).copy(alpha = 0.12f)
                     },
                     shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier.padding(end = 6.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -515,6 +584,41 @@ fun ManuscriptCard(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+
+                // Manuscript Status Badge (Under Review, Polished, Draft)
+                Surface(
+                    color = when (manuscript.manuscriptStatus.uppercase()) {
+                        "UNDER_REVIEW" -> Color(0xFFFFEBEE)
+                        "POLISHED" -> Color(0xFFE8F5E9)
+                        else -> Color(0xFFFFF8E1)
+                    },
+                    shape = RoundedCornerShape(4.dp),
+                    border = BorderStroke(
+                        0.8.dp,
+                        when (manuscript.manuscriptStatus.uppercase()) {
+                            "UNDER_REVIEW" -> Color(0xFFD32F2F)
+                            "POLISHED" -> Color(0xFF2E7D32)
+                            else -> Color(0xFFFFB300)
+                        }
+                    ),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text(
+                        text = when (manuscript.manuscriptStatus.uppercase()) {
+                            "UNDER_REVIEW" -> "UNDER REVIEW"
+                            "POLISHED" -> "POLISHED"
+                            else -> "DRAFT"
+                        },
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = when (manuscript.manuscriptStatus.uppercase()) {
+                            "UNDER_REVIEW" -> Color(0xFFD32F2F)
+                            "POLISHED" -> Color(0xFF2E7D32)
+                            else -> Color(0xFFE65100)
+                        },
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
 
                 Text(

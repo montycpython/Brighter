@@ -38,5 +38,13 @@ data class SectionEntity(
     val tailIllustrationUri: String = "",
     val tailIllustrationCaption: String = "",
     val wordCount: Int = 0,
+    val hasPendingRevision: Boolean = false,
+    val pendingEditedContent: String = "",
+    val originalAuthorContent: String = "",
+    val revisionAuthorPenName: String = "",
+    val revisionAuthorEmail: String = "",
+    val revisionAuthorRole: String = "",
+    val revisionTimestamp: Long = 0L,
+    val revisionDeltaWords: Int = 0,
     val updatedAt: Long = System.currentTimeMillis()
 )

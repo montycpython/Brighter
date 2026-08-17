@@ -135,6 +135,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _userAiSubscription.value = userPreferences.getUserSubscription(updated.email)
         _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
+        restoreManuscriptsFromGoogleDrive()
         refreshDriveNetwork()
     }
 
@@ -147,6 +148,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _userAiSubscription.value = userPreferences.getUserSubscription(account.email)
         _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
+        restoreManuscriptsFromGoogleDrive()
         refreshDriveNetwork()
     }
 
@@ -165,7 +167,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // ==========================================
-    // Manuscript Library
+    // Manuscript Library (Empty for new users, Master works for Superuser)
     // ==========================================
     private val _selectedWorkTypeFilter = MutableStateFlow<WorkType?>(null)
     val selectedWorkTypeFilter: StateFlow<WorkType?> = _selectedWorkTypeFilter.asStateFlow()
@@ -176,9 +178,20 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     val manuscripts: StateFlow<List<ManuscriptEntity>> = combine(
         repository.allManuscripts,
-        _selectedWorkTypeFilter
-    ) { list, filter ->
-        if (filter == null) list else list.filter { it.workType == filter }
+        _selectedWorkTypeFilter,
+        _currentUser
+    ) { list, filter, user ->
+        val isEditorInChief = user.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+        val userBooks = if (isEditorInChief) {
+            list
+        } else {
+            list.filter { m ->
+                m.authorEmail.equals(user.email, ignoreCase = true) ||
+                (user.penName.isNotBlank() && m.authorPenName.equals(user.penName, ignoreCase = true)) ||
+                (user.name.isNotBlank() && user.name != "Author" && m.authorName.equals(user.name, ignoreCase = true))
+            }
+        }
+        if (filter == null) userBooks else userBooks.filter { it.workType == filter }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -357,7 +370,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         onRequiresUpgrade: () -> Unit = { openPaywall() }
     ) {
         val currentSub = _userAiSubscription.value
-        val isEditorInChief = _currentUser.value.email.equals("real.artistry@gmail.com", ignoreCase = true)
+        val isEditorInChief = _currentUser.value.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
         if (!isEditorInChief && currentSub.creditsRemaining <= 0) {
             onRequiresUpgrade()
@@ -435,7 +448,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 year = yr,
                 copyrightText = dynamicCopyright,
                 dedication = dedication.trim(),
-                epigraphText = epigraph.trim()
+                epigraphText = epigraph.trim(),
+                manuscriptStatus = "DRAFT"
             )
             val newId = repository.createManuscript(manuscript, populateTemplate = true)
             _selectedManuscriptId.value = newId
@@ -554,6 +568,80 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // ==========================================
+    // Collaboration: Revisions & Tracked Changes
+    // ==========================================
+    fun proposeSectionRevision(
+        section: SectionEntity,
+        newContent: String
+    ) {
+        viewModelScope.launch {
+            repository.proposeRevision(
+                section = section,
+                newContent = newContent,
+                editorUser = _currentUser.value
+            )
+            // Auto-send a notification to the author's mailbox or Editor in Chief
+            val manuscript = repository.getManuscriptByIdOnce(section.manuscriptId)
+            if (manuscript != null && !manuscript.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
+                val editorPenName = if (_currentUser.value.penName.isNotBlank()) _currentUser.value.penName else _currentUser.value.name
+                googleDriveSyncService.sendServerlessMail(
+                    ServerlessMailMessage(
+                        recipientEmail = manuscript.authorEmail.ifBlank { GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL },
+                        senderEmail = _currentUser.value.email,
+                        senderName = editorPenName,
+                        subject = "Revision Proposed for '${section.title}'",
+                        body = "Editor/Contributor $editorPenName (${_currentUser.value.role.displayName}) submitted a tracked revision for '${section.title}' in '${manuscript.title}'.\n\nThe chapter is now Under Review. You can review the redline differences and Accept or Reject the changes.",
+                        manuscriptId = manuscript.id,
+                        manuscriptTitle = manuscript.title,
+                        messageType = "EDITORIAL_REVISION"
+                    )
+                )
+            }
+            refreshDriveNetwork()
+        }
+    }
+
+    fun acceptSectionRevision(section: SectionEntity) {
+        viewModelScope.launch {
+            repository.acceptRevision(section)
+            if (section.revisionAuthorEmail.isNotBlank() && !section.revisionAuthorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
+                googleDriveSyncService.sendServerlessMail(
+                    ServerlessMailMessage(
+                        recipientEmail = section.revisionAuthorEmail,
+                        senderEmail = _currentUser.value.email,
+                        senderName = _currentUser.value.displayName,
+                        subject = "Revision Accepted: ${section.title}",
+                        body = "Your editorial revisions for '${section.title}' have been accepted and merged by the author. You have been credited in the official Acknowledgments!",
+                        manuscriptId = section.manuscriptId,
+                        messageType = "EDITORIAL_REVISION"
+                    )
+                )
+            }
+            refreshDriveNetwork()
+        }
+    }
+
+    fun rejectSectionRevision(section: SectionEntity) {
+        viewModelScope.launch {
+            repository.rejectRevision(section)
+            if (section.revisionAuthorEmail.isNotBlank() && !section.revisionAuthorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
+                googleDriveSyncService.sendServerlessMail(
+                    ServerlessMailMessage(
+                        recipientEmail = section.revisionAuthorEmail,
+                        senderEmail = _currentUser.value.email,
+                        senderName = _currentUser.value.displayName,
+                        subject = "Revision Update: ${section.title}",
+                        body = "The proposed revision for '${section.title}' was reviewed by the author and discarded.",
+                        manuscriptId = section.manuscriptId,
+                        messageType = "EDITORIAL_REVISION"
+                    )
+                )
+            }
+            refreshDriveNetwork()
+        }
+    }
+
     fun addEditorialComment(sectionId: Long, manuscriptId: Long, text: String, cmosRef: String = "") {
         viewModelScope.launch {
             val comment = EditorialCommentEntity(
@@ -626,6 +714,22 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 isSuspended = suspension != null,
                 suspensionReason = suspension?.reason
             )
+        }
+    }
+
+    fun restoreManuscriptsFromGoogleDrive(onRestored: (Int) -> Unit = {}) {
+        viewModelScope.launch {
+            val restored = googleDriveSyncService.restoreUserManuscriptsFromDrive(_currentUser.value.email)
+            for (pair in restored) {
+                val manuscript = pair.first
+                val sections = pair.second
+                val mId = repository.createManuscript(manuscript, populateTemplate = false)
+                for (sec in sections) {
+                    repository.insertSection(sec.copy(manuscriptId = mId))
+                }
+            }
+            refreshDriveNetwork()
+            onRestored(restored.size)
         }
     }
 

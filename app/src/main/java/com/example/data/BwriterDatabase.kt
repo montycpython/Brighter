@@ -18,7 +18,7 @@ import com.example.model.StorySettingEntity
         CharacterEntity::class,
         StorySettingEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class BwriterDatabase : RoomDatabase() {
