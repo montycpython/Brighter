@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Business
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
@@ -78,7 +80,8 @@ fun AuthorProfileDialog(
     onSaveProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit,
     onOpenSubscription: () -> Unit = {},
     onOpenUserAgreement: () -> Unit = {},
-    onOpenAuthScreen: () -> Unit = {}
+    onOpenAuthScreen: () -> Unit = {},
+    onSignOut: () -> Unit = {}
 ) {
     var legalName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
@@ -411,6 +414,38 @@ fun AuthorProfileDialog(
                     Text("Save Profile Changes", fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Explicit Google Sign Out / Switch Account Button
+                OutlinedButton(
+                    onClick = {
+                        onDismiss()
+                        onSignOut()
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("btn_profile_sign_out")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                        contentDescription = "Log Out",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Log Out of Google Account (${currentUser.email})",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Secondary Navigation options
@@ -451,7 +486,7 @@ fun AuthorProfileDialog(
                     ) {
                         Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Sign Out / Switch", fontSize = 11.5.sp)
+                        Text("Switch Account", fontSize = 11.5.sp)
                     }
                 }
             }

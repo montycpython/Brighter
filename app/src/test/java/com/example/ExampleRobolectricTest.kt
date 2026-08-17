@@ -112,4 +112,43 @@ class ExampleRobolectricTest {
         assertTrue(pages[0].contains("Paragraph one"))
         assertTrue(pages[0].contains("Watch out!"))
     }
+
+    @Test
+    fun `user preferences handles multiple google accounts and login logout session state`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = UserPreferences(context)
+
+        // Initially logged out
+        prefs.setLoggedIn(false)
+        assertEquals(false, prefs.isLoggedIn())
+
+        // Save active session
+        val account1 = UserProfile(
+            name = "Jane Doe",
+            penName = "J. D. Salinger",
+            email = "author1@gmail.com",
+            role = WorkRole.AUTHOR
+        )
+        prefs.addOrUpdateSavedAccount(account1)
+        prefs.saveUserProfile(account1)
+        prefs.setLoggedIn(true)
+        assertEquals(true, prefs.isLoggedIn())
+
+        // Add second account
+        val account2 = UserProfile(
+            name = "Editor Boss",
+            penName = "E. Boss",
+            email = "editor@bwriter.io",
+            role = WorkRole.EDITOR
+        )
+        prefs.addOrUpdateSavedAccount(account2)
+
+        val accounts = prefs.getSavedGoogleAccounts()
+        assertTrue(accounts.any { it.email.equals("author1@gmail.com", ignoreCase = true) })
+        assertTrue(accounts.any { it.email.equals("editor@bwriter.io", ignoreCase = true) })
+
+        // Sign out
+        prefs.signOut()
+        assertEquals(false, prefs.isLoggedIn())
+    }
 }

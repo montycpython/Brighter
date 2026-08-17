@@ -47,6 +47,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _currentUser = MutableStateFlow(userPreferences.getUserProfile())
     val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
 
+    private val _isLoggedIn = MutableStateFlow(userPreferences.isLoggedIn())
+    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
+
+    private val _savedGoogleAccounts = MutableStateFlow(userPreferences.getSavedGoogleAccounts())
+    val savedGoogleAccounts: StateFlow<List<UserProfile>> = _savedGoogleAccounts.asStateFlow()
+
     private val _hasAcceptedTerms = MutableStateFlow(userPreferences.hasAcceptedTerms())
     val hasAcceptedTerms: StateFlow<Boolean> = _hasAcceptedTerms.asStateFlow()
 
@@ -68,6 +74,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val updated = _currentUser.value.copy(role = newRole)
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
+        userPreferences.addOrUpdateSavedAccount(updated)
+        _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         refreshDriveNetwork()
     }
 
@@ -89,21 +97,71 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         )
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
+        userPreferences.addOrUpdateSavedAccount(updated)
+        _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         refreshDriveNetwork()
     }
 
-    fun signInWithGoogleAccount(email: String, name: String, penName: String, role: WorkRole) {
-        val updated = _currentUser.value.copy(
-            email = if (email.isNotBlank()) email.trim() else _currentUser.value.email,
-            name = if (name.isNotBlank()) name.trim() else "Author",
-            penName = penName.trim(),
-            role = role
+    fun signInWithGoogleAccount(
+        email: String,
+        name: String = "",
+        penName: String = "",
+        role: WorkRole = WorkRole.AUTHOR,
+        organization: String = "Author Studio",
+        preferredCmosEdition: String = "17th Edition"
+    ) {
+        val effectiveEmail = if (email.isNotBlank()) email.trim() else _currentUser.value.email
+        val effectiveName = if (name.isNotBlank()) name.trim() else (if (effectiveEmail.contains("@")) effectiveEmail.substringBefore("@").replace(".", " ").capitalizeWords() else "Author")
+        val effectivePenName = penName.trim()
+
+        val isEditorInChief = effectiveEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+        val effectiveRole = if (isEditorInChief && role == WorkRole.AUTHOR) WorkRole.EDITOR else role
+
+        val updated = UserProfile(
+            id = "google_user_${effectiveEmail.replace("[^a-zA-Z0-9]".toRegex(), "_")}",
+            email = effectiveEmail,
+            name = effectiveName,
+            penName = effectivePenName,
+            role = effectiveRole,
+            organization = if (isEditorInChief) "Bwriter Editorial Board" else organization.trim().ifBlank { "Author Studio" },
+            preferredCmosEdition = preferredCmosEdition
         )
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
+        userPreferences.addOrUpdateSavedAccount(updated)
+        userPreferences.setLoggedIn(true)
+        _isLoggedIn.value = true
+        _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
+        _userAiSubscription.value = userPreferences.getUserSubscription(updated.email)
         _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         refreshDriveNetwork()
+    }
+
+    fun switchGoogleAccount(account: UserProfile) {
+        _currentUser.value = account
+        userPreferences.saveUserProfile(account)
+        userPreferences.addOrUpdateSavedAccount(account)
+        userPreferences.setLoggedIn(true)
+        _isLoggedIn.value = true
+        _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
+        _userAiSubscription.value = userPreferences.getUserSubscription(account.email)
+        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
+        refreshDriveNetwork()
+    }
+
+    fun signOutGoogleAccount() {
+        userPreferences.signOut()
+        _isLoggedIn.value = false
+    }
+
+    fun removeSavedGoogleAccount(email: String) {
+        userPreferences.removeSavedGoogleAccount(email)
+        _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
+    }
+
+    private fun String.capitalizeWords(): String {
+        return split(" ").joinToString(" ") { it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() } }
     }
 
     // ==========================================

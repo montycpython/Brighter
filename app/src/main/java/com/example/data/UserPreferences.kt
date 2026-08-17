@@ -54,6 +54,8 @@ class UserPreferences(context: Context) {
         private const val KEY_ROLE = "user_role"
         private const val KEY_ORG = "user_org"
         private const val KEY_CMOS = "user_cmos"
+        private const val KEY_IS_LOGGED_IN = "user_is_logged_in"
+        private const val KEY_SAVED_ACCOUNTS_JSON = "saved_google_accounts_json"
         private const val KEY_TERMS_ACCEPTED_VERSION = "user_terms_accepted_version"
         private const val KEY_TERMS_ACCEPTED_TIMESTAMP = "user_terms_accepted_timestamp"
         private const val KEY_SUBSCRIPTION_PLAN = "user_subscription_plan"
@@ -63,6 +65,117 @@ class UserPreferences(context: Context) {
         private const val KEY_RENEWAL_TIMESTAMP = "user_renewal_timestamp"
         private const val KEY_TOKEN_TRANSACTIONS_JSON = "user_token_transactions_json"
         private const val KEY_ALL_SUBSCRIBERS_JSON = "admin_all_subscribers_json"
+    }
+
+    fun isLoggedIn(): Boolean {
+        return prefs.getBoolean(KEY_IS_LOGGED_IN, false)
+    }
+
+    fun setLoggedIn(loggedIn: Boolean) {
+        prefs.edit().putBoolean(KEY_IS_LOGGED_IN, loggedIn).apply()
+    }
+
+    fun signOut() {
+        prefs.edit().putBoolean(KEY_IS_LOGGED_IN, false).apply()
+    }
+
+    fun getSavedGoogleAccounts(): List<UserProfile> {
+        val list = mutableListOf<UserProfile>()
+        val defaultEditor = UserProfile(
+            id = "user_editor_in_chief",
+            email = "real.artistry@gmail.com",
+            name = "Editor-in-Chief",
+            penName = "real.artistry",
+            role = WorkRole.EDITOR,
+            organization = "Bwriter Editorial Board",
+            preferredCmosEdition = "17th Edition"
+        )
+        val defaultAuthor = UserProfile(
+            id = "user_author_demo",
+            email = "author.studio@bwriter.io",
+            name = "Jane Austen",
+            penName = "J. Austen",
+            role = WorkRole.AUTHOR,
+            organization = "Literary Arts Studio",
+            preferredCmosEdition = "17th Edition"
+        )
+
+        try {
+            val jsonStr = prefs.getString(KEY_SAVED_ACCOUNTS_JSON, null)
+            if (!jsonStr.isNullOrBlank()) {
+                val array = org.json.JSONArray(jsonStr)
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    list.add(
+                        UserProfile(
+                            id = obj.optString("id", "user_${System.currentTimeMillis()}"),
+                            email = obj.optString("email", ""),
+                            name = obj.optString("name", "Author"),
+                            penName = obj.optString("penName", ""),
+                            role = try {
+                                WorkRole.valueOf(obj.optString("role", WorkRole.AUTHOR.name))
+                            } catch (e: Exception) {
+                                WorkRole.AUTHOR
+                            },
+                            organization = obj.optString("organization", "Author Studio"),
+                            preferredCmosEdition = obj.optString("preferredCmosEdition", "17th Edition")
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Prepopulate with default accounts if empty
+        if (list.isEmpty()) {
+            list.add(defaultEditor)
+            list.add(defaultAuthor)
+            saveSavedGoogleAccounts(list)
+        } else {
+            // Ensure real.artistry is available in list
+            if (list.none { it.email.equals(defaultEditor.email, ignoreCase = true) }) {
+                list.add(0, defaultEditor)
+            }
+        }
+        return list
+    }
+
+    fun saveSavedGoogleAccounts(accounts: List<UserProfile>) {
+        try {
+            val array = org.json.JSONArray()
+            accounts.distinctBy { it.email.lowercase() }.forEach { profile ->
+                val obj = org.json.JSONObject()
+                obj.put("id", profile.id)
+                obj.put("email", profile.email)
+                obj.put("name", profile.name)
+                obj.put("penName", profile.penName)
+                obj.put("role", profile.role.name)
+                obj.put("organization", profile.organization)
+                obj.put("preferredCmosEdition", profile.preferredCmosEdition)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_SAVED_ACCOUNTS_JSON, array.toString()).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun addOrUpdateSavedAccount(profile: UserProfile) {
+        val currentAccounts = getSavedGoogleAccounts().toMutableList()
+        val index = currentAccounts.indexOfFirst { it.email.equals(profile.email, ignoreCase = true) }
+        if (index >= 0) {
+            currentAccounts[index] = profile
+        } else {
+            currentAccounts.add(0, profile)
+        }
+        saveSavedGoogleAccounts(currentAccounts)
+    }
+
+    fun removeSavedGoogleAccount(email: String) {
+        val currentAccounts = getSavedGoogleAccounts().toMutableList()
+        currentAccounts.removeAll { it.email.equals(email, ignoreCase = true) }
+        saveSavedGoogleAccounts(currentAccounts)
     }
 
     fun hasAcceptedTerms(): Boolean {

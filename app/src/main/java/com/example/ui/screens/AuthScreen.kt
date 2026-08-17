@@ -21,20 +21,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RateReview
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -64,19 +68,24 @@ import java.util.Calendar
 @Composable
 fun AuthScreen(
     currentUser: UserProfile,
-    onRoleSelected: (WorkRole) -> Unit,
+    savedAccounts: List<UserProfile> = emptyList(),
+    onRoleSelected: (WorkRole) -> Unit = {},
     onGoogleSignIn: (email: String, name: String, penName: String, role: WorkRole) -> Unit,
-    onContinue: () -> Unit
+    onRemoveSavedAccount: (String) -> Unit = {},
+    onContinue: () -> Unit = {}
 ) {
-    var selectedRole by remember { mutableStateOf(currentUser.role) }
+    var selectedEmail by remember { mutableStateOf(currentUser.email) }
     var authorName by remember { mutableStateOf(currentUser.name) }
-    var authorEmail by remember { mutableStateOf(currentUser.email) }
     var penName by remember { mutableStateOf(currentUser.penName) }
+    var selectedRole by remember { mutableStateOf(currentUser.role) }
+    var isAddingNewAccount by remember { mutableStateOf(false) }
+    var customEmailInput by remember { mutableStateOf("") }
 
     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
     val effectiveDisplayName = when {
         penName.isNotBlank() -> penName.trim()
         authorName.isNotBlank() -> authorName.trim()
+        selectedEmail.contains("@") -> selectedEmail.substringBefore("@").replace(".", " ").capitalizeWords()
         else -> "Author"
     }
 
@@ -95,40 +104,222 @@ fun AuthScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // App Monogram & Header
+            // Google Monogram & Header
             Box(
                 modifier = Modifier
-                    .size(72.dp)
+                    .size(68.dp)
                     .clip(CircleShape)
                     .background(BookGoldDark),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "B",
-                    fontSize = 40.sp,
+                    fontSize = 38.sp,
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Bwriter",
-                style = MaterialTheme.typography.displayMedium,
+                text = "Sign in with Google",
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
 
             Text(
-                text = "Chicago Manual of Style Manuscript Studio",
-                style = MaterialTheme.typography.titleSmall,
+                text = "Choose a Google account to enter Bwriter Studio",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Google Account Chooser Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("google_account_picker_card"),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "SELECT GOOGLE ACCOUNT",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BookGoldLight,
+                        letterSpacing = 1.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Saved Accounts List
+                    val displayAccounts = if (savedAccounts.isNotEmpty()) savedAccounts else listOf(currentUser)
+                    displayAccounts.forEach { account ->
+                        val isSelected = (!isAddingNewAccount) && (selectedEmail.equals(account.email, ignoreCase = true))
+                        val isEditorInChief = account.email.equals("real.artistry@gmail.com", ignoreCase = true)
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            border = BorderStroke(
+                                if (isSelected) 2.dp else 1.dp,
+                                if (isSelected) BookGold else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    isAddingNewAccount = false
+                                    selectedEmail = account.email
+                                    authorName = account.name
+                                    penName = account.penName
+                                    selectedRole = account.role
+                                }
+                                .testTag("account_item_${account.email}")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isEditorInChief) BookGoldDark else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = (account.displayName.take(1).ifBlank { account.email.take(1) }).uppercase(),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = if (isEditorInChief) Color.White else MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = account.displayName,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                        if (isEditorInChief) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = BookGoldDark
+                                            ) {
+                                                Text(
+                                                    text = "SUPERUSER",
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = account.email,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Role: ${account.role.title}",
+                                        fontSize = 11.sp,
+                                        color = BookGoldLight
+                                    )
+                                }
+
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = BookGold,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                } else if (!isEditorInChief && displayAccounts.size > 1) {
+                                    IconButton(
+                                        onClick = { onRemoveSavedAccount(account.email) },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Remove Account",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Use Another Account button / input
+                    if (!isAddingNewAccount) {
+                        OutlinedButton(
+                            onClick = {
+                                isAddingNewAccount = true
+                                customEmailInput = ""
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_use_another_account"),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Use Another Google Account", fontSize = 13.sp)
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        ) {
+                            Text(
+                                text = "Enter Google Account Email",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = customEmailInput,
+                                onValueChange = {
+                                    customEmailInput = it
+                                    selectedEmail = it
+                                },
+                                label = { Text("Google Email (e.g. author@gmail.com)") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("input_custom_google_email")
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Live Byline Preview Card
             Card(
@@ -182,7 +373,7 @@ fun AuthScreen(
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Copyright Line: © $currentYear ${if (penName.isNotBlank()) penName else authorName}. All rights reserved.",
+                        text = "Copyright Line: © $currentYear ${if (penName.isNotBlank()) penName else authorName.ifBlank { "Author" }}. All rights reserved.",
                         fontSize = 11.sp,
                         color = Color(0xFFB0A898),
                         fontFamily = FontFamily.Serif
@@ -192,7 +383,7 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Google Sign-In & Author Profile Card
+            // Author Profile & Pen Name Configuration Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -202,46 +393,16 @@ fun AuthScreen(
                 ),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(BookGold.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = "Google User",
-                                tint = BookGoldDark,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "AUTHOR PROFILE & PEN NAME (OPTIONAL)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 0.5.sp
+                    )
 
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Account & Cloud Identity",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "You can modify your username, pen name, or legal name anytime.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Pen name input
                     OutlinedTextField(
@@ -257,7 +418,7 @@ fun AuthScreen(
                             )
                         },
                         supportingText = {
-                            Text("When specified, your pen name is used for Book Covers, Title Pages, Running Heads, and Directory listings.")
+                            Text("Used on Book Covers, Title Pages, Running Heads, and Directory listings.")
                         },
                         singleLine = true,
                         modifier = Modifier
@@ -265,14 +426,14 @@ fun AuthScreen(
                             .testTag("input_pen_name")
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Author real / legal name input
                     OutlinedTextField(
                         value = authorName,
                         onValueChange = { authorName = it },
                         label = { Text("Author / Legal Name") },
-                        placeholder = { Text("e.g. John Doe") },
+                        placeholder = { Text("e.g. Jane Doe") },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Person,
@@ -281,38 +442,17 @@ fun AuthScreen(
                             )
                         },
                         supportingText = {
-                            Text("Your legal name for copyright documentation and administrative records.")
+                            Text("Your real name for copyright records and administrative documentation.")
                         },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_author_name")
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Account Email / Username
-                    OutlinedTextField(
-                        value = authorEmail,
-                        onValueChange = { authorEmail = it },
-                        label = { Text("Account Email / Google Username") },
-                        placeholder = { Text("e.g. real.artistry@gmail.com") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Email,
-                                contentDescription = "Email",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_author_email")
-                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Role Selection (Author, Editor, Contributor)
             Text(
@@ -329,7 +469,7 @@ fun AuthScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Role Cards
             WorkRole.values().forEach { role ->
@@ -356,7 +496,7 @@ fun AuthScreen(
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val icon = when (role) {
@@ -368,19 +508,17 @@ fun AuthScreen(
                             imageVector = icon,
                             contentDescription = role.title,
                             tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(26.dp)
                         )
 
-                        Spacer(modifier = Modifier.width(14.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = role.badgeLabel,
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.titleSmall
-                                )
-                            }
+                            Text(
+                                text = role.badgeLabel,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleSmall
+                            )
                             Text(
                                 text = role.description,
                                 style = MaterialTheme.typography.bodySmall,
@@ -399,12 +537,13 @@ fun AuthScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Enter Studio Button
+            // Enter Studio / Sign In with Google Button
             Button(
                 onClick = {
-                    onGoogleSignIn(authorEmail, authorName, penName, selectedRole)
+                    val finalEmail = if (isAddingNewAccount && customEmailInput.isNotBlank()) customEmailInput.trim() else selectedEmail
+                    onGoogleSignIn(finalEmail, authorName, penName, selectedRole)
                     onContinue()
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -423,24 +562,39 @@ fun AuthScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Save & Open Manuscript Studio",
-                    fontSize = 16.sp,
+                    text = "Sign In & Open Manuscript Studio",
+                    fontSize = 15.5.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Text(
-                text = "By entering the studio, you agree to Bwriter's Terms of Service, EULA, Data Privacy Policy, and Chicago Manual of Style (17th Ed.) Governance.",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                lineHeight = 15.sp,
-                modifier = Modifier.padding(horizontal = 12.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    tint = BookGoldLight,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Serverless Cloud Sync: Powered directly by Google Drive API & CMOS standards.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
+}
+
+private fun String.capitalizeWords(): String {
+    return split(" ").joinToString(" ") { it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() } }
 }

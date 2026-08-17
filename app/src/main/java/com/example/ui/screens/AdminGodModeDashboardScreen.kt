@@ -115,7 +115,8 @@ fun AdminGodModeDashboardScreen(
     onRevokeManuscript: (fileId: String) -> Unit,
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onGrantBonusCredits: (targetEmail: String, bonusCredits: Int) -> Unit = { _, _ -> },
-    onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> }
+    onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
+    onSignOut: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Master Book Index", "Paid Subscribers & Tokens", "Author Roster & Governance", "Mailbox Dispatcher", "Drive Storage Health")
@@ -549,7 +550,8 @@ fun AdminGodModeDashboardScreen(
             onDismiss = { showProfileDialog = false },
             onSaveProfile = { name, penName, email, role, org, cmos ->
                 onUpdateProfile(name, penName, email, role, org, cmos)
-            }
+            },
+            onSignOut = onSignOut
         )
     }
 }

@@ -90,6 +90,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val mailboxMessages by viewModel.mailboxMessages.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
+    val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+    val savedGoogleAccounts by viewModel.savedGoogleAccounts.collectAsState()
     val userSubscription by viewModel.userAiSubscription.collectAsState()
     val tokenTransactions by viewModel.tokenTransactions.collectAsState()
     val paidMembersTelemetry by viewModel.paidMembersTelemetry.collectAsState()
@@ -110,6 +112,24 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         return
     }
 
+    // Google Sign-In & Account Chooser Gate (Entry Door)
+    if (!isLoggedIn) {
+        AuthScreen(
+            currentUser = currentUser,
+            savedAccounts = savedGoogleAccounts,
+            onRoleSelected = { role -> viewModel.updateRole(role) },
+            onGoogleSignIn = { email, name, penName, role ->
+                viewModel.signInWithGoogleAccount(email, name, penName, role)
+                Toast.makeText(context, "Signed in as $email", Toast.LENGTH_SHORT).show()
+            },
+            onRemoveSavedAccount = { email ->
+                viewModel.removeSavedGoogleAccount(email)
+            },
+            onContinue = {}
+        )
+        return
+    }
+
     // Hard-lock Kill-Switch: if this account is suspended in suspended_users.json
     if (activeSuspension != null) {
         KillSwitchSuspensionScreen(
@@ -120,7 +140,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 Toast.makeText(context, "Verifying Shared Drive status...", Toast.LENGTH_SHORT).show()
             },
             onSwitchUser = {
-                navController.navigate("auth")
+                viewModel.signOutGoogleAccount()
             }
         )
         return
@@ -130,13 +150,18 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         navController = navController,
         startDestination = "manuscripts"
     ) {
-        // Auth / Google Identity & Role Screen
+        // Auth / Google Identity & Role Screen (Account Switcher)
         composable("auth") {
             AuthScreen(
                 currentUser = currentUser,
+                savedAccounts = savedGoogleAccounts,
                 onRoleSelected = { role -> viewModel.updateRole(role) },
                 onGoogleSignIn = { email, name, penName, role ->
                     viewModel.signInWithGoogleAccount(email, name, penName, role)
+                    Toast.makeText(context, "Signed in as $email", Toast.LENGTH_SHORT).show()
+                },
+                onRemoveSavedAccount = { email ->
+                    viewModel.removeSavedGoogleAccount(email)
                 },
                 onContinue = {
                     navController.popBackStack()
@@ -203,6 +228,10 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 },
                 onOpenSubscription = {
                     viewModel.openPaywall()
+                },
+                onSignOut = {
+                    viewModel.signOutGoogleAccount()
+                    Toast.makeText(context, "Logged out of Google account", Toast.LENGTH_SHORT).show()
                 },
                 unreadMailCount = driveSyncStatus.unreadMailCount
             )
@@ -439,6 +468,10 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     viewModel.updateProfile(name, penName, email, role, org, cmos)
                     val byline = if (penName.isNotBlank()) penName else name
                     Toast.makeText(context, "Profile updated: $byline", Toast.LENGTH_SHORT).show()
+                },
+                onSignOut = {
+                    viewModel.signOutGoogleAccount()
+                    Toast.makeText(context, "Logged out of Superuser account", Toast.LENGTH_SHORT).show()
                 }
             )
         }

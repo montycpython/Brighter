@@ -109,6 +109,7 @@ fun ManuscriptListScreen(
     onSyncManuscript: (ManuscriptEntity) -> Unit = {},
     onOpenUserAgreement: () -> Unit = {},
     onOpenSubscription: () -> Unit = {},
+    onSignOut: () -> Unit = {},
     unreadMailCount: Int = 0
 ) {
     var showProfileDialog by remember { mutableStateOf(false) }
@@ -432,7 +433,8 @@ fun ManuscriptListScreen(
             },
             onOpenSubscription = onOpenSubscription,
             onOpenUserAgreement = onOpenUserAgreement,
-            onOpenAuthScreen = onOpenAuthScreen
+            onOpenAuthScreen = onOpenAuthScreen,
+            onSignOut = onSignOut
         )
     }
 
