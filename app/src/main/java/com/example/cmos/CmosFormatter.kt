@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.sp
 import java.util.Locale
 
@@ -540,6 +541,144 @@ object CmosFormatter {
         }
         val newText = text.substring(0, min) + block + text.substring(max)
         return TextFieldValue(newText, selection = TextRange(min + block.length))
+    }
+
+    /**
+     * Builds an AnnotatedString for Redline Tracked Changes diff:
+     * - All pre-existing / original text is rendered in normal dark black.
+     * - Only newly added / edited text is highlighted in red.
+     */
+    fun buildRedlineDiffAnnotatedString(
+        originalText: String,
+        newText: String,
+        normalColor: Color = Color(0xFF222222),
+        highlightColor: Color = Color(0xFFB71C1C),
+        highlightBgColor: Color = Color(0xFFFFCDD2).copy(alpha = 0.55f)
+    ): AnnotatedString {
+        if (originalText.isBlank()) {
+            if (newText.isBlank()) return AnnotatedString("")
+            val builder = AnnotatedString.Builder()
+            builder.pushStyle(SpanStyle(color = highlightColor, background = highlightBgColor, fontWeight = FontWeight.Bold))
+            builder.append(newText)
+            builder.pop()
+            return builder.toAnnotatedString()
+        }
+
+        if (newText.isEmpty()) {
+            return AnnotatedString("")
+        }
+
+        if (originalText == newText) {
+            val builder = AnnotatedString.Builder()
+            builder.pushStyle(SpanStyle(color = normalColor))
+            builder.append(newText)
+            builder.pop()
+            return builder.toAnnotatedString()
+        }
+
+        val origTokens = tokenizeForDiff(originalText)
+        val newTokens = tokenizeForDiff(newText)
+
+        val matchedInNew = computeLcsMatchedIndices(origTokens, newTokens)
+        val builder = AnnotatedString.Builder()
+
+        for (j in newTokens.indices) {
+            val token = newTokens[j]
+            val isWhitespace = token.isBlank()
+
+            if (isWhitespace) {
+                builder.append(token)
+            } else if (j in matchedInNew) {
+                // Pre-existing original text -> Normal black
+                builder.pushStyle(SpanStyle(color = normalColor, fontWeight = FontWeight.Normal))
+                builder.append(token)
+                builder.pop()
+            } else {
+                // Newly added / edited text -> Highlighted in red
+                builder.pushStyle(SpanStyle(color = highlightColor, background = highlightBgColor, fontWeight = FontWeight.Bold))
+                builder.append(token)
+                builder.pop()
+            }
+        }
+
+        return builder.toAnnotatedString()
+    }
+
+    /**
+     * Splits text into words and delimiter tokens preserving exact whitespace and punctuation.
+     */
+    private fun tokenizeForDiff(text: String): List<String> {
+        val tokens = mutableListOf<String>()
+        val matcher = java.util.regex.Pattern.compile("""\S+|\s+""").matcher(text)
+        while (matcher.find()) {
+            tokens.add(matcher.group())
+        }
+        return tokens
+    }
+
+    /**
+     * Computes Longest Common Subsequence (LCS) to find indices in newTokens that match originalTokens.
+     */
+    private fun computeLcsMatchedIndices(origTokens: List<String>, newTokens: List<String>): Set<Int> {
+        val n = origTokens.size
+        val m = newTokens.size
+        if (n == 0 || m == 0) return emptySet()
+
+        // Guard against memory explosion on extraordinarily huge texts
+        if (n * m > 600000) {
+            val origSet = origTokens.filter { it.isNotBlank() }.toSet()
+            val matched = mutableSetOf<Int>()
+            for (j in newTokens.indices) {
+                if (origSet.contains(newTokens[j])) {
+                    matched.add(j)
+                }
+            }
+            return matched
+        }
+
+        val dp = Array(n + 1) { IntArray(m + 1) }
+        for (i in 0 until n) {
+            for (j in 0 until m) {
+                dp[i + 1][j + 1] = if (origTokens[i] == newTokens[j]) {
+                    dp[i][j] + 1
+                } else {
+                    maxOf(dp[i + 1][j], dp[i][j + 1])
+                }
+            }
+        }
+
+        val matchedInNew = mutableSetOf<Int>()
+        var i = n
+        var j = m
+        while (i > 0 && j > 0) {
+            if (origTokens[i - 1] == newTokens[j - 1]) {
+                matchedInNew.add(j - 1)
+                i--
+                j--
+            } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+                i--
+            } else {
+                j--
+            }
+        }
+        return matchedInNew
+    }
+
+    /**
+     * VisualTransformation for in-editor redline diff preview:
+     * Styles pre-existing text in normal black and highlights newly added text in bold red with a soft tint.
+     */
+    fun createRedlineVisualTransformation(originalText: String): VisualTransformation {
+        return VisualTransformation { text ->
+            val annotated = buildRedlineDiffAnnotatedString(
+                originalText = originalText,
+                newText = text.text,
+                normalColor = Color(0xFF1F1B18),
+                highlightColor = Color(0xFFC62828),
+                highlightBgColor = Color(0xFFFFCDD2).copy(alpha = 0.45f)
+            )
+            TransformedText(annotated, OffsetMapping.Identity)
+        }
     }
 }
 

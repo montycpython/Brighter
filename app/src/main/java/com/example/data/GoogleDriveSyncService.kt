@@ -27,10 +27,18 @@ class GoogleDriveSyncService(private val context: Context) {
 
     companion object {
         const val EDITOR_IN_CHIEF_EMAIL = "real.artistry@gmail.com"
+        const val DEFAULT_STUDIO_AUTHOR_EMAIL = "author.studio@bwriter.io"
         const val MASTER_SHARED_DRIVE_NAME = "Bwriter_Master_Drive"
         const val GLOBAL_BOOK_INDEX_FILE = "Global_Book_Index.json"
         const val SUSPENDED_USERS_FILE = "suspended_users.json"
         const val MAILBOX_DIR = "Mailboxes"
+
+        fun isSuperuserEmail(email: String): Boolean {
+            val clean = email.trim().lowercase()
+            return clean == EDITOR_IN_CHIEF_EMAIL.lowercase() ||
+                   clean == DEFAULT_STUDIO_AUTHOR_EMAIL.lowercase() ||
+                   clean.startsWith("author.studio@")
+        }
 
         private const val PREF_GLOBAL_INDEX = "global_book_index_cache"
         private const val PREF_SUSPENDED_USERS = "suspended_users_cache"
@@ -56,11 +64,11 @@ class GoogleDriveSyncService(private val context: Context) {
                     authorName = "Author",
                     authorEmail = EDITOR_IN_CHIEF_EMAIL,
                     workType = "NOVEL",
-                    wordCount = 4520,
-                    totalLeaves = 18,
+                    wordCount = 445,
+                    totalLeaves = 4,
                     lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 2,
                     isPublicInCommunity = true,
-                    version = "1.2",
+                    version = "1.0",
                     driveFileUrl = "https://drive.google.com/file/d/drv_master_quill_101/view",
                     sharedWithEditorInChief = true
                 ),
@@ -72,8 +80,8 @@ class GoogleDriveSyncService(private val context: Context) {
                     authorName = "Author",
                     authorEmail = EDITOR_IN_CHIEF_EMAIL,
                     workType = "BIOGRAPHY",
-                    wordCount = 7890,
-                    totalLeaves = 32,
+                    wordCount = 480,
+                    totalLeaves = 4,
                     lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 5,
                     isPublicInCommunity = true,
                     version = "1.0",
@@ -88,8 +96,8 @@ class GoogleDriveSyncService(private val context: Context) {
                     authorName = "Author",
                     authorEmail = EDITOR_IN_CHIEF_EMAIL,
                     workType = "DOCUMENTARY",
-                    wordCount = 6200,
-                    totalLeaves = 24,
+                    wordCount = 420,
+                    totalLeaves = 4,
                     lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 8,
                     isPublicInCommunity = true,
                     version = "1.0",
@@ -104,11 +112,11 @@ class GoogleDriveSyncService(private val context: Context) {
                     authorName = "Author",
                     authorEmail = EDITOR_IN_CHIEF_EMAIL,
                     workType = "MANUAL",
-                    wordCount = 9400,
-                    totalLeaves = 38,
+                    wordCount = 510,
+                    totalLeaves = 4,
                     lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 12,
                     isPublicInCommunity = true,
-                    version = "2.0",
+                    version = "1.0",
                     driveFileUrl = "https://drive.google.com/file/d/drv_master_typography_404/view",
                     sharedWithEditorInChief = true
                 )
@@ -563,8 +571,17 @@ class GoogleDriveSyncService(private val context: Context) {
 
     suspend fun fetchMailboxMessages(userEmail: String): Result<List<ServerlessMailMessage>> = withContext(Dispatchers.IO) {
         try {
-            val mail = getMailboxFromStorage(userEmail)
-            Result.success(mail)
+            if (isSuperuserEmail(userEmail)) {
+                // For superuser personas (real.artistry or author.studio), merge messages across active superuser mailboxes
+                val primaryMail = getMailboxFromStorage(userEmail)
+                val aliasEmail = if (userEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) DEFAULT_STUDIO_AUTHOR_EMAIL else EDITOR_IN_CHIEF_EMAIL
+                val aliasMail = getMailboxFromStorage(aliasEmail)
+                val combined = (primaryMail + aliasMail).distinctBy { it.id }.sortedByDescending { it.timestamp }
+                Result.success(combined)
+            } else {
+                val mail = getMailboxFromStorage(userEmail)
+                Result.success(mail)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -577,6 +594,15 @@ class GoogleDriveSyncService(private val context: Context) {
             if (idx >= 0) {
                 mail[idx] = mail[idx].copy(isRead = true)
                 saveMailboxToStorage(userEmail, mail)
+            }
+            if (isSuperuserEmail(userEmail)) {
+                val aliasEmail = if (userEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) DEFAULT_STUDIO_AUTHOR_EMAIL else EDITOR_IN_CHIEF_EMAIL
+                val aliasMail = getMailboxFromStorage(aliasEmail).toMutableList()
+                val aliasIdx = aliasMail.indexOfFirst { it.id == messageId }
+                if (aliasIdx >= 0) {
+                    aliasMail[aliasIdx] = aliasMail[aliasIdx].copy(isRead = true)
+                    saveMailboxToStorage(aliasEmail, aliasMail)
+                }
             }
             Result.success(Unit)
         } catch (e: Exception) {

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -246,8 +247,14 @@ fun SectionEditorScreen(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Visual transformation for markdown *italic* and **bold**
-    val markdownVisualTransformation = remember { CmosFormatter.createMarkdownVisualTransformation() }
+    // Visual transformation for markdown *italic* / **bold** or in-editor Redline Diff for pending revisions
+    val activeVisualTransformation = remember(section.hasPendingRevision, section.originalAuthorContent) {
+        if (section.hasPendingRevision && section.originalAuthorContent.isNotBlank()) {
+            CmosFormatter.createRedlineVisualTransformation(section.originalAuthorContent)
+        } else {
+            CmosFormatter.createMarkdownVisualTransformation()
+        }
+    }
 
     // Image Pickers
     val headImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -667,29 +674,66 @@ fun SectionEditorScreen(
 
                                     Spacer(modifier = Modifier.height(6.dp))
 
-                                    // Red Highlight Diff Preview Box
+                                    // Red Highlight Diff Preview Box (Pre-existing text in black, new additions in red)
+                                    val diffAnnotatedString = remember(section.originalAuthorContent, section.pendingEditedContent, section.content) {
+                                        CmosFormatter.buildRedlineDiffAnnotatedString(
+                                            originalText = section.originalAuthorContent,
+                                            newText = section.pendingEditedContent.ifBlank { section.content },
+                                            normalColor = Color(0xFF2B2B2B),
+                                            highlightColor = Color(0xFFC62828),
+                                            highlightBgColor = Color(0xFFFFCDD2).copy(alpha = 0.55f)
+                                        )
+                                    }
+
                                     Surface(
-                                        color = Color(0xFFFFEBEE),
+                                        color = Color(0xFFFFF9F9),
                                         border = BorderStroke(1.dp, Color(0xFFFFCDD2)),
-                                        shape = RoundedCornerShape(4.dp),
+                                        shape = RoundedCornerShape(6.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Column(modifier = Modifier.padding(8.dp)) {
-                                            Text(
-                                                text = "PROPOSED REDLINE DIFF:",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFC62828)
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = section.pendingEditedContent.ifBlank { "[Empty revision content]" },
-                                                fontSize = 12.sp,
-                                                color = Color(0xFFB71C1C),
-                                                fontFamily = FontFamily.Serif,
-                                                lineHeight = 16.sp,
-                                                maxLines = 6
-                                            )
+                                        Column(modifier = Modifier.padding(10.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "PROPOSED REDLINE DIFF:",
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFC62828),
+                                                    letterSpacing = 0.5.sp
+                                                )
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Box(modifier = Modifier.size(7.dp).background(Color(0xFF2B2B2B), CircleShape))
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text("Original (Black)", fontSize = 9.sp, color = Color(0xFF555555))
+                                                    }
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Box(modifier = Modifier.size(7.dp).background(Color(0xFFC62828), CircleShape))
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text("Additions (Red)", fontSize = 9.sp, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .heightIn(max = 140.dp)
+                                                    .verticalScroll(rememberScrollState())
+                                            ) {
+                                                Text(
+                                                    text = diffAnnotatedString,
+                                                    fontSize = 12.5.sp,
+                                                    fontFamily = FontFamily.Serif,
+                                                    lineHeight = 18.sp
+                                                )
+                                            }
                                         }
                                     }
 
@@ -792,7 +836,7 @@ fun SectionEditorScreen(
                                             }
                                         },
                                         readOnly = isAuthorRoleBlocked,
-                                        visualTransformation = markdownVisualTransformation,
+                                        visualTransformation = activeVisualTransformation,
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .verticalScroll(rememberScrollState())
@@ -801,7 +845,7 @@ fun SectionEditorScreen(
                                             fontFamily = FontFamily.Serif,
                                             fontSize = 14.5.sp,
                                             lineHeight = 22.sp,
-                                            color = if (section.hasPendingRevision) Color(0xFFB71C1C) else InkBlack
+                                            color = InkBlack
                                         ),
                                         cursorBrush = SolidColor(BookGoldDark)
                                     )
