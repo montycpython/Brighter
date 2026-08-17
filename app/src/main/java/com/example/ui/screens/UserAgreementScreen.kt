@@ -18,12 +18,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Gavel
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -174,7 +174,7 @@ fun UserAgreementScreen(
 
                 // Section 1: Authorship & Intellectual Property
                 AgreementSectionCard(
-                    icon = Icons.Default.MenuBook,
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
                     title = "1. Intellectual Property & Manuscript Ownership",
                     content = """
                     • You retain 100% of the copyright, intellectual property rights, and commercial ownership of all original text, titles, character rosters, world settings, and published works created in Bwriter.

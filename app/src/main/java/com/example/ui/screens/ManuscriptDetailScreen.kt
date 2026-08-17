@@ -38,6 +38,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -813,7 +814,7 @@ fun AddSectionDialog(
                         label = { Text("Division Type") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTypeMenu) },
                         modifier = Modifier
-                            .menuAnchor()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                             .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
@@ -1013,7 +1014,7 @@ fun ManuscriptSettingsDialog(
                             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .menuAnchor()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                         )
                         ExposedDropdownMenu(
                             expanded = trimSizeExpanded,

@@ -21,11 +21,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Input
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
@@ -330,7 +330,7 @@ fun CharacterCard(
                     .height(34.dp)
                     .testTag("btn_insert_char_${character.id}")
             ) {
-                Icon(Icons.Default.Input, contentDescription = null, modifier = Modifier.size(14.dp))
+                Icon(Icons.AutoMirrored.Filled.Input, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Insert Profile into AI Prompt Workshop", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }

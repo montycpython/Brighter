@@ -215,22 +215,26 @@ fun AdminGodModeDashboardScreen(
             when (selectedTab) {
                 0 -> MasterBookIndexTab(
                     entries = globalIndex,
+                    currentUser = currentUser,
                     onInspect = { inspectingEntry = it },
                     onRevoke = onRevokeManuscript
                 )
                 1 -> PaidSubscribersAndTokensTab(
                     subscribers = paidSubscribers,
                     transactions = tokenTransactions,
+                    currentUser = currentUser,
                     onGrantBonus = { email -> grantingCreditsTargetUser = email }
                 )
                 2 -> AuthorRosterTab(
                     globalIndex = globalIndex,
                     suspendedUsers = suspendedUsers,
+                    currentUser = currentUser,
                     onOpenSuspendModal = { email -> suspendingTargetUser = email },
                     onUnsuspend = onUnsuspendUser
                 )
                 3 -> MailboxDispatcherTab(
                     globalIndex = globalIndex,
+                    currentUser = currentUser,
                     onSendMessage = onSendServerlessMail
                 )
                 4 -> DriveHealthTab(
@@ -509,6 +513,7 @@ fun AdminGodModeDashboardScreen(
 @Composable
 fun MasterBookIndexTab(
     entries: List<GlobalBookIndexEntry>,
+    currentUser: UserProfile,
     onInspect: (GlobalBookIndexEntry) -> Unit,
     onRevoke: (String) -> Unit
 ) {
@@ -621,11 +626,16 @@ fun MasterBookIndexTab(
                             Spacer(modifier = Modifier.height(8.dp))
 
                             // Metadata Row
+                            val displayAuthor = if (entry.authorEmail.equals(currentUser.email, ignoreCase = true)) {
+                                currentUser.displayName
+                            } else {
+                                entry.authorName
+                            }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text("Author: ${entry.authorName}", fontSize = 11.5.sp, color = Color(0xFFE2DDD5))
+                                Text("Author: $displayAuthor", fontSize = 11.5.sp, color = Color(0xFFE2DDD5))
                                 Text("Email: ${entry.authorEmail}", fontSize = 11.5.sp, color = BookGoldLight)
                             }
 
@@ -648,7 +658,7 @@ fun MasterBookIndexTab(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 OutlinedButton(
-                                    onClick = { onInspect(entry) },
+                                    onClick = { onInspect(entry.copy(authorName = displayAuthor)) },
                                     border = BorderStroke(1.dp, BookGoldDark),
                                     modifier = Modifier.height(30.dp)
                                 ) {
@@ -682,10 +692,11 @@ fun MasterBookIndexTab(
 fun AuthorRosterTab(
     globalIndex: List<GlobalBookIndexEntry>,
     suspendedUsers: List<SuspendedUserEntry>,
+    currentUser: UserProfile,
     onOpenSuspendModal: (String) -> Unit,
     onUnsuspend: (String) -> Unit
 ) {
-    val allAuthorEmails = (globalIndex.map { it.authorEmail } + suspendedUsers.map { it.email }).distinct()
+    val allAuthorEmails = (globalIndex.map { it.authorEmail } + suspendedUsers.map { it.email } + listOf(currentUser.email)).distinct()
 
     Column(
         modifier = Modifier
@@ -712,15 +723,20 @@ fun AuthorRosterTab(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(allAuthorEmails) { email ->
+                val isCurrentUser = email.equals(currentUser.email, ignoreCase = true)
                 val isSuspended = suspendedUsers.any { it.email.equals(email, ignoreCase = true) && it.isLockedOut }
                 val suspensionRecord = suspendedUsers.firstOrNull { it.email.equals(email, ignoreCase = true) }
                 val authorBooks = globalIndex.filter { it.authorEmail.equals(email, ignoreCase = true) }
-                val authorName = authorBooks.firstOrNull()?.authorName ?: email.substringBefore("@")
+                val authorName = if (isCurrentUser) {
+                    currentUser.displayName
+                } else {
+                    authorBooks.firstOrNull()?.authorName ?: email.substringBefore("@")
+                }
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
-                    border = BorderStroke(1.dp, if (isSuspended) Color(0xFFE53935) else Color(0xFF2C2C38))
+                    border = BorderStroke(1.dp, if (isSuspended) Color(0xFFE53935) else if (isCurrentUser) BookGoldDark else Color(0xFF2C2C38))
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -729,12 +745,30 @@ fun AuthorRosterTab(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text(
-                                    text = authorName,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = Color(0xFFF3EFE6)
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = authorName,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFFF3EFE6)
+                                    )
+                                    if (isCurrentUser) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = BookGoldDark.copy(alpha = 0.3f),
+                                            border = BorderStroke(0.5.dp, BookGold)
+                                        ) {
+                                            Text(
+                                                text = if (currentUser.penName.isNotBlank()) "Pen Name: ${currentUser.penName}" else "Author Profile",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = BookGoldLight,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
                                 Text(
                                     text = email,
                                     fontSize = 11.sp,
@@ -826,9 +860,10 @@ fun AuthorRosterTab(
 @Composable
 fun MailboxDispatcherTab(
     globalIndex: List<GlobalBookIndexEntry>,
+    currentUser: UserProfile,
     onSendMessage: (ServerlessMailMessage) -> Unit
 ) {
-    val authorEmails = listOf("ALL_AUTHORS") + globalIndex.map { it.authorEmail }.distinct()
+    val authorEmails = listOf("ALL_AUTHORS") + (globalIndex.map { it.authorEmail } + listOf(currentUser.email)).distinct()
     var selectedRecipient by remember { mutableStateOf(authorEmails.firstOrNull() ?: "ALL_AUTHORS") }
     var subject by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
@@ -866,10 +901,15 @@ fun MailboxDispatcherTab(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             authorEmails.forEach { email ->
+                val chipLabel = when {
+                    email == "ALL_AUTHORS" -> "📢 Broadcast (All Authors)"
+                    email.equals(currentUser.email, ignoreCase = true) -> "👤 ${currentUser.displayName} (You)"
+                    else -> email
+                }
                 FilterChip(
                     selected = selectedRecipient == email,
                     onClick = { selectedRecipient = email },
-                    label = { Text(if (email == "ALL_AUTHORS") "📢 Broadcast (All Authors)" else email, fontSize = 10.5.sp) },
+                    label = { Text(chipLabel, fontSize = 10.5.sp) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = BookGoldDark,
                         selectedLabelColor = Color.White,
@@ -1059,6 +1099,7 @@ fun DriveHealthTab(
 fun PaidSubscribersAndTokensTab(
     subscribers: List<PaidMemberTelemetry>,
     transactions: List<AiTokenTransaction>,
+    currentUser: UserProfile,
     onGrantBonus: (String) -> Unit
 ) {
     val totalTokensBurned = subscribers.sumOf { it.totalTokensUsed }
@@ -1153,10 +1194,13 @@ fun PaidSubscribersAndTokensTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(subscribers) { sub ->
+                        val isCurrentUser = sub.userEmail.equals(currentUser.email, ignoreCase = true)
+                        val subscriberName = if (isCurrentUser) currentUser.displayName else sub.displayName
+
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
-                            border = BorderStroke(1.dp, Color(0xFF2C2C3C))
+                            border = BorderStroke(1.dp, if (isCurrentUser) BookGoldDark else Color(0xFF2C2C3C))
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Row(
@@ -1167,7 +1211,7 @@ fun PaidSubscribersAndTokensTab(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                text = sub.displayName,
+                                                text = subscriberName,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.5.sp,
                                                 color = Color(0xFFF3EFE6)

@@ -75,13 +75,14 @@ fun CommunityDirectoryScreen(
     var searchQuery by remember { mutableStateOf("") }
     val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 
-    val filteredBooks = remember(books, searchQuery) {
+    val filteredBooks = remember(books, searchQuery, currentUser) {
         if (searchQuery.isBlank()) {
             books
         } else {
             books.filter {
+                val authorName = if (it.authorEmail.equals(currentUser.email, ignoreCase = true)) currentUser.displayName else it.authorName
                 it.title.contains(searchQuery, ignoreCase = true) ||
-                it.authorName.contains(searchQuery, ignoreCase = true) ||
+                authorName.contains(searchQuery, ignoreCase = true) ||
                 it.workType.contains(searchQuery, ignoreCase = true)
             }
         }
@@ -265,8 +266,9 @@ fun CommunityDirectoryScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Person, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
+                                    val displayAuthor = if (isMyBook) currentUser.displayName else book.authorName
                                     Text(
-                                        text = book.authorName,
+                                        text = displayAuthor,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = Color(0xFFE2DDD5)

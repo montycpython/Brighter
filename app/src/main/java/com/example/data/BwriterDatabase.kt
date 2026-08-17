@@ -39,7 +39,7 @@ abstract class BwriterDatabase : RoomDatabase() {
                     BwriterDatabase::class.java,
                     "bwriter_manuscripts.db"
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
                 instance

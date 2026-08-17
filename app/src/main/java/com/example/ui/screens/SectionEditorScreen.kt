@@ -34,11 +34,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Comment
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
@@ -55,7 +57,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -346,7 +347,7 @@ fun SectionEditorScreen(
                         modifier = Modifier.testTag("btn_editor_comments")
                     ) {
                         Box {
-                            Icon(imageVector = Icons.Default.Comment, contentDescription = "Comments", tint = BookGoldDark)
+                            Icon(imageVector = Icons.AutoMirrored.Filled.Comment, contentDescription = "Comments", tint = BookGoldDark)
                             if (comments.any { !it.isResolved }) {
                                 Box(
                                     modifier = Modifier
@@ -1220,7 +1221,7 @@ ${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chie
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5)),
                                 modifier = Modifier.weight(1f).testTag("btn_dispatch_directive")
                             ) {
-                                Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("App Directive", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
@@ -1657,7 +1658,7 @@ ${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chie
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.MenuBook, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Literary Devices & Narrative Craft (Scrollable)",
@@ -2134,7 +2135,7 @@ ${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chie
                             },
                             modifier = Modifier.align(Alignment.CenterVertically)
                         ) {
-                            Icon(Icons.Default.Send, contentDescription = "Send", tint = BookGoldDark)
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = BookGoldDark)
                         }
                     }
                     Spacer(modifier = Modifier.height(20.dp))

@@ -33,7 +33,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class BwriterViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: BwriterRepository
@@ -581,6 +583,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             if (_currentUser.value.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 _suspendedUsers.value = googleDriveSyncService.getSuspendedUsersFromStorage()
             }
+
+            // Always synchronize subscribers telemetry with latest profile displayName
+            _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         }
     }
 

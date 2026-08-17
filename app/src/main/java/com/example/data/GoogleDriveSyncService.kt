@@ -37,22 +37,25 @@ class GoogleDriveSyncService(private val context: Context) {
 
     private fun initializeSampleNetworkIfEmpty() {
         val currentIndex = prefs.getString(PREF_GLOBAL_INDEX, null)
+        val userProfile = UserPreferences(context).getUserProfile()
+        val userDisplayName = userProfile.displayName.ifBlank { "Author" }
+
         if (currentIndex.isNullOrBlank()) {
             val initialList = listOf(
                 GlobalBookIndexEntry(
-                    fileId = "drv_sample_silas_101",
+                    fileId = "drv_sample_master_101",
                     manuscriptId = 1L,
-                    title = "The Aldine Press of Venice",
-                    subtitle = "A Chronicle of Humanist Typography & Italic Types",
-                    authorName = "Aldus Manutius",
-                    authorEmail = "real.artistry@gmail.com",
-                    workType = "HISTORICAL_NONFICTION",
+                    title = "The Obsidian Quill",
+                    subtitle = "A Chronicle of the Chicago Printmasters",
+                    authorName = userDisplayName,
+                    authorEmail = userProfile.email,
+                    workType = "NOVEL",
                     wordCount = 4520,
                     totalLeaves = 18,
                     lastSyncedTimestamp = System.currentTimeMillis() - 3600000 * 2,
                     isPublicInCommunity = true,
                     version = "1.2",
-                    driveFileUrl = "https://drive.google.com/file/d/drv_sample_silas_101/view",
+                    driveFileUrl = "https://drive.google.com/file/d/drv_sample_master_101/view",
                     sharedWithEditorInChief = true
                 ),
                 GlobalBookIndexEntry(
@@ -147,11 +150,18 @@ class GoogleDriveSyncService(private val context: Context) {
             }
 
             // 2. Generate JSON payload
+            val resolvedAuthorName = when {
+                manuscript.authorPenName.isNotBlank() -> manuscript.authorPenName.trim()
+                manuscript.authorName.isNotBlank() -> manuscript.authorName.trim()
+                else -> currentUser.displayName
+            }
+
             val manuscriptJson = JSONObject().apply {
                 put("id", manuscript.id)
                 put("title", manuscript.title)
                 put("subtitle", manuscript.subtitle)
-                put("authorName", if (manuscript.authorName.isNotBlank()) manuscript.authorName else currentUser.displayName)
+                put("authorName", resolvedAuthorName)
+                put("authorPenName", manuscript.authorPenName)
                 put("authorEmail", currentUser.email)
                 put("workType", manuscript.workType.name)
                 put("trimSize", manuscript.targetPageSize)
@@ -189,7 +199,7 @@ class GoogleDriveSyncService(private val context: Context) {
                 manuscriptId = manuscript.id,
                 title = manuscript.title,
                 subtitle = manuscript.subtitle,
-                authorName = if (manuscript.authorName.isNotBlank()) manuscript.authorName else currentUser.displayName,
+                authorName = resolvedAuthorName,
                 authorEmail = currentUser.email,
                 workType = manuscript.workType.name,
                 wordCount = totalWords,
@@ -245,10 +255,19 @@ class GoogleDriveSyncService(private val context: Context) {
             val allEntries = getGlobalIndexFromStorage()
             val isEditorInChief = currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
+            // Dynamically synchronize the authorName for current user's manuscripts to match their active pen name / legal name
+            val synchronizedEntries = allEntries.map { entry ->
+                if (entry.authorEmail.equals(currentUser.email, ignoreCase = true) || entry.authorName == "Aldus Manutius") {
+                    entry.copy(authorName = currentUser.displayName)
+                } else {
+                    entry
+                }
+            }
+
             val filtered = if (isEditorInChief) {
-                allEntries
+                synchronizedEntries
             } else {
-                allEntries.filter { entry ->
+                synchronizedEntries.filter { entry ->
                     entry.isPublicInCommunity || entry.authorEmail.equals(currentUser.email, ignoreCase = true)
                 }
             }

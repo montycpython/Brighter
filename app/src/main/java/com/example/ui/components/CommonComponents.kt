@@ -9,12 +9,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Icon
@@ -148,8 +148,8 @@ fun WorkTypeIcon(workType: WorkType, modifier: Modifier = Modifier) {
     val icon = when (workType) {
         WorkType.NOVEL -> Icons.Default.Book
         WorkType.BIOGRAPHY -> Icons.Default.Person
-        WorkType.DOCUMENTARY -> Icons.Default.Article
-        WorkType.MANUAL -> Icons.Default.MenuBook
+        WorkType.DOCUMENTARY -> Icons.AutoMirrored.Filled.Article
+        WorkType.MANUAL -> Icons.AutoMirrored.Filled.MenuBook
     }
     Icon(
         imageVector = icon,

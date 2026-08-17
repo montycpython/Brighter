@@ -22,6 +22,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Rule
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -32,10 +34,8 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Mail
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -225,7 +225,7 @@ fun ManuscriptListScreen(
                         modifier = Modifier.testTag("btn_top_rulebook")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Rule,
+                            imageVector = Icons.AutoMirrored.Filled.Rule,
                             contentDescription = "Chicago Manual of Style Guide",
                             tint = BookGoldDark
                         )
@@ -380,7 +380,7 @@ fun ManuscriptListScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Icon(
-                                imageVector = Icons.Default.MenuBook,
+                                imageVector = Icons.AutoMirrored.Filled.MenuBook,
                                 contentDescription = null,
                                 modifier = Modifier.size(48.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant

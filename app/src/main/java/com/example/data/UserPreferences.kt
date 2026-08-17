@@ -217,13 +217,15 @@ class UserPreferences(context: Context) {
             val array = org.json.JSONArray(raw)
             val updatedArray = org.json.JSONArray()
             var found = false
+            val currentProfile = getUserProfile()
 
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 if (obj.optString("userEmail").equals(sub.userEmail, ignoreCase = true)) {
+                    val resolvedName = if (sub.userEmail.equals(currentProfile.email, ignoreCase = true)) currentProfile.displayName else obj.optString("displayName", "Author")
                     val updatedObj = org.json.JSONObject().apply {
                         put("userEmail", sub.userEmail)
-                        put("displayName", getUserProfile().name)
+                        put("displayName", resolvedName)
                         put("planId", sub.plan.id)
                         put("planTitle", sub.plan.title)
                         put("creditsRemaining", sub.creditsRemaining)
@@ -241,9 +243,10 @@ class UserPreferences(context: Context) {
             }
 
             if (!found) {
+                val resolvedName = if (sub.userEmail.equals(currentProfile.email, ignoreCase = true)) currentProfile.displayName else "Author"
                 val newObj = org.json.JSONObject().apply {
                     put("userEmail", sub.userEmail)
-                    put("displayName", getUserProfile().name)
+                    put("displayName", resolvedName)
                     put("planId", sub.plan.id)
                     put("planTitle", sub.plan.title)
                     put("creditsRemaining", sub.creditsRemaining)
@@ -263,15 +266,18 @@ class UserPreferences(context: Context) {
 
     fun getAllSubscribersTelemetry(): List<com.example.model.PaidMemberTelemetry> {
         val list = mutableListOf<com.example.model.PaidMemberTelemetry>()
+        val currentProfile = getUserProfile()
         try {
             val raw = prefs.getString(KEY_ALL_SUBSCRIBERS_JSON, "[]") ?: "[]"
             val array = org.json.JSONArray(raw)
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
+                val userEmail = obj.optString("userEmail")
+                val isCurrent = userEmail.equals(currentProfile.email, ignoreCase = true)
                 list.add(
                     com.example.model.PaidMemberTelemetry(
-                        userEmail = obj.optString("userEmail"),
-                        displayName = obj.optString("displayName", "Author"),
+                        userEmail = userEmail,
+                        displayName = if (isCurrent) currentProfile.displayName else obj.optString("displayName", "Author"),
                         planId = obj.optString("planId"),
                         planTitle = obj.optString("planTitle", "Novelist Plan"),
                         creditsRemaining = obj.optInt("creditsRemaining"),
@@ -284,22 +290,23 @@ class UserPreferences(context: Context) {
                 )
             }
 
-            // Always ensure real.artistry@gmail.com is present with full metrics
-            if (list.none { it.userEmail.equals("real.artistry@gmail.com", ignoreCase = true) }) {
-                val superuserSub = getUserSubscription("real.artistry@gmail.com")
+            // Always ensure current user / real.artistry@gmail.com is present with full metrics
+            if (list.none { it.userEmail.equals(currentProfile.email, ignoreCase = true) }) {
+                val superuserSub = getUserSubscription(currentProfile.email)
+                val isEditor = currentProfile.email.equals("real.artistry@gmail.com", ignoreCase = true)
                 list.add(
                     0,
                     com.example.model.PaidMemberTelemetry(
-                        userEmail = "real.artistry@gmail.com",
-                        displayName = "Editor-in-Chief",
-                        planId = com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED.id,
-                        planTitle = com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED.title,
+                        userEmail = currentProfile.email,
+                        displayName = currentProfile.displayName,
+                        planId = if (isEditor) com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED.id else superuserSub.plan.id,
+                        planTitle = if (isEditor) com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED.title else superuserSub.plan.title,
                         creditsRemaining = superuserSub.creditsRemaining,
                         totalTokensUsed = superuserSub.totalTokensUsed,
                         totalGenerationsCount = superuserSub.totalGenerationsCount,
                         monthlyRenewalTimestamp = superuserSub.monthlyRenewalTimestamp,
                         lastActiveTimestamp = System.currentTimeMillis(),
-                        status = "UNLIMITED_SUPERUSER"
+                        status = if (isEditor) "UNLIMITED_SUPERUSER" else "ACTIVE"
                     )
                 )
             }

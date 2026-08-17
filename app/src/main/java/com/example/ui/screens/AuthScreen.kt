@@ -19,11 +19,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material3.Button
@@ -312,7 +312,7 @@ fun AuthScreen(
                     .testTag("btn_enter_studio")
             ) {
                 Icon(
-                    imageVector = Icons.Default.MenuBook,
+                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp)
                 )

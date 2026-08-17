@@ -18,12 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Input
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
@@ -300,7 +300,7 @@ fun SettingCard(
                     .height(34.dp)
                     .testTag("btn_insert_setting_${setting.id}")
             ) {
-                Icon(Icons.Default.Input, contentDescription = null, modifier = Modifier.size(14.dp))
+                Icon(Icons.AutoMirrored.Filled.Input, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Insert Setting & Touchstones into Prompt", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
