@@ -102,6 +102,7 @@ fun ManuscriptListScreen(
     onOpenAuthScreen: () -> Unit,
     onDeleteManuscript: (Long) -> Unit,
     onCreateNewWorkClick: () -> Unit,
+    onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onOpenCommunity: () -> Unit = {},
     onOpenMailbox: () -> Unit = {},
     onOpenAdminDashboard: () -> Unit = {},
@@ -110,7 +111,7 @@ fun ManuscriptListScreen(
     onOpenSubscription: () -> Unit = {},
     unreadMailCount: Int = 0
 ) {
-    var showRoleSwitchDialog by remember { mutableStateOf(false) }
+    var showProfileDialog by remember { mutableStateOf(false) }
     var manuscriptToDelete by remember { mutableStateOf<ManuscriptEntity?>(null) }
     val isEditorInChief = currentUser.email.equals(com.example.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
@@ -236,7 +237,7 @@ fun ManuscriptListScreen(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(20.dp),
                         modifier = Modifier
-                            .clickable { showRoleSwitchDialog = true }
+                            .clickable { showProfileDialog = true }
                             .padding(end = 8.dp)
                             .testTag("btn_user_profile_pill")
                     ) {
@@ -251,11 +252,12 @@ fun ManuscriptListScreen(
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Icon(
-                                imageVector = Icons.Default.SwapHoriz,
-                                contentDescription = "Switch Role",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Profile & Pen Name",
+                                modifier = Modifier.size(14.dp),
+                                tint = BookGoldDark
                             )
                         }
                     }
@@ -420,77 +422,17 @@ fun ManuscriptListScreen(
         }
     }
 
-    // Role Switch Dialog
-    if (showRoleSwitchDialog) {
-        AlertDialog(
-            onDismissRequest = { showRoleSwitchDialog = false },
-            title = {
-                Text("Select Workspace Role", fontWeight = FontWeight.Bold)
+    // Author Profile & Pen Name Dialog
+    if (showProfileDialog) {
+        AuthorProfileDialog(
+            currentUser = currentUser,
+            onDismiss = { showProfileDialog = false },
+            onSaveProfile = { name, penName, email, role, org, cmos ->
+                onUpdateProfile(name, penName, email, role, org, cmos)
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Current Account: ${currentUser.email}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    WorkRole.values().forEach { role ->
-                        val isCurrent = currentUser.role == role
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onSwitchRole(role)
-                                    showRoleSwitchDialog = false
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isCurrent) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(1.dp, if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RoleBadge(role = role)
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(role.title, fontWeight = FontWeight.Bold)
-                                    Text(role.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Row {
-                    TextButton(onClick = {
-                        showRoleSwitchDialog = false
-                        onOpenSubscription()
-                    }) {
-                        Text("AI Studio Pass")
-                    }
-                    TextButton(onClick = {
-                        showRoleSwitchDialog = false
-                        onOpenUserAgreement()
-                    }) {
-                        Text("User Agreement")
-                    }
-                    TextButton(onClick = {
-                        showRoleSwitchDialog = false
-                        onOpenAuthScreen()
-                    }) {
-                        Text("Account")
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRoleSwitchDialog = false }) {
-                    Text("Close")
-                }
-            }
+            onOpenSubscription = onOpenSubscription,
+            onOpenUserAgreement = onOpenUserAgreement,
+            onOpenAuthScreen = onOpenAuthScreen
         )
     }
 

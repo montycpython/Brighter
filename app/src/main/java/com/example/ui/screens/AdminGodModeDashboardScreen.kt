@@ -31,7 +31,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderShared
+import com.example.model.WorkRole
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mail
@@ -111,12 +114,14 @@ fun AdminGodModeDashboardScreen(
     onUnsuspendUser: (targetEmail: String) -> Unit,
     onRevokeManuscript: (fileId: String) -> Unit,
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
-    onGrantBonusCredits: (targetEmail: String, bonusCredits: Int) -> Unit = { _, _ -> }
+    onGrantBonusCredits: (targetEmail: String, bonusCredits: Int) -> Unit = { _, _ -> },
+    onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Master Book Index", "Paid Subscribers & Tokens", "Author Roster & Governance", "Mailbox Dispatcher", "Drive Storage Health")
 
     // Modals
+    var showProfileDialog by remember { mutableStateOf(false) }
     var inspectingEntry by remember { mutableStateOf<GlobalBookIndexEntry?>(null) }
     var suspendingTargetUser by remember { mutableStateOf<String?>(null) }
     var suspensionReasonInput by remember { mutableStateOf("Violation of editorial guidelines or unapproved distribution.") }
@@ -165,6 +170,34 @@ fun AdminGodModeDashboardScreen(
                     }
                 },
                 actions = {
+                    Surface(
+                        color = Color(0xFF1E1E28),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(0.5.dp, BookGold.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .clickable { showProfileDialog = true }
+                            .padding(end = 4.dp)
+                            .testTag("btn_admin_profile_pill")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = currentUser.displayName,
+                                fontSize = 11.5.sp,
+                                color = Color(0xFFF3EFE6),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit Profile & Pen Name",
+                                modifier = Modifier.size(12.dp),
+                                tint = BookGoldLight
+                            )
+                        }
+                    }
                     IconButton(onClick = onRefresh, modifier = Modifier.testTag("btn_admin_refresh")) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = BookGoldLight)
                     }
@@ -507,6 +540,17 @@ fun AdminGodModeDashboardScreen(
                 }
             }
         }
+    }
+
+    // Superuser / Author Profile Dialog
+    if (showProfileDialog) {
+        AuthorProfileDialog(
+            currentUser = currentUser,
+            onDismiss = { showProfileDialog = false },
+            onSaveProfile = { name, penName, email, role, org, cmos ->
+                onUpdateProfile(name, penName, email, role, org, cmos)
+            }
+        )
     }
 }
 

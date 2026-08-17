@@ -71,28 +71,38 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         refreshDriveNetwork()
     }
 
-    fun updateProfile(name: String, penName: String, email: String, role: WorkRole) {
+    fun updateProfile(
+        name: String,
+        penName: String,
+        email: String,
+        role: WorkRole,
+        organization: String = _currentUser.value.organization,
+        preferredCmosEdition: String = _currentUser.value.preferredCmosEdition
+    ) {
         val updated = _currentUser.value.copy(
-            name = name.trim(),
+            name = if (name.isNotBlank()) name.trim() else "Author",
             penName = penName.trim(),
-            email = email.trim(),
-            role = role
+            email = if (email.isNotBlank()) email.trim() else _currentUser.value.email,
+            role = role,
+            organization = if (organization.isNotBlank()) organization.trim() else "Author Studio",
+            preferredCmosEdition = preferredCmosEdition
         )
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
+        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         refreshDriveNetwork()
     }
 
     fun signInWithGoogleAccount(email: String, name: String, penName: String, role: WorkRole) {
-        val finalPenName = if (penName.isNotBlank()) penName.trim() else _currentUser.value.penName
         val updated = _currentUser.value.copy(
-            email = email.trim(),
-            name = name.trim(),
-            penName = finalPenName,
+            email = if (email.isNotBlank()) email.trim() else _currentUser.value.email,
+            name = if (name.isNotBlank()) name.trim() else "Author",
+            penName = penName.trim(),
             role = role
         )
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
+        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         refreshDriveNetwork()
     }
 

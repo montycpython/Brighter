@@ -175,6 +175,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onDeleteManuscript = { id ->
                     viewModel.deleteManuscript(id)
                 },
+                onUpdateProfile = { name, penName, email, role, org, cmos ->
+                    viewModel.updateProfile(name, penName, email, role, org, cmos)
+                    val byline = if (penName.isNotBlank()) penName else name
+                    Toast.makeText(context, "Author Profile updated: $byline", Toast.LENGTH_SHORT).show()
+                },
                 onCreateNewWorkClick = {
                     showNewWorkDialog = true
                 },
@@ -429,6 +434,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onGrantBonusCredits = { targetEmail, bonus ->
                     viewModel.adminGrantBonusCredits(targetEmail, bonus)
                     Toast.makeText(context, "Granted $bonus bonus credits to $targetEmail", Toast.LENGTH_SHORT).show()
+                },
+                onUpdateProfile = { name, penName, email, role, org, cmos ->
+                    viewModel.updateProfile(name, penName, email, role, org, cmos)
+                    val byline = if (penName.isNotBlank()) penName else name
+                    Toast.makeText(context, "Profile updated: $byline", Toast.LENGTH_SHORT).show()
                 }
             )
         }

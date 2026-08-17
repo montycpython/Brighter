@@ -24,8 +24,10 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -53,8 +55,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.UserProfile
 import com.example.model.WorkRole
+import com.example.ui.components.RoleBadge
 import com.example.ui.theme.BookGold
 import com.example.ui.theme.BookGoldDark
+import com.example.ui.theme.BookGoldLight
+import java.util.Calendar
 
 @Composable
 fun AuthScreen(
@@ -67,6 +72,13 @@ fun AuthScreen(
     var authorName by remember { mutableStateOf(currentUser.name) }
     var authorEmail by remember { mutableStateOf(currentUser.email) }
     var penName by remember { mutableStateOf(currentUser.penName) }
+
+    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+    val effectiveDisplayName = when {
+        penName.isNotBlank() -> penName.trim()
+        authorName.isNotBlank() -> authorName.trim()
+        else -> "Author"
+    }
 
     val scrollState = rememberScrollState()
 
@@ -81,7 +93,7 @@ fun AuthScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // App Monogram & Header
             Box(
@@ -100,7 +112,7 @@ fun AuthScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
                 text = "Bwriter",
@@ -116,7 +128,69 @@ fun AuthScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Live Byline Preview Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF161622)
+                ),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.7f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "LIVE BYLINE & COPYRIGHT PREVIEW",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BookGoldLight,
+                            letterSpacing = 1.sp
+                        )
+                        RoleBadge(role = selectedRole)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Author Byline: ", fontSize = 12.5.sp, color = Color.Gray)
+                        Text(
+                            text = effectiveDisplayName,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        if (penName.isNotBlank()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = BookGoldDark.copy(alpha = 0.3f),
+                                border = BorderStroke(0.5.dp, BookGold)
+                            ) {
+                                Text(
+                                    text = "PEN NAME ACTIVE",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BookGoldLight,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Copyright Line: © $currentYear ${if (penName.isNotBlank()) penName else authorName}. All rights reserved.",
+                        fontSize = 11.sp,
+                        color = Color(0xFFB0A898),
+                        fontFamily = FontFamily.Serif
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Google Sign-In & Author Profile Card
             Card(
@@ -152,43 +226,29 @@ fun AuthScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Signed in with Google",
+                                text = "Account & Cloud Identity",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = authorEmail,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
+                                text = "You can modify your username, pen name, or legal name anytime.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Author real / legal name input
-                    OutlinedTextField(
-                        value = authorName,
-                        onValueChange = { authorName = it },
-                        label = { Text("Author / Legal Name") },
-                        placeholder = { Text("e.g. John Doe") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_author_name")
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Pen name input
                     OutlinedTextField(
                         value = penName,
                         onValueChange = { penName = it },
                         label = { Text("Pen Name / Author Byline (Optional)") },
-                        placeholder = { Text("e.g. J. D. Cross") },
+                        placeholder = { Text("e.g. J. D. Cross, George Orwell") },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.DriveFileRenameOutline,
@@ -197,12 +257,57 @@ fun AuthScreen(
                             )
                         },
                         supportingText = {
-                            Text("When specified, your pen name is automatically used for Book Title Pages, Byline, Running Heads, and Copyright ownership.")
+                            Text("When specified, your pen name is used for Book Covers, Title Pages, Running Heads, and Directory listings.")
                         },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_pen_name")
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Author real / legal name input
+                    OutlinedTextField(
+                        value = authorName,
+                        onValueChange = { authorName = it },
+                        label = { Text("Author / Legal Name") },
+                        placeholder = { Text("e.g. John Doe") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Legal Name",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        supportingText = {
+                            Text("Your legal name for copyright documentation and administrative records.")
+                        },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_author_name")
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Account Email / Username
+                    OutlinedTextField(
+                        value = authorEmail,
+                        onValueChange = { authorEmail = it },
+                        label = { Text("Account Email / Google Username") },
+                        placeholder = { Text("e.g. real.artistry@gmail.com") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Email,
+                                contentDescription = "Email",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_author_email")
                     )
                 }
             }
