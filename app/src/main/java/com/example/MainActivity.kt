@@ -1,4 +1,4 @@
-package com.example
+package com.supernatural
 
 import android.os.Bundle
 import android.widget.Toast
