@@ -61,7 +61,7 @@ jobs:
                 "client_info": {
                   "mobilesdk_app_id": "1:123456789012:android:abcdef0123456789",
                   "android_client_info": {
-                    "package_name": "com.aistudio.bwriter.xmkty"
+                    "package_name": "com.apollo.dionysus.bwriter"
                   }
                 },
                 "oauth_client": [],
@@ -94,6 +94,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Bwriter-Debug-APK
+          name: Bwriter-Divine-APK
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
