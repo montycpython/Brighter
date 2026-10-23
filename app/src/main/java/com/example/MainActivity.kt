@@ -1,4 +1,4 @@
-package com.supernatural
+package com.apollo.dionysus.bwriter
 
 import android.os.Bundle
 import android.widget.Toast
