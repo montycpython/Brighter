@@ -466,4 +466,101 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         composable("admin_god_mode") {
             AdminGodModeDashboardScreen(
                 currentUser = currentUser,
-                globalIndex = glo
+                globalIndex = globalBookIndex,
+                suspendedUsers = suspendedUsers,
+                paidSubscribers = paidMembersTelemetry,
+                tokenTransactions = tokenTransactions,
+                onBack = { navController.popBackStack() },
+                onRefresh = { viewModel.refreshDriveNetwork() },
+                onSuspendUser = { email, reason ->
+                    viewModel.suspendUserAccount(email, reason)
+                    Toast.makeText(context, "User $email suspended (Kill-Switch deployed)", Toast.LENGTH_SHORT).show()
+                },
+                onUnsuspendUser = { email ->
+                    viewModel.unsuspendUserAccount(email)
+                    Toast.makeText(context, "User $email unsuspended", Toast.LENGTH_SHORT).show()
+                },
+                onRevokeManuscript = { fileId ->
+                    viewModel.revokeManuscriptDriveAccess(fileId)
+                    Toast.makeText(context, "Manuscript access revoked", Toast.LENGTH_SHORT).show()
+                },
+                onSendServerlessMail = { mail ->
+                    viewModel.sendServerlessMailDirective(mail)
+                    Toast.makeText(context, "Directive dispatched to ${mail.recipientEmail}", Toast.LENGTH_SHORT).show()
+                },
+                onGrantBonusCredits = { targetEmail, bonus ->
+                    viewModel.adminGrantBonusCredits(targetEmail, bonus)
+                    Toast.makeText(context, "Granted $bonus bonus credits to $targetEmail", Toast.LENGTH_SHORT).show()
+                },
+                onUpdateProfile = { name, penName, email, role, org, cmos ->
+                    viewModel.updateProfile(name, penName, email, role, org, cmos)
+                    val byline = if (penName.isNotBlank()) penName else name
+                    Toast.makeText(context, "Profile updated: $byline", Toast.LENGTH_SHORT).show()
+                },
+                onSignOut = {
+                    viewModel.signOutGoogleAccount()
+                    Toast.makeText(context, "Logged out of Superuser account", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+    }
+
+    // AI Studio Subscription & Token Ledger Dialog
+    if (showPaywall) {
+        SubscriptionPaywallDialog(
+            subscription = userSubscription,
+            recentTransactions = tokenTransactions,
+            onDismiss = { viewModel.dismissPaywall() },
+            onSelectPlan = { plan ->
+                viewModel.updateSubscriptionPlan(plan)
+                Toast.makeText(context, "Upgraded to ${plan.title}!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // Google Drive Sync Modal Dialog
+    if (manuscriptToSync != null) {
+        SyncToGoogleDriveDialog(
+            manuscript = manuscriptToSync!!,
+            currentUser = currentUser,
+            isSyncing = driveSyncStatus.isSyncing,
+            onDismiss = { manuscriptToSync = null },
+            onConfirmSync = { isPublic ->
+                val target = manuscriptToSync!!
+                viewModel.syncManuscriptToGoogleDrive(target, isPublic) { res ->
+                    if (res.isSuccess) {
+                        Toast.makeText(context, "Synced “${target.title}” to Google Drive!", Toast.LENGTH_LONG).show()
+                        manuscriptToSync = null
+                    } else {
+                        Toast.makeText(context, "Sync Error: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        )
+    }
+
+    // New Work Scaffolding Dialog
+    if (showNewWorkDialog) {
+        NewWorkDialog(
+            initialAuthorName = currentUser.name,
+            initialPenName = currentUser.penName,
+            onDismiss = { showNewWorkDialog = false },
+            onCreate = { title, subtitle, workType, author, penName, publisher, year, dedication, epigraph ->
+                viewModel.createManuscript(
+                    title = title,
+                    subtitle = subtitle,
+                    workType = workType,
+                    authorName = author,
+                    authorPenName = penName,
+                    publisher = publisher,
+                    year = year,
+                    dedication = dedication,
+                    epigraph = epigraph
+                ) { newId ->
+                    showNewWorkDialog = false
+                    navController.navigate("manuscript_detail/$newId")
+                }
+            }
+        )
+    }
+}
