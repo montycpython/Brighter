@@ -45,7 +45,9 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          # 3. Create google-services.json matching applicationId com.apollo.dionysus.bwriter
+          # 3. google-services.json: the real file is committed in the repo.
+          #    Write the placeholder only if no file is present.
+          if [ ! -f app/google-services.json ]; then
           cat << 'EOF' > app/google-services.json
           {
             "project_info": {
@@ -77,6 +79,7 @@ jobs:
             "configuration_version": "1"
           }
           EOF
+          fi
 
       - name: Assemble Debug APK
         run: |
@@ -116,4 +119,5 @@ jobs:
           name: Bwriter-Release-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
+
           
