@@ -1,30 +1,30 @@
-package com.example.ui.viewmodel
+package com.apollo.dionysus.bwriter.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.cmos.CmosLeafEngine
-import com.example.data.BwriterDatabase
-import com.example.data.BwriterRepository
-import com.example.data.UserPreferences
-import com.example.data.GoogleDriveSyncService
-import com.example.export.CmosPdfExporter
-import com.example.model.DriveSyncStatus
-import com.example.model.GlobalBookIndexEntry
-import com.example.model.BookVersionSnapshot
-import com.example.model.ServerlessMailMessage
-import com.example.model.SuspendedUserEntry
-import com.example.model.CalculatedLeaf
-import com.example.model.EditorialCommentEntity
-import com.example.model.ManuscriptEntity
-import com.example.model.MatterType
-import com.example.model.SectionEntity
-import com.example.model.SectionStatus
-import com.example.model.SectionType
-import com.example.model.UserProfile
-import com.example.model.WorkRole
-import com.example.model.WorkType
+import com.apollo.dionysus.bwriter.cmos.CmosLeafEngine
+import com.apollo.dionysus.bwriter.data.BwriterDatabase
+import com.apollo.dionysus.bwriter.data.BwriterRepository
+import com.apollo.dionysus.bwriter.data.UserPreferences
+import com.apollo.dionysus.bwriter.data.GoogleDriveSyncService
+import com.apollo.dionysus.bwriter.export.CmosPdfExporter
+import com.apollo.dionysus.bwriter.model.DriveSyncStatus
+import com.apollo.dionysus.bwriter.model.GlobalBookIndexEntry
+import com.apollo.dionysus.bwriter.model.BookVersionSnapshot
+import com.apollo.dionysus.bwriter.model.ServerlessMailMessage
+import com.apollo.dionysus.bwriter.model.SuspendedUserEntry
+import com.apollo.dionysus.bwriter.model.CalculatedLeaf
+import com.apollo.dionysus.bwriter.model.EditorialCommentEntity
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.MatterType
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.model.SectionStatus
+import com.apollo.dionysus.bwriter.model.SectionType
+import com.apollo.dionysus.bwriter.model.UserProfile
+import com.apollo.dionysus.bwriter.model.WorkRole
+import com.apollo.dionysus.bwriter.model.WorkType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -267,7 +267,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     // ==========================================
     // Character Profiling for Active Manuscript
     // ==========================================
-    val charactersForActiveManuscript: StateFlow<List<com.example.model.CharacterEntity>> = _selectedManuscriptId.flatMapLatest { id ->
+    val charactersForActiveManuscript: StateFlow<List<com.apollo.dionysus.bwriter.model.CharacterEntity>> = _selectedManuscriptId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repository.getCharactersForManuscript(id)
     }.stateIn(
         scope = viewModelScope,
@@ -275,7 +275,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
-    fun saveCharacter(character: com.example.model.CharacterEntity) {
+    fun saveCharacter(character: com.apollo.dionysus.bwriter.model.CharacterEntity) {
         viewModelScope.launch {
             if (character.id == 0L) {
                 repository.insertCharacter(character)
@@ -294,7 +294,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     // ==========================================
     // Story Settings & Intertextuality
     // ==========================================
-    val settingsForActiveManuscript: StateFlow<List<com.example.model.StorySettingEntity>> = _selectedManuscriptId.flatMapLatest { id ->
+    val settingsForActiveManuscript: StateFlow<List<com.apollo.dionysus.bwriter.model.StorySettingEntity>> = _selectedManuscriptId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repository.getSettingsForManuscript(id)
     }.stateIn(
         scope = viewModelScope,
@@ -314,7 +314,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun saveSetting(setting: com.example.model.StorySettingEntity) {
+    fun saveSetting(setting: com.apollo.dionysus.bwriter.model.StorySettingEntity) {
         viewModelScope.launch {
             if (setting.id == 0L) {
                 repository.insertSetting(setting)
@@ -337,13 +337,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     val isGeneratingAiProse: StateFlow<Boolean> = _isGeneratingAiProse.asStateFlow()
 
     private val _userAiSubscription = MutableStateFlow(userPreferences.getUserSubscription(_currentUser.value.email))
-    val userAiSubscription: StateFlow<com.example.model.UserAiSubscription> = _userAiSubscription.asStateFlow()
+    val userAiSubscription: StateFlow<com.apollo.dionysus.bwriter.model.UserAiSubscription> = _userAiSubscription.asStateFlow()
 
     private val _tokenTransactions = MutableStateFlow(userPreferences.getTokenTransactions())
-    val tokenTransactions: StateFlow<List<com.example.model.AiTokenTransaction>> = _tokenTransactions.asStateFlow()
+    val tokenTransactions: StateFlow<List<com.apollo.dionysus.bwriter.model.AiTokenTransaction>> = _tokenTransactions.asStateFlow()
 
     private val _paidMembersTelemetry = MutableStateFlow(userPreferences.getAllSubscribersTelemetry())
-    val paidMembersTelemetry: StateFlow<List<com.example.model.PaidMemberTelemetry>> = _paidMembersTelemetry.asStateFlow()
+    val paidMembersTelemetry: StateFlow<List<com.apollo.dionysus.bwriter.model.PaidMemberTelemetry>> = _paidMembersTelemetry.asStateFlow()
 
     private val _showPaywall = MutableStateFlow(false)
     val showPaywall: StateFlow<Boolean> = _showPaywall.asStateFlow()
@@ -356,7 +356,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _showPaywall.value = false
     }
 
-    fun updateSubscriptionPlan(plan: com.example.model.SubscriptionPlan) {
+    fun updateSubscriptionPlan(plan: com.apollo.dionysus.bwriter.model.SubscriptionPlan) {
         val current = _userAiSubscription.value
         val updated = current.copy(
             plan = plan,
@@ -393,7 +393,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _isGeneratingAiProse.value = true
         viewModelScope.launch {
             try {
-                val result = com.example.ai.GeminiProseGenerator.generateChapterProse(prompt)
+                val result = com.apollo.dionysus.bwriter.ai.GeminiProseGenerator.generateChapterProse(prompt)
                 val aiResult = result.getOrNull()
                 if (aiResult != null && aiResult.text.isNotBlank()) {
                     val generatedText = aiResult.text
@@ -684,13 +684,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _isExporting = MutableStateFlow(false)
     val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
 
-    fun exportActiveManuscriptToPdf(context: Context, onComplete: (com.example.export.CmosPdfExporter.ExportResult) -> Unit) {
+    fun exportActiveManuscriptToPdf(context: Context, onComplete: (com.apollo.dionysus.bwriter.export.CmosPdfExporter.ExportResult) -> Unit) {
         val m = activeManuscript.value ?: return
         val s = activeSections.value
         _isExporting.value = true
         viewModelScope.launch {
             try {
-                val result = com.example.export.CmosPdfExporter.exportToPdf(context, m, s)
+                val result = com.apollo.dionysus.bwriter.export.CmosPdfExporter.exportToPdf(context, m, s)
                 _exportResult.value = result
                 onComplete(result)
             } finally {

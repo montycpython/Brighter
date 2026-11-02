@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -78,20 +78,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
-import com.example.model.ManuscriptEntity
-import com.example.model.UserProfile
-import com.example.model.WorkRole
-import com.example.model.WorkType
-import com.example.ui.components.RoleBadge
-import com.example.ui.components.WorkTypeIcon
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.BookGoldLight
-import com.example.ui.theme.CrimsonSeal
-import com.example.ui.theme.ForestCloth
-import com.example.ui.theme.InkBlack
-import com.example.ui.theme.InkNavy
+import com.apollo.dionysus.bwriter.R
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.UserProfile
+import com.apollo.dionysus.bwriter.model.WorkRole
+import com.apollo.dionysus.bwriter.model.WorkType
+import com.apollo.dionysus.bwriter.ui.components.RoleBadge
+import com.apollo.dionysus.bwriter.ui.components.WorkTypeIcon
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldLight
+import com.apollo.dionysus.bwriter.ui.theme.CrimsonSeal
+import com.apollo.dionysus.bwriter.ui.theme.ForestCloth
+import com.apollo.dionysus.bwriter.ui.theme.InkBlack
+import com.apollo.dionysus.bwriter.ui.theme.InkNavy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,7 +121,7 @@ fun ManuscriptListScreen(
 ) {
     var showProfileDialog by remember { mutableStateOf(false) }
     var manuscriptToDelete by remember { mutableStateOf<ManuscriptEntity?>(null) }
-    val isEditorInChief = currentUser.email.equals(com.example.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+    val isEditorInChief = currentUser.email.equals(com.apollo.dionysus.bwriter.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
     Scaffold(
         topBar = {
@@ -136,7 +136,7 @@ fun ManuscriptListScreen(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 androidx.compose.foundation.Image(
-                                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.img_bwriter_emblem_1786987156557),
+                                    painter = androidx.compose.ui.res.painterResource(id = com.apollo.dionysus.bwriter.R.drawable.img_bwriter_emblem_1786987156557),
                                     contentDescription = "Bwriter Logo",
                                     modifier = Modifier.fillMaxSize()
                                 )

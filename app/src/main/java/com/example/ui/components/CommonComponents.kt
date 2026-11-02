@@ -1,4 +1,4 @@
-package com.example.ui.components
+package com.apollo.dionysus.bwriter.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,20 +33,20 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.model.LeafSide
-import com.example.model.MatterType
-import com.example.model.SectionStatus
-import com.example.model.WorkRole
-import com.example.model.WorkType
-import com.example.ui.theme.BlankLeafColor
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.CrimsonSeal
-import com.example.ui.theme.ForestCloth
-import com.example.ui.theme.InkNavy
-import com.example.ui.theme.ParchmentCream
-import com.example.ui.theme.RectoBadgeColor
-import com.example.ui.theme.VersoBadgeColor
+import com.apollo.dionysus.bwriter.model.LeafSide
+import com.apollo.dionysus.bwriter.model.MatterType
+import com.apollo.dionysus.bwriter.model.SectionStatus
+import com.apollo.dionysus.bwriter.model.WorkRole
+import com.apollo.dionysus.bwriter.model.WorkType
+import com.apollo.dionysus.bwriter.ui.theme.BlankLeafColor
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.CrimsonSeal
+import com.apollo.dionysus.bwriter.ui.theme.ForestCloth
+import com.apollo.dionysus.bwriter.ui.theme.InkNavy
+import com.apollo.dionysus.bwriter.ui.theme.ParchmentCream
+import com.apollo.dionysus.bwriter.ui.theme.RectoBadgeColor
+import com.apollo.dionysus.bwriter.ui.theme.VersoBadgeColor
 
 @Composable
 fun LeafBadge(

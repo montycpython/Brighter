@@ -1,4 +1,4 @@
-package com.example.model
+package com.apollo.dionysus.bwriter.model
 
 /**
  * Standard Book Trim Sizes per Chicago Manual of Style / US & International Trade Standards.

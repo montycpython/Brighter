@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -109,17 +109,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.cmos.CmosFormatter
-import com.example.model.EditorialCommentEntity
-import com.example.model.SectionEntity
-import com.example.model.SectionStatus
-import com.example.model.ServerlessMailMessage
-import com.example.model.UserProfile
-import com.example.model.WorkRole
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.InkBlack
-import com.example.ui.theme.ParchmentCream
+import com.apollo.dionysus.bwriter.cmos.CmosFormatter
+import com.apollo.dionysus.bwriter.model.EditorialCommentEntity
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.model.SectionStatus
+import com.apollo.dionysus.bwriter.model.ServerlessMailMessage
+import com.apollo.dionysus.bwriter.model.UserProfile
+import com.apollo.dionysus.bwriter.model.WorkRole
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.InkBlack
+import com.apollo.dionysus.bwriter.ui.theme.ParchmentCream
 import kotlinx.coroutines.launch
 
 import androidx.compose.material.icons.filled.AutoStories
@@ -134,10 +134,10 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import com.example.model.CharacterEntity
-import com.example.model.ManuscriptEntity
-import com.example.model.StorySettingEntity
-import com.example.ui.theme.BookGoldLight
+import com.apollo.dionysus.bwriter.model.CharacterEntity
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.StorySettingEntity
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldLight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,7 +162,7 @@ fun SectionEditorScreen(
     onDeleteSetting: (Long) -> Unit = {},
     onGenerateAiDraft: (SectionEntity, String, (String) -> Unit) -> Unit = { _, _, _ -> },
     isGeneratingAi: Boolean = false,
-    subscription: com.example.model.UserAiSubscription? = null,
+    subscription: com.apollo.dionysus.bwriter.model.UserAiSubscription? = null,
     onOpenSubscription: () -> Unit = {},
     onSaveAssignment: (SectionEntity, String, WorkRole, String) -> Unit = { _, _, _, _ -> },
     onSendServerlessMail: (ServerlessMailMessage) -> Unit = {},
@@ -178,7 +178,7 @@ fun SectionEditorScreen(
     val isAuthorOfBook = manuscript?.authorEmail.equals(currentUser.email, ignoreCase = true) ||
                          (currentUser.penName.isNotBlank() && manuscript?.authorPenName.equals(currentUser.penName, ignoreCase = true)) ||
                          (currentUser.name.isNotBlank() && currentUser.name != "Author" && manuscript?.authorName.equals(currentUser.name, ignoreCase = true)) ||
-                         currentUser.email.equals(com.example.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+                         currentUser.email.equals(com.apollo.dionysus.bwriter.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
     val isNonAuthorMode = !isAuthorOfBook
     val isAuthorRoleBlocked = isNonAuthorMode && currentUser.role == WorkRole.AUTHOR
@@ -2110,7 +2110,7 @@ ${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chie
                         // F. SUBSCRIPTION WALLET & CREDITS
                         // ==========================================
                         if (subscription != null) {
-                            val isSuper = currentUser.email.equals("real.artistry@gmail.com", ignoreCase = true) || subscription.plan == com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED
+                            val isSuper = currentUser.email.equals("real.artistry@gmail.com", ignoreCase = true) || subscription.plan == com.apollo.dionysus.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2206,7 +2206,7 @@ ${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chie
                         ) {
                             OutlinedButton(
                                 onClick = {
-                                    val compiled = com.example.ai.GeminiProseGenerator.buildComprehensivePrompt(
+                                    val compiled = com.apollo.dionysus.bwriter.ai.GeminiProseGenerator.buildComprehensivePrompt(
                                         manuscript = manuscript,
                                         section = section,
                                         questionnaireGoal = questionnaireGoal,
@@ -2234,7 +2234,7 @@ ${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chie
                             Button(
                                 onClick = {
                                     val promptToRun = if (aiDraftPrompt.isNotBlank()) aiDraftPrompt else {
-                                        com.example.ai.GeminiProseGenerator.buildComprehensivePrompt(
+                                        com.apollo.dionysus.bwriter.ai.GeminiProseGenerator.buildComprehensivePrompt(
                                             manuscript = manuscript,
                                             section = section,
                                             questionnaireGoal = questionnaireGoal,

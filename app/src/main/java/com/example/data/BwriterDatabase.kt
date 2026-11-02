@@ -1,14 +1,14 @@
-package com.example.data
+package com.apollo.dionysus.bwriter.data
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.example.model.CharacterEntity
-import com.example.model.EditorialCommentEntity
-import com.example.model.ManuscriptEntity
-import com.example.model.SectionEntity
-import com.example.model.StorySettingEntity
+import com.apollo.dionysus.bwriter.model.CharacterEntity
+import com.apollo.dionysus.bwriter.model.EditorialCommentEntity
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.model.StorySettingEntity
 
 @Database(
     entities = [

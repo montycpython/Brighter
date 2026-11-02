@@ -1,4 +1,4 @@
-package com.example.model
+package com.apollo.dionysus.bwriter.model
 
 enum class WorkType(
     val displayName: String,

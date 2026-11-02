@@ -1,4 +1,4 @@
-package com.example.model
+package com.apollo.dionysus.bwriter.model
 
 enum class MatterType(val displayName: String, val order: Int) {
     FRONT_MATTER("Front Matter", 1),

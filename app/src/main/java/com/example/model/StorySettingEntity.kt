@@ -1,4 +1,4 @@
-package com.example.model
+package com.apollo.dionysus.bwriter.model
 
 import androidx.room.Entity
 import androidx.room.ForeignKey

@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -60,12 +60,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.model.AiTokenTransaction
-import com.example.model.SubscriptionPlan
-import com.example.model.UserAiSubscription
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.BookGoldLight
+import com.apollo.dionysus.bwriter.model.AiTokenTransaction
+import com.apollo.dionysus.bwriter.model.SubscriptionPlan
+import com.apollo.dionysus.bwriter.model.UserAiSubscription
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldLight
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

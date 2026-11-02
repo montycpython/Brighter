@@ -1,4 +1,4 @@
-package com.example.cmos
+package com.apollo.dionysus.bwriter.cmos
 
 import android.graphics.Typeface
 import android.text.SpannableStringBuilder

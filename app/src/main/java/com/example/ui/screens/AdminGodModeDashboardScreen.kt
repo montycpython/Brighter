@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -34,7 +34,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderShared
-import com.example.model.WorkRole
+import com.apollo.dionysus.bwriter.model.WorkRole
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mail
@@ -86,16 +86,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.data.GoogleDriveSyncService
-import com.example.model.AiTokenTransaction
-import com.example.model.GlobalBookIndexEntry
-import com.example.model.PaidMemberTelemetry
-import com.example.model.ServerlessMailMessage
-import com.example.model.SuspendedUserEntry
-import com.example.model.UserProfile
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.BookGoldLight
+import com.apollo.dionysus.bwriter.data.GoogleDriveSyncService
+import com.apollo.dionysus.bwriter.model.AiTokenTransaction
+import com.apollo.dionysus.bwriter.model.GlobalBookIndexEntry
+import com.apollo.dionysus.bwriter.model.PaidMemberTelemetry
+import com.apollo.dionysus.bwriter.model.ServerlessMailMessage
+import com.apollo.dionysus.bwriter.model.SuspendedUserEntry
+import com.apollo.dionysus.bwriter.model.UserProfile
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldLight
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

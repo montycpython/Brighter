@@ -1,16 +1,16 @@
-package com.example.data
+package com.apollo.dionysus.bwriter.data
 
-import com.example.cmos.CmosFormatter
-import com.example.model.ContributorCredit
-import com.example.model.EditorialCommentEntity
-import com.example.model.ManuscriptEntity
-import com.example.model.MatterType
-import com.example.model.SectionEntity
-import com.example.model.SectionStatus
-import com.example.model.SectionType
-import com.example.model.UserProfile
-import com.example.model.WorkRole
-import com.example.model.WorkType
+import com.apollo.dionysus.bwriter.cmos.CmosFormatter
+import com.apollo.dionysus.bwriter.model.ContributorCredit
+import com.apollo.dionysus.bwriter.model.EditorialCommentEntity
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.MatterType
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.model.SectionStatus
+import com.apollo.dionysus.bwriter.model.SectionType
+import com.apollo.dionysus.bwriter.model.UserProfile
+import com.apollo.dionysus.bwriter.model.WorkRole
+import com.apollo.dionysus.bwriter.model.WorkType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -53,32 +53,32 @@ class BwriterRepository(private val database: BwriterDatabase) {
         commentDao.getCommentsForManuscript(manuscriptId)
 
     // Character Profiling
-    fun getCharactersForManuscript(manuscriptId: Long): Flow<List<com.example.model.CharacterEntity>> =
+    fun getCharactersForManuscript(manuscriptId: Long): Flow<List<com.apollo.dionysus.bwriter.model.CharacterEntity>> =
         characterDao.getCharactersForManuscript(manuscriptId)
 
-    suspend fun getCharactersForManuscriptOnce(manuscriptId: Long): List<com.example.model.CharacterEntity> =
+    suspend fun getCharactersForManuscriptOnce(manuscriptId: Long): List<com.apollo.dionysus.bwriter.model.CharacterEntity> =
         withContext(Dispatchers.IO) { characterDao.getCharactersForManuscriptOnce(manuscriptId) }
 
-    suspend fun insertCharacter(character: com.example.model.CharacterEntity): Long =
+    suspend fun insertCharacter(character: com.apollo.dionysus.bwriter.model.CharacterEntity): Long =
         withContext(Dispatchers.IO) { characterDao.insertCharacter(character) }
 
-    suspend fun updateCharacter(character: com.example.model.CharacterEntity) =
+    suspend fun updateCharacter(character: com.apollo.dionysus.bwriter.model.CharacterEntity) =
         withContext(Dispatchers.IO) { characterDao.updateCharacter(character) }
 
     suspend fun deleteCharacterById(id: Long) =
         withContext(Dispatchers.IO) { characterDao.deleteCharacterById(id) }
 
     // Settings & Worldbuilding
-    fun getSettingsForManuscript(manuscriptId: Long): Flow<List<com.example.model.StorySettingEntity>> =
+    fun getSettingsForManuscript(manuscriptId: Long): Flow<List<com.apollo.dionysus.bwriter.model.StorySettingEntity>> =
         settingDao.getSettingsForManuscript(manuscriptId)
 
-    suspend fun getSettingsForManuscriptOnce(manuscriptId: Long): List<com.example.model.StorySettingEntity> =
+    suspend fun getSettingsForManuscriptOnce(manuscriptId: Long): List<com.apollo.dionysus.bwriter.model.StorySettingEntity> =
         withContext(Dispatchers.IO) { settingDao.getSettingsForManuscriptOnce(manuscriptId) }
 
-    suspend fun insertSetting(setting: com.example.model.StorySettingEntity): Long =
+    suspend fun insertSetting(setting: com.apollo.dionysus.bwriter.model.StorySettingEntity): Long =
         withContext(Dispatchers.IO) { settingDao.insertSetting(setting) }
 
-    suspend fun updateSetting(setting: com.example.model.StorySettingEntity) =
+    suspend fun updateSetting(setting: com.apollo.dionysus.bwriter.model.StorySettingEntity) =
         withContext(Dispatchers.IO) { settingDao.updateSetting(setting) }
 
     suspend fun deleteSettingById(id: Long) =
@@ -737,7 +737,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
 
     private suspend fun seedNovelCharactersAndSettings(manuscriptId: Long) {
         val characters = listOf(
-            com.example.model.CharacterEntity(
+            com.apollo.dionysus.bwriter.model.CharacterEntity(
                 manuscriptId = manuscriptId,
                 name = "Silas Vance",
                 role = "Protagonist",
@@ -748,7 +748,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 intertextualArchetype = "Faustian seeker of aesthetic perfection / Ahab-like devotion to typographic purity",
                 otherDetails = "Carries an 1874 brass pica rule passed down from his mentor; keeps a locked leather-bound diary of discarded font geometries."
             ),
-            com.example.model.CharacterEntity(
+            com.apollo.dionysus.bwriter.model.CharacterEntity(
                 manuscriptId = manuscriptId,
                 name = "Eleanor Rigby Vance",
                 role = "Deuteragonist",
@@ -759,7 +759,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 intertextualArchetype = "Athena archetype / Dorothea Brooke's moral earnestness with a modern modernist edge",
                 otherDetails = "Discovered an uncataloged 16th-century Aldine italic specimen leaf that forms the central mystery of the chronicle."
             ),
-            com.example.model.CharacterEntity(
+            com.apollo.dionysus.bwriter.model.CharacterEntity(
                 manuscriptId = manuscriptId,
                 name = "Marcus Sterling",
                 role = "Antagonist / Foil",
@@ -774,7 +774,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
         characterDao.insertCharacters(characters)
 
         val settings = listOf(
-            com.example.model.StorySettingEntity(
+            com.apollo.dionysus.bwriter.model.StorySettingEntity(
                 manuscriptId = manuscriptId,
                 locationName = "The St. Jude Pressroom at Dusk (Chicago, 1888)",
                 timePeriodOrEra = "Late 19th-Century Chicago (Autumn 1888)",
@@ -784,7 +784,7 @@ class BwriterRepository(private val database: BwriterDatabase) {
                 targetIntertextualTouchstones = "Theodore Dreiser's 'Sister Carrie' (industrial grit), Robert Bringhurst's 'Elements of Typographic Style' (sacred craftsmanship).",
                 otherNotes = "The heart of the story where all crucial recto-verso confrontations take place."
             ),
-            com.example.model.StorySettingEntity(
+            com.apollo.dionysus.bwriter.model.StorySettingEntity(
                 manuscriptId = manuscriptId,
                 locationName = "The Newberry Rare Manuscripts Vault",
                 timePeriodOrEra = "Chicago Winter 1889",

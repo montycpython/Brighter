@@ -1,9 +1,9 @@
-package com.example
+package com.apollo.dionysus.bwriter
 
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
-import com.example.ui.theme.BwriterTheme
+import com.apollo.dionysus.bwriter.ui.theme.BwriterTheme
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule

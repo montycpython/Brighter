@@ -1,4 +1,4 @@
-package com.example.model
+package com.apollo.dionysus.bwriter.model
 
 import org.json.JSONArray
 import org.json.JSONObject

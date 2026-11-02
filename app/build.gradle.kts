@@ -10,7 +10,7 @@ plugins {
 }
 
 android {
-  namespace = "com.supernatural"
+  namespace = "com.apollo.dionysus.bwriter"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {

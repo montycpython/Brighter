@@ -1,11 +1,11 @@
-package com.example.ai
+package com.apollo.dionysus.bwriter.ai
 
-import com.example.BuildConfig
-import com.example.model.AiGenerationResult
-import com.example.model.CharacterEntity
-import com.example.model.ManuscriptEntity
-import com.example.model.SectionEntity
-import com.example.model.StorySettingEntity
+import com.apollo.dionysus.bwriter.BuildConfig
+import com.apollo.dionysus.bwriter.model.AiGenerationResult
+import com.apollo.dionysus.bwriter.model.CharacterEntity
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.model.StorySettingEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -144,7 +144,7 @@ object GeminiProseGenerator {
             val completionTokens = Math.max(1, synthesized.length / 4)
             val totalTokens = estimatedPromptTokens + completionTokens
             return@withContext Result.success(
-                com.example.model.AiGenerationResult(
+                com.apollo.dionysus.bwriter.model.AiGenerationResult(
                     text = synthesized,
                     promptTokens = estimatedPromptTokens,
                     completionTokens = completionTokens,
@@ -191,7 +191,7 @@ object GeminiProseGenerator {
                 val synthesized = synthesizeProseFromPrompt(prompt)
                 val compTokens = Math.max(1, synthesized.length / 4)
                 return@withContext Result.success(
-                    com.example.model.AiGenerationResult(
+                    com.apollo.dionysus.bwriter.model.AiGenerationResult(
                         text = synthesized,
                         promptTokens = estimatedPromptTokens,
                         completionTokens = compTokens,
@@ -220,7 +220,7 @@ object GeminiProseGenerator {
                         val finalCompTokens = if (cTokens > 0) cTokens else Math.max(1, cleanedText.length / 4)
                         val finalTotalTokens = if (tTokens > 0) tTokens else (pTokens + finalCompTokens)
                         return@withContext Result.success(
-                            com.example.model.AiGenerationResult(
+                            com.apollo.dionysus.bwriter.model.AiGenerationResult(
                                 text = cleanedText,
                                 promptTokens = pTokens,
                                 completionTokens = finalCompTokens,
@@ -236,7 +236,7 @@ object GeminiProseGenerator {
             val fallback = synthesizeProseFromPrompt(prompt)
             val compTokens = Math.max(1, fallback.length / 4)
             Result.success(
-                com.example.model.AiGenerationResult(
+                com.apollo.dionysus.bwriter.model.AiGenerationResult(
                     text = fallback,
                     promptTokens = estimatedPromptTokens,
                     completionTokens = compTokens,
@@ -249,7 +249,7 @@ object GeminiProseGenerator {
             val fallback = synthesizeProseFromPrompt(prompt)
             val compTokens = Math.max(1, fallback.length / 4)
             Result.success(
-                com.example.model.AiGenerationResult(
+                com.apollo.dionysus.bwriter.model.AiGenerationResult(
                     text = fallback,
                     promptTokens = estimatedPromptTokens,
                     completionTokens = compTokens,

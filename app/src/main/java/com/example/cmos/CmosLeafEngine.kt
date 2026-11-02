@@ -1,13 +1,13 @@
-package com.example.cmos
+package com.apollo.dionysus.bwriter.cmos
 
-import com.example.model.BookTrimSize
-import com.example.model.CalculatedLeaf
-import com.example.model.LeafDisplayType
-import com.example.model.LeafSide
-import com.example.model.ManuscriptEntity
-import com.example.model.MatterType
-import com.example.model.SectionEntity
-import com.example.model.SectionType
+import com.apollo.dionysus.bwriter.model.BookTrimSize
+import com.apollo.dionysus.bwriter.model.CalculatedLeaf
+import com.apollo.dionysus.bwriter.model.LeafDisplayType
+import com.apollo.dionysus.bwriter.model.LeafSide
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.MatterType
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.model.SectionType
 
 object CmosLeafEngine {
 
@@ -567,7 +567,7 @@ object CmosLeafEngine {
             }
 
             val contentToPaginate = if (sec.sectionType == SectionType.ACKNOWLEDGMENTS && manuscript.acknowledgmentsJson.isNotBlank()) {
-                val credits = com.example.model.ContributorCredit.parseListFromJson(manuscript.acknowledgmentsJson)
+                val credits = com.apollo.dionysus.bwriter.model.ContributorCredit.parseListFromJson(manuscript.acknowledgmentsJson)
                 if (credits.isNotEmpty()) {
                     val dateFormat = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
                     val creditLines = credits.joinToString("\n") { c ->
@@ -711,7 +711,7 @@ object CmosLeafEngine {
     fun generateTocItems(
         sections: List<SectionEntity>,
         leaves: List<CalculatedLeaf>
-    ): List<com.example.model.TocItem> {
+    ): List<com.apollo.dionysus.bwriter.model.TocItem> {
         val pageMap = mutableMapOf<Long, String>()
         for (leaf in leaves) {
             if (leaf.isOpener && leaf.sectionId != null && !pageMap.containsKey(leaf.sectionId)) {
@@ -721,7 +721,7 @@ object CmosLeafEngine {
 
         return sections.map { sec ->
             val page = pageMap[sec.id] ?: if (sec.matterType == MatterType.FRONT_MATTER) "i" else "1"
-            com.example.model.TocItem(
+            com.apollo.dionysus.bwriter.model.TocItem(
                 title = sec.title,
                 subtitle = sec.subtitle,
                 matterType = sec.matterType,

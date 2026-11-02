@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -50,11 +50,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.cmos.CmosFormatter
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.BookGoldLight
-import com.example.ui.theme.InkNavy
+import com.apollo.dionysus.bwriter.cmos.CmosFormatter
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldLight
+import com.apollo.dionysus.bwriter.ui.theme.InkNavy
 
 data class CmosGuideRule(
     val sectionRef: String,

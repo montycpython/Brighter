@@ -1,4 +1,4 @@
-package com.example.model
+package com.apollo.dionysus.bwriter.model
 
 data class GlobalBookIndexEntry(
     val fileId: String,

@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -41,10 +41,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.cmos.CmosFormatter
-import com.example.model.WorkType
-import com.example.ui.components.WorkTypeIcon
-import com.example.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.cmos.CmosFormatter
+import com.apollo.dionysus.bwriter.model.WorkType
+import com.apollo.dionysus.bwriter.ui.components.WorkTypeIcon
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
 
 @Composable
 fun NewWorkDialog(

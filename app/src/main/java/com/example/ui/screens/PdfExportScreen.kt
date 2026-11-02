@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import android.content.Context
 import android.content.Intent
@@ -60,16 +60,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import com.example.export.CmosPdfExporter
-import com.example.model.CalculatedLeaf
-import com.example.model.ManuscriptEntity
-import com.example.model.MatterType
-import com.example.model.SectionEntity
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.BookGoldLight
-import com.example.ui.theme.ForestCloth
-import com.example.ui.theme.InkNavy
+import com.apollo.dionysus.bwriter.export.CmosPdfExporter
+import com.apollo.dionysus.bwriter.model.CalculatedLeaf
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.MatterType
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldLight
+import com.apollo.dionysus.bwriter.ui.theme.ForestCloth
+import com.apollo.dionysus.bwriter.ui.theme.InkNavy
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)

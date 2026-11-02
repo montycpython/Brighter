@@ -1,4 +1,4 @@
-package com.example.data
+package com.apollo.dionysus.bwriter.data
 
 import androidx.room.Dao
 import androidx.room.Delete
@@ -6,8 +6,8 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
-import com.example.model.ManuscriptEntity
-import com.example.model.WorkType
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.WorkType
 import kotlinx.coroutines.flow.Flow
 
 @Dao

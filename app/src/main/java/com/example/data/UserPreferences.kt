@@ -1,9 +1,9 @@
-package com.example.data
+package com.apollo.dionysus.bwriter.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.model.UserProfile
-import com.example.model.WorkRole
+import com.apollo.dionysus.bwriter.model.UserProfile
+import com.apollo.dionysus.bwriter.model.WorkRole
 
 class UserPreferences(context: Context) {
 
@@ -194,19 +194,19 @@ class UserPreferences(context: Context) {
             .apply()
     }
 
-    fun getUserSubscription(email: String): com.example.model.UserAiSubscription {
+    fun getUserSubscription(email: String): com.apollo.dionysus.bwriter.model.UserAiSubscription {
         val isEditorInChief = email.equals("real.artistry@gmail.com", ignoreCase = true)
-        val defaultPlan = if (isEditorInChief) com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.example.model.SubscriptionPlan.FREE
+        val defaultPlan = if (isEditorInChief) com.apollo.dionysus.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.apollo.dionysus.bwriter.model.SubscriptionPlan.FREE
         val defaultCredits = if (isEditorInChief) 999999 else 5
 
         val planId = prefs.getString(KEY_SUBSCRIPTION_PLAN, defaultPlan.id) ?: defaultPlan.id
-        val plan = if (isEditorInChief) com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.example.model.SubscriptionPlan.fromId(planId)
+        val plan = if (isEditorInChief) com.apollo.dionysus.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.apollo.dionysus.bwriter.model.SubscriptionPlan.fromId(planId)
         val credits = prefs.getInt(KEY_CREDITS_REMAINING, defaultCredits)
         val tokensUsed = prefs.getLong(KEY_TOTAL_TOKENS_USED, 0L)
         val generationsCount = prefs.getInt(KEY_TOTAL_GENERATIONS, 0)
         val renewalTime = prefs.getLong(KEY_RENEWAL_TIMESTAMP, System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000))
 
-        return com.example.model.UserAiSubscription(
+        return com.apollo.dionysus.bwriter.model.UserAiSubscription(
             userEmail = email,
             plan = plan,
             creditsRemaining = if (isEditorInChief) 999999 else credits,
@@ -217,7 +217,7 @@ class UserPreferences(context: Context) {
         )
     }
 
-    fun saveUserSubscription(subscription: com.example.model.UserAiSubscription) {
+    fun saveUserSubscription(subscription: com.apollo.dionysus.bwriter.model.UserAiSubscription) {
         prefs.edit()
             .putString(KEY_SUBSCRIPTION_PLAN, subscription.plan.id)
             .putInt(KEY_CREDITS_REMAINING, subscription.creditsRemaining)
@@ -236,7 +236,7 @@ class UserPreferences(context: Context) {
         completionTokens: Int,
         totalTokens: Int,
         modelUsed: String
-    ): com.example.model.UserAiSubscription {
+    ): com.apollo.dionysus.bwriter.model.UserAiSubscription {
         val current = getUserSubscription(email)
         val isEditorInChief = email.equals("real.artistry@gmail.com", ignoreCase = true)
         val newCredits = if (isEditorInChief) current.creditsRemaining else Math.max(0, current.creditsRemaining - 1)
@@ -251,7 +251,7 @@ class UserPreferences(context: Context) {
         saveUserSubscription(updated)
 
         // Record transaction
-        val tx = com.example.model.AiTokenTransaction(
+        val tx = com.apollo.dionysus.bwriter.model.AiTokenTransaction(
             transactionId = "tx_" + System.currentTimeMillis() + "_" + (100..999).random(),
             userEmail = email,
             sectionTitle = sectionTitle,
@@ -267,7 +267,7 @@ class UserPreferences(context: Context) {
         return updated
     }
 
-    private fun appendTokenTransaction(tx: com.example.model.AiTokenTransaction) {
+    private fun appendTokenTransaction(tx: com.apollo.dionysus.bwriter.model.AiTokenTransaction) {
         try {
             val raw = prefs.getString(KEY_TOKEN_TRANSACTIONS_JSON, "[]") ?: "[]"
             val array = org.json.JSONArray(raw)
@@ -296,15 +296,15 @@ class UserPreferences(context: Context) {
         }
     }
 
-    fun getTokenTransactions(): List<com.example.model.AiTokenTransaction> {
-        val list = mutableListOf<com.example.model.AiTokenTransaction>()
+    fun getTokenTransactions(): List<com.apollo.dionysus.bwriter.model.AiTokenTransaction> {
+        val list = mutableListOf<com.apollo.dionysus.bwriter.model.AiTokenTransaction>()
         try {
             val raw = prefs.getString(KEY_TOKEN_TRANSACTIONS_JSON, "[]") ?: "[]"
             val array = org.json.JSONArray(raw)
             for (i in (array.length() - 1) downTo 0) {
                 val obj = array.getJSONObject(i)
                 list.add(
-                    com.example.model.AiTokenTransaction(
+                    com.apollo.dionysus.bwriter.model.AiTokenTransaction(
                         transactionId = obj.optString("transactionId"),
                         userEmail = obj.optString("userEmail"),
                         sectionTitle = obj.optString("sectionTitle"),
@@ -324,7 +324,7 @@ class UserPreferences(context: Context) {
         return list
     }
 
-    private fun recordTelemetryInRegistry(sub: com.example.model.UserAiSubscription) {
+    private fun recordTelemetryInRegistry(sub: com.apollo.dionysus.bwriter.model.UserAiSubscription) {
         try {
             val raw = prefs.getString(KEY_ALL_SUBSCRIBERS_JSON, "[]") ?: "[]"
             val array = org.json.JSONArray(raw)
@@ -377,8 +377,8 @@ class UserPreferences(context: Context) {
         }
     }
 
-    fun getAllSubscribersTelemetry(): List<com.example.model.PaidMemberTelemetry> {
-        val list = mutableListOf<com.example.model.PaidMemberTelemetry>()
+    fun getAllSubscribersTelemetry(): List<com.apollo.dionysus.bwriter.model.PaidMemberTelemetry> {
+        val list = mutableListOf<com.apollo.dionysus.bwriter.model.PaidMemberTelemetry>()
         val currentProfile = getUserProfile()
         try {
             val raw = prefs.getString(KEY_ALL_SUBSCRIBERS_JSON, "[]") ?: "[]"
@@ -388,7 +388,7 @@ class UserPreferences(context: Context) {
                 val userEmail = obj.optString("userEmail")
                 val isCurrent = userEmail.equals(currentProfile.email, ignoreCase = true)
                 list.add(
-                    com.example.model.PaidMemberTelemetry(
+                    com.apollo.dionysus.bwriter.model.PaidMemberTelemetry(
                         userEmail = userEmail,
                         displayName = if (isCurrent) currentProfile.displayName else obj.optString("displayName", "Author"),
                         planId = obj.optString("planId"),
@@ -409,11 +409,11 @@ class UserPreferences(context: Context) {
                 val isEditor = currentProfile.email.equals("real.artistry@gmail.com", ignoreCase = true)
                 list.add(
                     0,
-                    com.example.model.PaidMemberTelemetry(
+                    com.apollo.dionysus.bwriter.model.PaidMemberTelemetry(
                         userEmail = currentProfile.email,
                         displayName = currentProfile.displayName,
-                        planId = if (isEditor) com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED.id else superuserSub.plan.id,
-                        planTitle = if (isEditor) com.example.model.SubscriptionPlan.SUPERUSER_UNLIMITED.title else superuserSub.plan.title,
+                        planId = if (isEditor) com.apollo.dionysus.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED.id else superuserSub.plan.id,
+                        planTitle = if (isEditor) com.apollo.dionysus.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED.title else superuserSub.plan.title,
                         creditsRemaining = superuserSub.creditsRemaining,
                         totalTokensUsed = superuserSub.totalTokensUsed,
                         totalGenerationsCount = superuserSub.totalGenerationsCount,

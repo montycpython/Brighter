@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -64,13 +64,13 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
-import com.example.model.GlobalBookIndexEntry
-import com.example.model.UserProfile
-import com.example.model.WorkRole
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.BookGoldLight
+import com.apollo.dionysus.bwriter.R
+import com.apollo.dionysus.bwriter.model.GlobalBookIndexEntry
+import com.apollo.dionysus.bwriter.model.UserProfile
+import com.apollo.dionysus.bwriter.model.WorkRole
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldLight
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -232,7 +232,7 @@ fun CommunityDirectoryScreen(
                 ) {
                     items(filteredBooks, key = { it.fileId }) { book ->
                         val isMyBook = book.authorEmail.equals(currentUser.email, ignoreCase = true)
-                        val isSuperuserBook = book.authorName.equals("Author", ignoreCase = true) || book.authorEmail.equals(com.example.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+                        val isSuperuserBook = book.authorName.equals("Author", ignoreCase = true) || book.authorEmail.equals(com.apollo.dionysus.bwriter.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
                         Card(
                             modifier = Modifier

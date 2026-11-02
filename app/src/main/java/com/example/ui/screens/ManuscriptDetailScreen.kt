@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -62,7 +62,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import com.example.model.BookTrimSize
+import com.apollo.dionysus.bwriter.model.BookTrimSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -72,25 +72,25 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.model.CalculatedLeaf
-import com.example.model.LeafDisplayType
-import com.example.model.LeafSide
-import com.example.model.ManuscriptEntity
-import com.example.model.MatterType
-import com.example.model.SectionEntity
-import com.example.model.SectionStatus
-import com.example.model.SectionType
-import com.example.model.UserProfile
-import com.example.ui.components.LeafBadge
-import com.example.ui.components.MatterBadge
-import com.example.ui.components.StatusBadge
-import com.example.ui.theme.BlankLeafColor
-import com.example.ui.theme.BookGold
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.BookGoldLight
-import com.example.ui.theme.CrimsonSeal
-import com.example.ui.theme.ForestCloth
-import com.example.ui.theme.InkNavy
+import com.apollo.dionysus.bwriter.model.CalculatedLeaf
+import com.apollo.dionysus.bwriter.model.LeafDisplayType
+import com.apollo.dionysus.bwriter.model.LeafSide
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.MatterType
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.model.SectionStatus
+import com.apollo.dionysus.bwriter.model.SectionType
+import com.apollo.dionysus.bwriter.model.UserProfile
+import com.apollo.dionysus.bwriter.ui.components.LeafBadge
+import com.apollo.dionysus.bwriter.ui.components.MatterBadge
+import com.apollo.dionysus.bwriter.ui.components.StatusBadge
+import com.apollo.dionysus.bwriter.ui.theme.BlankLeafColor
+import com.apollo.dionysus.bwriter.ui.theme.BookGold
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldLight
+import com.apollo.dionysus.bwriter.ui.theme.CrimsonSeal
+import com.apollo.dionysus.bwriter.ui.theme.ForestCloth
+import com.apollo.dionysus.bwriter.ui.theme.InkNavy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +99,7 @@ fun ManuscriptDetailScreen(
     sections: List<SectionEntity>,
     calculatedLeaves: List<CalculatedLeaf>,
     currentUser: UserProfile,
-    versionSnapshots: List<com.example.model.BookVersionSnapshot> = emptyList(),
+    versionSnapshots: List<com.apollo.dionysus.bwriter.model.BookVersionSnapshot> = emptyList(),
     onBack: () -> Unit,
     onOpenSection: (Long) -> Unit,
     onOpenReader: () -> Unit,
@@ -678,7 +678,7 @@ fun LeafFlowTab(
 @Composable
 fun VersionHistoryTab(
     manuscript: ManuscriptEntity,
-    snapshots: List<com.example.model.BookVersionSnapshot>,
+    snapshots: List<com.apollo.dionysus.bwriter.model.BookVersionSnapshot>,
     onSyncNow: () -> Unit
 ) {
     LazyColumn(

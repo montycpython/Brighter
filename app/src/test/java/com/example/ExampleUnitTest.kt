@@ -1,4 +1,4 @@
-package com.example
+package com.apollo.dionysus.bwriter
 
 import org.junit.Assert.*
 import org.junit.Test

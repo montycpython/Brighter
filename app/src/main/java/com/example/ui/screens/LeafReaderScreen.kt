@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.apollo.dionysus.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -60,18 +60,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.example.R
-import com.example.cmos.CmosLeafEngine
-import com.example.model.CalculatedLeaf
-import com.example.model.LeafDisplayType
-import com.example.model.LeafSide
-import com.example.model.ManuscriptEntity
-import com.example.model.MatterType
-import com.example.ui.theme.BlankLeafColor
-import com.example.ui.theme.BookGoldDark
-import com.example.ui.theme.InkBlack
-import com.example.ui.theme.ParchmentCream
-import com.example.ui.theme.ParchmentPaper
+import com.apollo.dionysus.bwriter.R
+import com.apollo.dionysus.bwriter.cmos.CmosLeafEngine
+import com.apollo.dionysus.bwriter.model.CalculatedLeaf
+import com.apollo.dionysus.bwriter.model.LeafDisplayType
+import com.apollo.dionysus.bwriter.model.LeafSide
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.MatterType
+import com.apollo.dionysus.bwriter.ui.theme.BlankLeafColor
+import com.apollo.dionysus.bwriter.ui.theme.BookGoldDark
+import com.apollo.dionysus.bwriter.ui.theme.InkBlack
+import com.apollo.dionysus.bwriter.ui.theme.ParchmentCream
+import com.apollo.dionysus.bwriter.ui.theme.ParchmentPaper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -599,7 +599,7 @@ fun ProseParagraphsView(text: String) {
         for (para in paragraphs) {
             if (para.isNotBlank()) {
                 val indent = "    " // Always indent every paragraph
-                val formatted = com.example.cmos.CmosFormatter.toAnnotatedString("$indent$para")
+                val formatted = com.apollo.dionysus.bwriter.cmos.CmosFormatter.toAnnotatedString("$indent$para")
                 Text(
                     text = formatted,
                     fontFamily = FontFamily.Serif,

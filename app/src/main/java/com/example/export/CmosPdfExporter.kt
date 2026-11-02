@@ -1,4 +1,4 @@
-package com.example.export
+package com.apollo.dionysus.bwriter.export
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -13,17 +13,17 @@ import android.net.Uri
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
-import com.example.R
-import com.example.cmos.CmosFormatter
-import com.example.cmos.CmosLeafEngine
-import com.example.model.BookTrimSize
-import com.example.model.CalculatedLeaf
-import com.example.model.LeafDisplayType
-import com.example.model.LeafSide
-import com.example.model.ManuscriptEntity
-import com.example.model.MatterType
-import com.example.model.SectionEntity
-import com.example.model.SectionType
+import com.apollo.dionysus.bwriter.R
+import com.apollo.dionysus.bwriter.cmos.CmosFormatter
+import com.apollo.dionysus.bwriter.cmos.CmosLeafEngine
+import com.apollo.dionysus.bwriter.model.BookTrimSize
+import com.apollo.dionysus.bwriter.model.CalculatedLeaf
+import com.apollo.dionysus.bwriter.model.LeafDisplayType
+import com.apollo.dionysus.bwriter.model.LeafSide
+import com.apollo.dionysus.bwriter.model.ManuscriptEntity
+import com.apollo.dionysus.bwriter.model.MatterType
+import com.apollo.dionysus.bwriter.model.SectionEntity
+import com.apollo.dionysus.bwriter.model.SectionType
 import java.io.File
 import java.io.FileOutputStream
 

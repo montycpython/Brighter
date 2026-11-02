@@ -1,4 +1,4 @@
-package com.example.auth
+package com.apollo.dionysus.bwriter.auth
 
 import android.content.Context
 import androidx.credentials.CredentialManager
