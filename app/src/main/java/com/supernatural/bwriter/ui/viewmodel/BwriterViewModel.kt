@@ -10,6 +10,7 @@ import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
 import com.supernatural.bwriter.data.GoogleDriveSyncService
 import com.supernatural.bwriter.data.FirestoreNetworkService
+import com.supernatural.bwriter.data.GoogleDriveClient
 import com.supernatural.bwriter.export.CmosPdfExporter
 import com.supernatural.bwriter.model.DriveSyncStatus
 import com.supernatural.bwriter.model.GlobalBookIndexEntry
@@ -705,6 +706,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     // ==========================================
     val googleDriveSyncService = FirestoreNetworkService(application)
 
+    private val googleDriveClient = GoogleDriveClient(application)
+
     private val _driveSyncStatus = MutableStateFlow(DriveSyncStatus())
     val driveSyncStatus: StateFlow<DriveSyncStatus> = _driveSyncStatus.asStateFlow()
 
@@ -731,9 +734,14 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun restoreManuscriptsFromGoogleDrive(onRestored: (Int) -> Unit = {}) {
+    private fun bookKey(title: String, authorEmail: String): String =
+        title.trim().lowercase() + "|" + authorEmail.trim().lowercase()
+
+    fun restoreManuscriptsFromGoogleDrive(interactive: Boolean = false, onRestored: (Int) -> Unit = {}) {
         viewModelScope.launch {
             val restored = googleDriveSyncService.restoreUserManuscriptsFromDrive(_currentUser.value.email)
+            val knownKeys = manuscripts.value.map { bookKey(it.title, it.authorEmail) }.toMutableSet()
+            var total = 0
             for (pair in restored) {
                 val manuscript = pair.first
                 val sections = pair.second
@@ -741,9 +749,28 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 for (sec in sections) {
                     repository.insertSection(sec.copy(manuscriptId = mId))
                 }
+                knownKeys.add(bookKey(manuscript.title, manuscript.authorEmail))
+                total++
             }
+
+            // The writer's own Google Drive: bring back every book saved
+            // there that this device does not already hold.
+            val tokenResult = googleDriveClient.accessToken(interactive = interactive)
+            if (tokenResult.isSuccess) {
+                val payloads = googleDriveClient.downloadAllPayloads(tokenResult.getOrThrow())
+                for (payload in payloads) {
+                    val parsed = googleDriveSyncService.parsePayloadJson(payload, _currentUser.value.email) ?: continue
+                    if (!knownKeys.add(bookKey(parsed.first.title, parsed.first.authorEmail))) continue
+                    val mId = repository.createManuscript(parsed.first, populateTemplate = false)
+                    for (sec in parsed.second) {
+                        repository.insertSection(sec.copy(manuscriptId = mId))
+                    }
+                    total++
+                }
+            }
+
             refreshDriveNetwork()
-            onRestored(restored.size)
+            onRestored(total)
         }
     }
 
@@ -830,6 +857,23 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 )
                 if (result.isSuccess) {
                     val entry = result.getOrNull()
+                    // The same whole book, saved to the writer's own Google Drive.
+                    val payload = googleDriveSyncService.buildPayloadJson(
+                        manuscript, sections, _currentUser.value, isPublicInCommunity
+                    )
+                    val driveResult = googleDriveClient.accessToken(interactive = true).fold(
+                        onSuccess = { token -> googleDriveClient.saveBook(token, manuscript.id, manuscript.title, payload) },
+                        onFailure = { e -> Result.failure(e) }
+                    )
+                    if (driveResult.isFailure) {
+                        val driveError = driveResult.exceptionOrNull()?.message ?: "Google Drive save failed"
+                        _driveSyncStatus.value = _driveSyncStatus.value.copy(
+                            isSyncing = false,
+                            syncError = driveError
+                        )
+                        onDone(Result.failure(Exception(driveError)))
+                        return@launch
+                    }
                     _driveSyncStatus.value = _driveSyncStatus.value.copy(
                         isSyncing = false,
                         lastSyncTime = entry?.lastSyncedTimestamp,

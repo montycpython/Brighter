@@ -3,7 +3,9 @@ package com.supernatural.bwriter
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +79,18 @@ class MainActivity : ComponentActivity() {
 fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val context = LocalContext.current
     val navController = rememberNavController()
+
+    // Google Drive consent: the data layer asks, this screen shows the prompt.
+    val driveConsentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        com.supernatural.bwriter.data.DriveConsentBridge.onConsentResult(result.resultCode)
+    }
+    LaunchedEffect(driveConsentLauncher) {
+        com.supernatural.bwriter.data.DriveConsentBridge.launcher = { request ->
+            driveConsentLauncher.launch(request)
+        }
+    }
 
     val currentUser by viewModel.currentUser.collectAsState()
     val manuscripts by viewModel.manuscripts.collectAsState()
@@ -255,7 +270,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     Toast.makeText(context, "Logged out of Google account", Toast.LENGTH_SHORT).show()
                 },
                 onRestoreFromDrive = {
-                    viewModel.restoreManuscriptsFromGoogleDrive { count ->
+                    viewModel.restoreManuscriptsFromGoogleDrive(interactive = true) { count ->
                         Toast.makeText(context, "Restored $count manuscripts from Google Drive!", Toast.LENGTH_LONG).show()
                     }
                 },

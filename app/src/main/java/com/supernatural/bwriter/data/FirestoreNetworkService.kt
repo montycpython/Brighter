@@ -313,6 +313,31 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    /** The full-book payload as JSON — shared shape with the Google Drive copy. */
+    fun buildPayloadJson(
+        manuscript: ManuscriptEntity,
+        sections: List<SectionEntity>,
+        currentUser: UserProfile,
+        isPublicInCommunity: Boolean
+    ): String {
+        val resolvedAuthorName = when {
+            manuscript.authorPenName.isNotBlank() -> manuscript.authorPenName.trim()
+            manuscript.authorName.isNotBlank() -> manuscript.authorName.trim()
+            else -> currentUser.displayName
+        }
+        return buildManuscriptPayload(manuscript, sections, currentUser, resolvedAuthorName, isPublicInCommunity).toString()
+    }
+
+    /** Parse a full-book payload (from the back room or from Google Drive). */
+    fun parsePayloadJson(payload: String, fallbackEmail: String): Pair<ManuscriptEntity, List<SectionEntity>>? {
+        return try {
+            parseManuscriptPayload(JSONObject(payload), fallbackEmail)
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Failed to parse payload JSON", e)
+            null
+        }
+    }
+
     suspend fun revokeManuscriptAccess(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
