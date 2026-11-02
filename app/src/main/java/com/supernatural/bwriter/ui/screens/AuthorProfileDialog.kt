@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -80,6 +81,7 @@ fun AuthorProfileDialog(
     onSaveProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit,
     onOpenSubscription: () -> Unit = {},
     onOpenUserAgreement: () -> Unit = {},
+    onOpenVersion: () -> Unit = {},
     onOpenAuthScreen: () -> Unit = {},
     onSignOut: () -> Unit = {}
 ) {
@@ -487,6 +489,23 @@ fun AuthorProfileDialog(
                         Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Switch Account", fontSize = 11.5.sp)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    TextButton(
+                        onClick = {
+                            onDismiss()
+                            onOpenVersion()
+                        },
+                        modifier = Modifier.testTag("btn_profile_open_version")
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("App Version", fontSize = 11.5.sp)
                     }
                 }
             }

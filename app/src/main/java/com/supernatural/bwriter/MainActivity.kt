@@ -32,6 +32,7 @@ import com.supernatural.bwriter.model.WorkType
 import com.supernatural.bwriter.ui.screens.AdminGodModeDashboardScreen
 import com.supernatural.bwriter.ui.screens.AuthScreen
 import com.supernatural.bwriter.ui.screens.CmosRulebookScreen
+import com.supernatural.bwriter.ui.screens.VersionScreen
 import com.supernatural.bwriter.ui.screens.CommunityDirectoryScreen
 import com.supernatural.bwriter.ui.screens.KillSwitchSuspensionScreen
 import com.supernatural.bwriter.ui.screens.LeafReaderScreen
@@ -243,6 +244,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onOpenUserAgreement = {
                     navController.navigate("user_agreement")
                 },
+                onOpenVersion = {
+                    navController.navigate("version")
+                },
                 onOpenSubscription = {
                     viewModel.openPaywall()
                 },
@@ -446,6 +450,13 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onDecline = {
                     navController.popBackStack()
                 }
+            )
+        }
+
+        // App Version page
+        composable("version") {
+            VersionScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

@@ -114,6 +114,7 @@ fun ManuscriptListScreen(
     onOpenAdminDashboard: () -> Unit = {},
     onSyncManuscript: (ManuscriptEntity) -> Unit = {},
     onOpenUserAgreement: () -> Unit = {},
+    onOpenVersion: () -> Unit = {},
     onOpenSubscription: () -> Unit = {},
     onSignOut: () -> Unit = {},
     onRestoreFromDrive: () -> Unit = {},
@@ -502,6 +503,7 @@ fun ManuscriptListScreen(
             },
             onOpenSubscription = onOpenSubscription,
             onOpenUserAgreement = onOpenUserAgreement,
+            onOpenVersion = onOpenVersion,
             onOpenAuthScreen = onOpenAuthScreen,
             onSignOut = onSignOut
         )
