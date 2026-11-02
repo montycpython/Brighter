@@ -94,3 +94,6 @@ jobs:
           name: Bwriter-Divine-APK
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      - name: Restore Upload Key
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
