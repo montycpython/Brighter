@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -20,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.supernatural.bwriter.model.ManuscriptEntity
@@ -42,6 +45,9 @@ import com.supernatural.bwriter.ui.screens.SubscriptionPaywallDialog
 import com.supernatural.bwriter.ui.screens.SyncToGoogleDriveDialog
 import com.supernatural.bwriter.ui.screens.UserAgreementScreen
 import com.supernatural.bwriter.ui.theme.BwriterTheme
+import com.google.android.gms.ads.MobileAds
+import com.supernatural.bwriter.ui.ads.AdBannerBar
+import com.supernatural.bwriter.ui.ads.AdsFreeStore
 import com.supernatural.bwriter.ui.viewmodel.BwriterViewModel
 
 class MainActivity : ComponentActivity() {
@@ -50,6 +56,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MobileAds.initialize(this) {}
         enableEdgeToEdge()
         setContent {
             BwriterTheme {
@@ -147,6 +154,15 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         return
     }
 
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val adsFreeStore = remember { AdsFreeStore(context) }
+    var adsFreeUntil by remember { mutableStateOf(adsFreeStore.adsFreeUntil()) }
+    val showBanner = System.currentTimeMillis() >= adsFreeUntil &&
+        currentRoute != "section_editor/{sectionId}"
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f)) {
     NavHost(
         navController = navController,
         startDestination = "manuscripts"
@@ -502,6 +518,14 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     Toast.makeText(context, "Logged out of Superuser account", Toast.LENGTH_SHORT).show()
                 }
             )
+        }
+        }
+        }
+        if (showBanner) {
+            AdBannerBar(onRewardEarned = {
+                adsFreeStore.grantAdsFree24Hours()
+                adsFreeUntil = adsFreeStore.adsFreeUntil()
+            })
         }
     }
 
