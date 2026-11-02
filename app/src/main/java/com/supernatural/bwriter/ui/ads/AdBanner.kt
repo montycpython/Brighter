@@ -31,7 +31,7 @@ object AdsConfig {
 
     // Rewarded ad unit ID from the AdMob console (Rewarded format).
     // While empty, the "Ad-free 24h" button stays hidden.
-    const val REWARDED_AD_UNIT_ID = ""
+    const val REWARDED_AD_UNIT_ID = "ca-app-pub-8153915858493339/3102160618"
 }
 
 class AdsFreeStore(context: Context) {
