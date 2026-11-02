@@ -10,11 +10,11 @@ plugins {
 }
 
 android {
-  namespace = "com.supernatural"
+  namespace = "com.supernatural.bwriter"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.supernatural"
+    applicationId = "com.supernatural.bwriter"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
