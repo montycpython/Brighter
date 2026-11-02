@@ -747,6 +747,44 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // Registry fileId -> local manuscript id, for books imported from the
+    // registry as reading copies on this device.
+    private val registryCopyPrefs by lazy {
+        getApplication<Application>().getSharedPreferences("bwriter_registry_copies", Context.MODE_PRIVATE)
+    }
+
+    /**
+     * Resolve a registry entry to a local manuscript this device can open.
+     * The author's own book resolves to their own local copy. Another
+     * writer's book is fetched whole from the registry on first open and
+     * shelved as a reading copy; later opens reuse that copy.
+     * onReady receives the local id, or -1 if the text could not be fetched.
+     */
+    fun openCommunityBook(entry: GlobalBookIndexEntry, onReady: (Long) -> Unit) {
+        viewModelScope.launch {
+            if (entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
+                onReady(entry.manuscriptId)
+                return@launch
+            }
+            val savedId = registryCopyPrefs.getLong(entry.fileId, -1L)
+            if (savedId > 0 && repository.getManuscriptByIdOnce(savedId) != null) {
+                onReady(savedId)
+                return@launch
+            }
+            val fetched = googleDriveSyncService.fetchRegistryBook(entry.fileId)
+            if (fetched == null) {
+                onReady(-1L)
+                return@launch
+            }
+            val mId = repository.createManuscript(fetched.first, populateTemplate = false)
+            for (sec in fetched.second) {
+                repository.insertSection(sec.copy(manuscriptId = mId))
+            }
+            registryCopyPrefs.edit().putLong(entry.fileId, mId).apply()
+            onReady(mId)
+        }
+    }
+
     fun refreshDriveNetwork() {
         viewModelScope.launch {
             checkAccountSuspension()

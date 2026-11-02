@@ -467,13 +467,25 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 currentUser = currentUser,
                 onBack = { navController.popBackStack() },
                 onRefresh = { viewModel.refreshDriveNetwork() },
-                onOpenReader = { bookId ->
-                    viewModel.selectManuscript(bookId)
-                    navController.navigate("leaf_reader/$bookId")
+                onOpenReader = { entry ->
+                    viewModel.openCommunityBook(entry) { localId ->
+                        if (localId > 0) {
+                            viewModel.selectManuscript(localId)
+                            navController.navigate("leaf_reader/$localId")
+                        } else {
+                            Toast.makeText(context, "Book unavailable", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 },
-                onOpenManuscript = { bookId ->
-                    viewModel.selectManuscript(bookId)
-                    navController.navigate("manuscript_detail/$bookId")
+                onOpenManuscript = { entry ->
+                    viewModel.openCommunityBook(entry) { localId ->
+                        if (localId > 0) {
+                            viewModel.selectManuscript(localId)
+                            navController.navigate("manuscript_detail/$localId")
+                        } else {
+                            Toast.makeText(context, "Book unavailable", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             )
         }

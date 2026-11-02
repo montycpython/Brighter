@@ -27,6 +27,7 @@ import org.json.JSONObject
  *
  * Collections:
  *  - registry/{fileId}            Global book index entries (the global sphere)
+ *  - registry/{fileId}/content/fullText   The book's complete text, readable per the rules
  *  - suspended/{email}            Suspension records written by the Editor in Chief
  *  - mail/{messageId}             In-app mail, one document per message
  *  - cloudBooks/{email_id}        A writer's own full manuscript payloads (restore source)
@@ -194,6 +195,21 @@ class FirestoreNetworkService(private val context: Context) {
             )
             db.collection(COL_REGISTRY).document(fileId).set(registryToMap(indexEntry)).await()
 
+            // 2b. The whole book, stored under its registry entry so other
+            // signed-in users can actually read it (the registry listing
+            // alone is only a title card).
+            db.collection(COL_REGISTRY).document(fileId)
+                .collection("content").document("fullText")
+                .set(
+                    mapOf(
+                        "payload" to manuscriptJson.toString(),
+                        "authorEmail" to currentUser.email,
+                        "authorEmailLower" to normEmail(currentUser.email),
+                        "isPublicInCommunity" to isPublicInCommunity,
+                        "updatedAt" to System.currentTimeMillis()
+                    )
+                ).await()
+
             // 3. Version snapshot
             val snapshot = BookVersionSnapshot(
                 manuscriptId = manuscript.id,
@@ -279,6 +295,24 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    /**
+     * Fetch a registry book's full text (manuscript + every section) so a
+     * reader who did not write it can open it.
+     */
+    suspend fun fetchRegistryBook(fileId: String): Pair<ManuscriptEntity, List<SectionEntity>>? = withContext(Dispatchers.IO) {
+        try {
+            val doc = db.collection(COL_REGISTRY).document(fileId)
+                .collection("content").document("fullText")
+                .get().await()
+            val payload = doc.getString("payload") ?: return@withContext null
+            val authorEmail = doc.getString("authorEmail") ?: ""
+            parseManuscriptPayload(JSONObject(payload), authorEmail)
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch registry book failed", e)
+            null
+        }
+    }
+
     suspend fun revokeManuscriptAccess(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
@@ -286,6 +320,7 @@ class FirestoreNetworkService(private val context: Context) {
             }
             val docRef = db.collection(COL_REGISTRY).document(fileId)
             val removed = docToRegistry(docRef.get().await().data)
+            docRef.collection("content").document("fullText").delete().await()
             docRef.delete().await()
 
             if (removed != null) {
@@ -569,7 +604,8 @@ class FirestoreNetworkService(private val context: Context) {
         "isPublicInCommunity" to e.isPublicInCommunity,
         "version" to e.version,
         "driveFileUrl" to e.driveFileUrl,
-        "sharedWithEditorInChief" to e.sharedWithEditorInChief
+        "sharedWithEditorInChief" to e.sharedWithEditorInChief,
+        "hasFullText" to true
     )
 
     private fun docToRegistry(data: Map<String, Any>?): GlobalBookIndexEntry? {

@@ -21,6 +21,18 @@ service cloud.firestore {
       allow create: if signedIn();
       allow update, delete: if isSuper()
         || (signedIn() && resource.data.authorEmail == request.auth.token.email);
+
+      // The book's full text, stored under its registry entry. Readable by
+      // any signed-in user when the book is public, and by its author and
+      // the Editor in Chief always. Only the author (or the Editor in
+      // Chief) may write it.
+      match /content/{docId} {
+        allow read: if isSuper()
+          || (signedIn() && resource.data.authorEmail == request.auth.token.email)
+          || (signedIn() && resource.data.isPublicInCommunity == true);
+        allow write: if isSuper()
+          || (signedIn() && request.resource.data.authorEmail == request.auth.token.email);
+      }
     }
 
     // Suspension records: readable by signed-in users (the app checks its own

@@ -82,8 +82,8 @@ fun CommunityDirectoryScreen(
     books: List<GlobalBookIndexEntry>,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
-    onOpenReader: (Long) -> Unit = {},
-    onOpenManuscript: (Long) -> Unit = {}
+    onOpenReader: (GlobalBookIndexEntry) -> Unit = {},
+    onOpenManuscript: (GlobalBookIndexEntry) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -237,7 +237,7 @@ fun CommunityDirectoryScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onOpenReader(book.manuscriptId) }
+                                .clickable { onOpenReader(book) }
                                 .testTag("community_book_${book.fileId}"),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
                             border = BorderStroke(1.dp, if (isMyBook) BookGoldDark else Color(0xFF2C2C38)),
@@ -329,7 +329,7 @@ fun CommunityDirectoryScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Button(
-                                        onClick = { onOpenReader(book.manuscriptId) },
+                                        onClick = { onOpenReader(book) },
                                         modifier = Modifier.weight(1f).testTag("btn_read_book_${book.fileId}"),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = BookGoldDark,
@@ -343,7 +343,7 @@ fun CommunityDirectoryScreen(
                                     }
 
                                     OutlinedButton(
-                                        onClick = { onOpenManuscript(book.manuscriptId) },
+                                        onClick = { onOpenManuscript(book) },
                                         modifier = Modifier.weight(1f).testTag("btn_collaborate_book_${book.fileId}"),
                                         colors = ButtonDefaults.outlinedButtonColors(
                                             contentColor = BookGoldLight
