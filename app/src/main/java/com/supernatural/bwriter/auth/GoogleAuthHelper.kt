@@ -20,7 +20,7 @@ data class GoogleSignInResult(
 object GoogleAuthHelper {
     suspend fun signInWithGoogle(
         context: Context,
-        serverClientId: String = "804972469813-placeholder.apps.googleusercontent.com"
+        serverClientId: String = "200758170739-868t5p0ij0tq59kko5in839206mkcrfe.apps.googleusercontent.com"
     ): Result<GoogleSignInResult> {
         val credentialManager = CredentialManager.create(context)
 
