@@ -1,0 +1,65 @@
+rules_version = '2';
+
+// Bwriter back room — Firestore security rules.
+// Identity comes from Firebase Auth (Google sign-in bridge in the app).
+// The Editor in Chief is the account real.artistry@gmail.com.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function isSuper() {
+      return signedIn() && request.auth.token.email == 'real.artistry@gmail.com';
+    }
+
+    // Global registry: any signed-in user may read and submit;
+    // only the Editor in Chief may edit or remove entries.
+    match /registry/{fileId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isSuper()
+        || (signedIn() && resource.data.authorEmail == request.auth.token.email);
+    }
+
+    // Suspension records: readable by signed-in users (the app checks its own
+    // record at sign-in); only the Editor in Chief writes.
+    match /suspended/{email} {
+      allow read: if signedIn();
+      allow write: if isSuper();
+    }
+
+    // In-app mail: a user reads mail addressed to them; the Editor in Chief
+    // reads all. Any signed-in user may send. Recipients may mark read.
+    match /mail/{messageId} {
+      allow read: if isSuper()
+        || (signedIn() && resource.data.recipientEmail == request.auth.token.email);
+      allow create: if signedIn();
+      allow update: if isSuper()
+        || (signedIn() && resource.data.recipientEmail == request.auth.token.email);
+      allow delete: if isSuper();
+    }
+
+    // A writer's own cloud book copies: only the owner (and the Editor in
+    // Chief) may read or write them. Document id is "{email}_{manuscriptId}".
+    match /cloudBooks/{docId} {
+      allow read: if isSuper()
+        || (signedIn() && resource.data.ownerEmail == request.auth.token.email);
+      allow create: if signedIn()
+        && request.resource.data.ownerEmail == request.auth.token.email;
+      allow update: if isSuper()
+        || (signedIn() && resource.data.ownerEmail == request.auth.token.email
+            && request.resource.data.ownerEmail == request.auth.token.email);
+      allow delete: if isSuper()
+        || (signedIn() && resource.data.ownerEmail == request.auth.token.email);
+    }
+
+    // Version history snapshots for a manuscript.
+    match /versionSnapshots/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isSuper();
+    }
+  }
+}

@@ -9,6 +9,7 @@ import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
 import com.supernatural.bwriter.data.GoogleDriveSyncService
+import com.supernatural.bwriter.data.FirestoreNetworkService
 import com.supernatural.bwriter.export.CmosPdfExporter
 import com.supernatural.bwriter.model.DriveSyncStatus
 import com.supernatural.bwriter.model.GlobalBookIndexEntry
@@ -702,7 +703,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     // ==========================================
     // Google Drive & Serverless Governance Ecosystem
     // ==========================================
-    val googleDriveSyncService = GoogleDriveSyncService(application)
+    val googleDriveSyncService = FirestoreNetworkService(application)
 
     private val _driveSyncStatus = MutableStateFlow(DriveSyncStatus())
     val driveSyncStatus: StateFlow<DriveSyncStatus> = _driveSyncStatus.asStateFlow()

@@ -69,6 +69,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supernatural.bwriter.auth.GoogleAuthHelper
+import com.supernatural.bwriter.auth.FirebaseAuthBridge
 import com.supernatural.bwriter.model.UserProfile
 import com.supernatural.bwriter.model.WorkRole
 import com.supernatural.bwriter.ui.components.RoleBadge
@@ -342,6 +343,7 @@ fun AuthScreen(
                                             val isSuperUser = googleUser.email.equals("real.artistry@gmail.com", ignoreCase = true) ||
                                                     googleUser.email.equals("author.studio@bwriter.io", ignoreCase = true) ||
                                                     googleUser.email.lowercase().startsWith("author.studio@")
+                                            FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
                                             onGoogleSignIn(googleUser.email, authorName, penName, selectedRole)
                                             onContinue()
                                         }.onFailure { err ->

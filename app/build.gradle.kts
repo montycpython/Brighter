@@ -101,8 +101,9 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
+  implementation(libs.firebase.auth)
+  implementation(libs.firebase.firestore)
+  implementation(libs.kotlinx.coroutines.play.services)
 
   // Google Identity / Credential Manager:
   implementation(libs.androidx.credentials)
