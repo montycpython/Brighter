@@ -64,7 +64,7 @@ import com.supernatural.bwriter.ui.theme.BookGold
 import com.supernatural.bwriter.ui.theme.BookGoldDark
 import com.supernatural.bwriter.ui.theme.BookGoldLight
 
-const val CURRENT_TERMS_VERSION = "1.0.0-PROD"
+const val CURRENT_TERMS_VERSION = "1.1.0-PROD"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,7 +162,7 @@ fun UserAgreementScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Please review and accept our End User Agreement before publishing, typesetting, or syncing manuscripts with the Bwriter decentralized studio ecosystem.",
+                            text = "Please review and accept our End User Agreement before publishing, typesetting, or syncing manuscripts with the Bwriter studio.",
                             fontSize = 12.sp,
                             color = Color(0xFFC8C2B7),
                             lineHeight = 17.sp
@@ -179,7 +179,7 @@ fun UserAgreementScreen(
                     content = """
                     • You retain 100% of the copyright, intellectual property rights, and commercial ownership of all original text, titles, character rosters, world settings, and published works created in Bwriter.
                     • Bwriter does not claim any royalty, licensing rights, or ownership stake in your manuscripts or exported PDF print files.
-                    • By choosing to sync a manuscript with the Public Community Index, you grant other verified Bwriter users permission to discover the book title, word count, and leaf metadata in the community catalog.
+                    • By choosing to sync a manuscript as Public, you publish its full text to the community registry, where other signed-in Bwriter users can read the whole book. Choosing Private keeps the book out of the community catalog.
                     """.trimIndent()
                 )
 
@@ -188,11 +188,12 @@ fun UserAgreementScreen(
                 // Section 2: Privacy, Storage & Google Drive Sync
                 AgreementSectionCard(
                     icon = Icons.Default.CloudDone,
-                    title = "2. Data Privacy & Decentralized Storage",
+                    title = "2. Data Privacy & Storage",
                     content = """
-                    • Local-First SQLite Persistence: All your drafts, editorial comments, and character notes are stored locally on your device via encrypted Room SQLite database.
-                    • Google Drive Sync & Sharing: When you trigger a Google Drive sync, your manuscript JSON is uploaded to your authorized cloud storage. An editorial auto-share hook securely connects your manuscript with the designated Editor-in-Chief account for collaborative proofreading and Chicago Manual of Style review.
-                    • Private vs Public Visibility: Selecting "Hide" ensures your manuscript is strictly restricted between you and the Editor-in-Chief, preventing community discovery.
+                    • Local-First Storage: Your drafts, editorial comments, and character notes are stored on your device in the app's local database.
+                    • Cloud Copies: When you sync a manuscript, the complete book is stored in the Bwriter back room (Google Firebase) under your account, and a copy is saved to your own Google Drive, in a folder named Bwriter. These copies are how your books are restored when you reinstall the app or change devices.
+                    • Private vs Public Visibility: A Private book is not shown in the community catalog, and its text can be read only by you and the Editor-in-Chief. A Public book's full text can be read by any signed-in Bwriter user.
+                    • Account Data: Signing in provides your name and email address, used to identify your books, your mail, and your community access.
                     """.trimIndent()
                 )
 
@@ -217,8 +218,20 @@ fun UserAgreementScreen(
                     title = "4. Community Governance & Kill-Switch Policy",
                     content = """
                     • Code of Conduct: Users participating in the community book registry and editorial mailbox must maintain civil, professional literary discourse.
-                    • Administrative Suspensions: The Editor-in-Chief reserves the right to suspend shared drive network access for accounts engaging in abusive conduct, spamming, or intellectual property infringement via the decentralized suspended_users.json governance registry.
+                    • Administrative Suspensions: The Editor-in-Chief reserves the right to suspend community access for accounts engaging in abusive conduct, spamming, or intellectual property infringement.
                     • Account Restoration: Suspended users retain access to local drafts and may appeal governance actions directly to the Editor-in-Chief.
+                    """.trimIndent()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Section 5: Advertising
+                AgreementSectionCard(
+                    icon = Icons.Default.CloudDone,
+                    title = "5. Advertising",
+                    content = """
+                    • Ads: Bwriter shows banner ads provided by Google AdMob. Google may use your device's advertising ID to serve and measure ads, as described in Google's privacy policy.
+                    • Ad-Free Choice: You may watch a full rewarded ad to remove banner ads for 24 hours. The ad-free period is stored only on your device.
                     """.trimIndent()
                 )
 
@@ -279,7 +292,7 @@ fun UserAgreementScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "I consent to the Privacy Policy, Google Drive decentralized sync architecture, and AI Assistive Prose terms.",
+                            text = "I consent to the Privacy Policy, cloud storage, and AI Assistive Prose terms.",
                             fontSize = 11.5.sp,
                             color = Color(0xFFE2DDD5),
                             lineHeight = 15.sp,
