@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -240,6 +241,8 @@ fun SectionEditorScreen(
     var newCommentText by remember { mutableStateOf("") }
     val newCommentCmosRef by remember { mutableStateOf("CMOS 17th Ed.") }
     var showStatusMenu by remember { mutableStateOf(false) }
+    var showStyleCheck by remember { mutableStateOf(false) }
+    var styleCheckFindings by remember { mutableStateOf<List<String>>(emptyList()) }
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -880,6 +883,18 @@ fun SectionEditorScreen(
                                 onSaveContent(section, polished)
                                 onSaveTitle(section, title, subtitle)
                                 coroutineScope.launch { snackbarHostState.showSnackbar("Full CMOS Polish applied!") }
+                            },
+                            onRunStyleCheck = {
+                                val findings = mutableListOf<String>()
+                                findings += CmosFormatter.checkOxfordComma(contentValue.text)
+                                contentValue.text.split(Regex("\n\s*\n")).map { it.trim() }.filter { it.isNotBlank() }.forEachIndexed { index, paragraph ->
+                                    if (CmosFormatter.isCandidateForBlockQuote(paragraph)) {
+                                        val wordCount = paragraph.split(Regex("\s+")).filter { it.isNotBlank() }.size
+                                        findings += "Paragraph ${index + 1} ($wordCount words) may be a block quote: \"${paragraph.take(60)}…\""
+                                    }
+                                }
+                                styleCheckFindings = findings
+                                showStyleCheck = true
                             },
                             onCopy = {
                                 val clip = ClipData.newPlainText("Section Text", contentValue.text)
@@ -2258,6 +2273,13 @@ ${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chie
             }
         }
 
+        if (showStyleCheck) {
+            StyleCheckDialog(
+                findings = styleCheckFindings,
+                onDismiss = { showStyleCheck = false }
+            )
+        }
+
         // ==========================================
         // DIALOGS: CHARACTER PROFILER & SETTINGS STUDIO
         // ==========================================
@@ -2429,6 +2451,7 @@ fun CompactCmosToolbar(
     onApplyBlockQuote: () -> Unit,
     onApplyHeadlineCase: () -> Unit,
     onFullPolish: () -> Unit,
+    onRunStyleCheck: () -> Unit,
     onCopy: () -> Unit,
     onPaste: () -> Unit
 ) {
@@ -2549,6 +2572,14 @@ fun CompactCmosToolbar(
                 }
             }
 
+            // Style Check
+            ToolbarChip(
+                onClick = onRunStyleCheck,
+                testTag = "btn_toolbar_check"
+            ) {
+                Text(text = "Check", fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+            }
+
             // Copy & Paste
             IconButton(
                 onClick = onCopy,
@@ -2589,4 +2620,35 @@ fun ToolbarChip(
             content()
         }
     }
+}
+
+@Composable
+fun StyleCheckDialog(
+    findings: List<String>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("CMOS Check") },
+        text = {
+            if (findings.isEmpty()) {
+                Text("No issues found.")
+            } else {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    findings.forEach { finding ->
+                        Text(
+                            text = finding,
+                            fontSize = 12.5.sp,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
