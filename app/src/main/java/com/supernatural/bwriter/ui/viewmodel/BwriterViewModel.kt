@@ -58,7 +58,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _hasAcceptedTerms = MutableStateFlow(userPreferences.hasAcceptedTerms())
     val hasAcceptedTerms: StateFlow<Boolean> = _hasAcceptedTerms.asStateFlow()
 
-    fun acceptTermsOfService(version: String = "1.0.0-PROD") {
+    fun acceptTermsOfService(version: String = com.supernatural.bwriter.ui.screens.CURRENT_TERMS_VERSION) {
         userPreferences.setAcceptedTerms(version)
         _hasAcceptedTerms.value = true
     }
