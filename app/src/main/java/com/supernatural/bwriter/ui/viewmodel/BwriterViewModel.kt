@@ -926,7 +926,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun revokeManuscriptDriveAccess(fileId: String) {
+    fun revokeRegistryAccess(fileId: String) {
         viewModelScope.launch {
             networkService.revokeManuscriptAccess(
                 adminEmail = _currentUser.value.email,

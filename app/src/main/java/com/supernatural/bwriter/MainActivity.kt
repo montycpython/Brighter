@@ -533,7 +533,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     Toast.makeText(context, "User $email unsuspended", Toast.LENGTH_SHORT).show()
                 },
                 onRevokeManuscript = { fileId ->
-                    viewModel.revokeManuscriptDriveAccess(fileId)
+                    viewModel.revokeRegistryAccess(fileId)
                     Toast.makeText(context, "Manuscript access revoked", Toast.LENGTH_SHORT).show()
                 },
                 pendingBooks = pendingBooks,
