@@ -91,7 +91,7 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    fun getSuspendedUsersFromStorage(): List<SuspendedUserEntry> = suspendedCache
+    fun getSuspendedUsers(): List<SuspendedUserEntry> = suspendedCache
 
     suspend fun suspendUser(adminEmail: String, targetEmail: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -149,7 +149,7 @@ class FirestoreNetworkService(private val context: Context) {
     // Manuscript cloud sync + global registry
     // ------------------------------------------------------------------
 
-    suspend fun syncManuscriptToDrive(
+    suspend fun syncManuscriptToBackRoom(
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>,
         currentUser: UserProfile,
@@ -274,7 +274,7 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    suspend fun restoreUserManuscriptsFromDrive(userEmail: String): List<Pair<ManuscriptEntity, List<SectionEntity>>> = withContext(Dispatchers.IO) {
+    suspend fun restoreUserManuscriptsFromBackRoom(userEmail: String): List<Pair<ManuscriptEntity, List<SectionEntity>>> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CLOUD_BOOKS)
                 .whereEqualTo("ownerEmail", normEmail(userEmail))

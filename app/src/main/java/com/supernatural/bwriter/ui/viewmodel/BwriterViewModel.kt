@@ -736,7 +736,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun restoreManuscriptsFromGoogleDrive(interactive: Boolean = false, onRestored: (Int) -> Unit = {}) {
         viewModelScope.launch {
-            val restored = networkService.restoreUserManuscriptsFromDrive(_currentUser.value.email)
+            val restored = networkService.restoreUserManuscriptsFromBackRoom(_currentUser.value.email)
             val knownKeys = manuscripts.value.map { bookKey(it.title, it.authorEmail) }.toMutableSet()
             var total = 0
             for (pair in restored) {
@@ -830,7 +830,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             // If Editor in Chief, refresh suspended users list and the
             // registry approval queue
             if (_currentUser.value.email.equals(FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
-                _suspendedUsers.value = networkService.getSuspendedUsersFromStorage()
+                _suspendedUsers.value = networkService.getSuspendedUsers()
                 _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
             }
 
@@ -847,7 +847,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 val sections = repository.getSectionsForManuscriptOnce(manuscript.id)
-                val result = networkService.syncManuscriptToDrive(
+                val result = networkService.syncManuscriptToBackRoom(
                     manuscript = manuscript,
                     sections = sections,
                     currentUser = _currentUser.value,
