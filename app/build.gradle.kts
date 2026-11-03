@@ -142,7 +142,7 @@ dependencies {
 // Name the output files for the app they are: each file is renamed right
 // after it is built — bwriter-<version>-debug.apk,
 // bwriter-<version>-release.apk, bwriter-<version>-release.aab.
-val appVersionName = android.defaultConfig.versionName ?: "1.1"
+val appVersionName = android.defaultConfig.versionName ?: "1.1.0"
 
 fun renameBuiltFile(folder: String, builtName: String, newName: String) {
   val dir = layout.buildDirectory.dir(folder).get().asFile
