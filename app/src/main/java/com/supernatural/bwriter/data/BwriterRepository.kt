@@ -96,7 +96,157 @@ class BwriterRepository(private val database: BwriterDatabase) {
         manuscriptId
     }
 
-    suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatchers.IO) {
+    private suspend fun createTemplateSectionsForWork(manuscriptId: Long, workType: WorkType, authorName: String) {
+        val sections = when (workType) {
+            WorkType.NOVEL -> listOf(
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.FRONT_MATTER,
+                    sectionType = SectionType.PREFACE,
+                    title = "Preface",
+                    orderIndex = 1,
+                    content = "A brief statement on the origin and themes of the novel.",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                ),
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.TEXT_BODY,
+                    sectionType = SectionType.CHAPTER,
+                    title = "Chapter I",
+                    subtitle = "The Journey Begins",
+                    orderIndex = 2,
+                    content = "The morning light broke through the leaded glass windows, illuminating the quiet study. Write your opening prose here with CMOS dialogue and narrative flow...",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                ),
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.BACK_MATTER,
+                    sectionType = SectionType.ABOUT_AUTHOR,
+                    title = "About the Author",
+                    orderIndex = 3,
+                    content = "$authorName is a contemporary novelist and essayist.",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                )
+            )
+            WorkType.BIOGRAPHY -> listOf(
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.FRONT_MATTER,
+                    sectionType = SectionType.PREFACE,
+                    title = "Author's Preface",
+                    orderIndex = 1,
+                    content = "Scope and methodology of the historical investigation.",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                ),
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.TEXT_BODY,
+                    sectionType = SectionType.CHAPTER,
+                    title = "Chapter I: Early Years",
+                    subtitle = "Heritage and Formative Influences",
+                    orderIndex = 2,
+                    content = "The historical subject was born into a pivotal era...",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                ),
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.BACK_MATTER,
+                    sectionType = SectionType.BIBLIOGRAPHY,
+                    title = "Selected Bibliography",
+                    orderIndex = 3,
+                    content = "Primary sources, archival documents, and contemporary periodicals.",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                )
+            )
+            WorkType.DOCUMENTARY -> listOf(
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.FRONT_MATTER,
+                    sectionType = SectionType.INTRODUCTION,
+                    title = "Documentary Introduction",
+                    orderIndex = 1,
+                    content = "Statement of investigative thesis and archival access.",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                ),
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.TEXT_BODY,
+                    sectionType = SectionType.CHAPTER,
+                    title = "Chapter I: The Field Evidence",
+                    subtitle = "First-Hand Observations and Recordings",
+                    orderIndex = 2,
+                    content = "The documentary team arrived on site during the autumn expedition...",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                ),
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.BACK_MATTER,
+                    sectionType = SectionType.APPENDIX,
+                    title = "Appendix: Transcripts and Documents",
+                    orderIndex = 3,
+                    content = "Full unedited transcripts of key witness interviews.",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                )
+            )
+            WorkType.MANUAL -> listOf(
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.FRONT_MATTER,
+                    sectionType = SectionType.PREFACE,
+                    title = "Manual Scope & Overview",
+                    orderIndex = 1,
+                    content = "System architecture, procedural conventions, and operations guide.",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                ),
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.TEXT_BODY,
+                    sectionType = SectionType.CHAPTER,
+                    title = "Chapter 1: Getting Started",
+                    subtitle = "Core Instructions & Workflows",
+                    orderIndex = 2,
+                    content = "Follow these structured procedural steps for initial deployment...",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                ),
+                SectionEntity(
+                    manuscriptId = manuscriptId,
+                    matterType = MatterType.BACK_MATTER,
+                    sectionType = SectionType.GLOSSARY,
+                    title = "Glossary & References",
+                    orderIndex = 3,
+                    content = "Definition of technical terms and cited specifications.",
+                    assignedAuthor = authorName,
+                    assignedRole = WorkRole.AUTHOR,
+                    status = SectionStatus.DRAFT
+                )
+            )
+        }
+        sectionDao.insertSections(sections)
+    }
+
+suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatchers.IO) {
         manuscriptDao.updateManuscript(manuscript.copy(updatedAt = System.currentTimeMillis()))
     }
 
