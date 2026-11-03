@@ -485,6 +485,9 @@ class FirestoreNetworkService(private val context: Context) {
             message
         }
         try {
+            if (message.recipientEmail.equals("ALL_AUTHORS", ignoreCase = true) && !StudioStanding.isEditorInChief) {
+                return@withContext Result.failure(IllegalStateException("Broadcast mail requires Editor in Chief standing."))
+            }
             if (message.recipientEmail.equals("ALL_AUTHORS", ignoreCase = true)) {
                 val snap = db.collection(COL_REGISTRY).get().await()
                 val allAuthors = snap.documents.mapNotNull { it.getString("authorEmail") }.distinct()
