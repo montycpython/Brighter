@@ -101,7 +101,7 @@ class FirestoreNetworkService(private val context: Context) {
             val entry = SuspendedUserEntry(
                 email = targetEmail.trim(),
                 reason = reason,
-                suspendedBy = adminEmail,
+                suspendedBy = "Editor in Chief",
                 isLockedOut = true
             )
             db.collection(COL_SUSPENDED).document(normEmail(targetEmail)).set(suspendedToMap(entry)).await()

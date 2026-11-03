@@ -155,7 +155,7 @@ fun KillSwitchSuspensionScreen(
                             color = Color(0xFFB0A89C)
                         )
                         Text(
-                            text = "Enforced By: ${suspension.suspendedBy}",
+                            text = "Enforced By: Editor in Chief",
                             fontSize = 11.sp,
                             color = Color(0xFFB0A89C)
                         )
@@ -180,7 +180,7 @@ fun KillSwitchSuspensionScreen(
                 Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
-                    text = "Local manuscript editing and Google Drive sync have been locked. To appeal this governance action or request reinstatement, contact the Editor in Chief.",
+                    text = "Local manuscript editing and Google Drive sync have been locked. To appeal this governance action or request reinstatement, contact the Editor in Chief at author.studio@bwriter.io.",
                     fontSize = 11.5.sp,
                     color = Color(0xFFB0A89C),
                     textAlign = TextAlign.Center,

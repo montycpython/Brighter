@@ -19,7 +19,7 @@ data class SuspendedUserEntry(
     val email: String,
     val suspendedAt: Long = System.currentTimeMillis(),
     val reason: String = "Administrative suspension by Editor in Chief.",
-    val suspendedBy: String = "real.artistry@gmail.com",
+    val suspendedBy: String = "",
     val isLockedOut: Boolean = true
 )
 
