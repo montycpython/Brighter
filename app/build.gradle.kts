@@ -1,4 +1,3 @@
-import com.android.build.api.variant.VariantOutput
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
 plugins {
@@ -140,14 +139,12 @@ dependencies {
   "ksp"(libs.moshi.kotlin.codegen)
 }
 
-// Name the built APKs for the app they are: bwriter-<version>-<build type>.apk
+// Name the built APK for the app it is: bwriter-<version>-<build type>.apk
 androidComponents {
   onVariants { variant ->
-    variant.outputs
-      .filter { it.outputType == VariantOutput.OutputType.APK }
-      .forEach { output ->
-        val vName = output.versionName.orNull ?: "1.1"
-        output.outputFileName.set("bwriter-$vName-${variant.buildType}.apk")
-      }
+    variant.outputs.forEach { output ->
+      val vName = output.versionName.orNull ?: "1.1"
+      output.outputFileName.set("bwriter-$vName-${variant.buildType}.apk")
+    }
   }
 }
