@@ -828,7 +828,7 @@ fun VersionHistoryTab(
                         if (snapshot.driveFileId.isNotBlank()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Drive File: ${snapshot.driveFileId}",
+                                text = "Registry File: ${snapshot.driveFileId}",
                                 fontSize = 10.sp,
                                 color = BookGoldDark,
                                 fontFamily = FontFamily.Monospace
