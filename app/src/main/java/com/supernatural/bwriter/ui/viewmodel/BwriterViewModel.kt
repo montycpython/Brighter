@@ -881,17 +881,16 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     stamp = stamp
                 )
                 if (result.isSuccess) {
-                    repository.updateManuscript(
-                        stamped.copy(
-                            stampHash = newStampHash,
-                            prevStampHash = prevStampHash,
-                            stampSignature = signature
-                        )
+                    val fullyStamped = stamped.copy(
+                        stampHash = newStampHash,
+                        prevStampHash = prevStampHash,
+                        stampSignature = signature
                     )
+                    repository.updateManuscript(fullyStamped)
                     val entry = result.getOrNull()
                     // The same whole book, saved to the writer's own Google Drive.
                     val payload = networkService.buildPayloadJson(
-                        stamped, sections, _currentUser.value, isPublicInCommunity
+                        fullyStamped, sections, _currentUser.value, isPublicInCommunity
                     )
                     val driveResult = googleDriveClient.accessToken(interactive = true).fold(
                         onSuccess = { token -> googleDriveClient.saveBook(token, manuscript.id, manuscript.title, payload) },

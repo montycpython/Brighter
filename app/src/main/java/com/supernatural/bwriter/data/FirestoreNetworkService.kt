@@ -653,6 +653,9 @@ class FirestoreNetworkService(private val context: Context) {
             put("authorAddress", manuscript.authorAddress)
             put("authorPubKey", AuthorKeys.publicKeyHex(context))
             put("birthId", manuscript.birthId)
+            put("stampHash", manuscript.stampHash)
+            put("prevStampHash", manuscript.prevStampHash)
+            put("stampSignature", manuscript.stampSignature)
             put("isPublicInCommunity", isPublicInCommunity)
 
             val sectionsArray = JSONArray()
