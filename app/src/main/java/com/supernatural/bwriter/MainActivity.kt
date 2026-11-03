@@ -545,7 +545,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 },
                 onSendServerlessMail = { mail ->
                     viewModel.sendServerlessMailDirective(mail)
-                    Toast.makeText(context, "Directive dispatched to ${mail.recipientEmail}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Sending mail to ${mail.recipientEmail}", Toast.LENGTH_SHORT).show()
                 },
                 onUpdateProfile = { name, penName, email, role, org, cmos ->
                     viewModel.updateProfile(name, penName, email, role, org, cmos)
