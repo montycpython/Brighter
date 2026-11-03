@@ -11,7 +11,9 @@ class UserPreferences(context: Context) {
 
     fun getUserProfile(): UserProfile {
         val id = prefs.getString(KEY_ID, "user_google_1") ?: "user_google_1"
-        val email = prefs.getString(KEY_EMAIL, "real.artistry@gmail.com") ?: "real.artistry@gmail.com"
+        // No address is built in. An install that has not signed in has
+        // no identity at all; standing appears only after sign-in.
+        val email = prefs.getString(KEY_EMAIL, "") ?: ""
         val name = prefs.getString(KEY_NAME, "Author") ?: "Author"
         val penName = prefs.getString(KEY_PEN_NAME, "") ?: ""
         val roleStr = prefs.getString(KEY_ROLE, WorkRole.AUTHOR.name) ?: WorkRole.AUTHOR.name

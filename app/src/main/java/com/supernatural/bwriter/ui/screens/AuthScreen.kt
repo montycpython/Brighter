@@ -83,9 +83,12 @@ fun AuthScreen(
     var selectedEmail by remember { mutableStateOf(currentUser.email) }
     var authorName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
-    // Standing is derived from the address: the Editor in Chief is
-    // recognized by his email; everyone else enters as an author.
-    val selectedRole = if (GoogleDriveSyncService.isSuperuserEmail(selectedEmail)) WorkRole.EDITOR else WorkRole.AUTHOR
+    // Standing shows only for an account chosen in THIS session. The
+    // screen opens with no standing: nobody is Editor in Chief here
+    // until they actually sign in.
+    var sessionEmail by remember { mutableStateOf<String?>(null) }
+    val sessionIsEditorInChief = GoogleDriveSyncService.isSuperuserEmail(sessionEmail ?: "")
+    val selectedRole = if (sessionIsEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
     var isAuthenticatingGoogle by remember { mutableStateOf(false) }
     var googleAuthError by remember { mutableStateOf<String?>(null) }
 
@@ -192,6 +195,7 @@ fun AuthScreen(
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     selectedEmail = account.email
+                                    sessionEmail = account.email
                                     authorName = account.name
                                     penName = account.penName
                                 }
@@ -227,35 +231,6 @@ fun AuthScreen(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp
                                         )
-                                        if (isEditorInChief) {
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = BookGoldDark
-                                            ) {
-                                                Text(
-                                                    text = "SUPERUSER GOVERNANCE",
-                                                    fontSize = 8.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        } else if (isAuthorStudioSuperuser) {
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = BookGoldDark.copy(alpha = 0.85f)
-                                            ) {
-                                                Text(
-                                                    text = "SUPERUSER ACTIVE PERSONA",
-                                                    fontSize = 8.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
                                     }
                                     Text(
                                         text = account.email,
@@ -310,6 +285,7 @@ fun AuthScreen(
                                         authorName = googleUser.displayName
                                     }
                                     selectedEmail = googleUser.email
+                                    sessionEmail = googleUser.email
                                     FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
                                     val standingRole = if (GoogleDriveSyncService.isSuperuserEmail(googleUser.email)) WorkRole.EDITOR else WorkRole.AUTHOR
                                     onGoogleSignIn(googleUser.email, authorName, penName, standingRole)
@@ -374,7 +350,7 @@ fun AuthScreen(
                             color = BookGoldLight,
                             letterSpacing = 1.sp
                         )
-                        RoleBadge(role = selectedRole, isEditorInChief = GoogleDriveSyncService.isSuperuserEmail(selectedEmail))
+                        RoleBadge(role = selectedRole, isEditorInChief = sessionIsEditorInChief)
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
