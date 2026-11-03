@@ -265,7 +265,7 @@ fun ManuscriptListScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
-                            RoleBadge(role = currentUser.role)
+                            RoleBadge(role = currentUser.role, isEditorInChief = isEditorInChief)
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = currentUser.displayName,

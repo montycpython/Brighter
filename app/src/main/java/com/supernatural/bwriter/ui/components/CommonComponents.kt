@@ -159,10 +159,10 @@ fun WorkTypeIcon(workType: WorkType, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun RoleBadge(role: WorkRole, modifier: Modifier = Modifier) {
+fun RoleBadge(role: WorkRole, modifier: Modifier = Modifier, isEditorInChief: Boolean = false) {
     val (color, label) = when (role) {
         WorkRole.AUTHOR -> Pair(BookGoldDark, "Author")
-        WorkRole.EDITOR -> Pair(CrimsonSeal, "Editor")
+        WorkRole.EDITOR -> Pair(CrimsonSeal, if (isEditorInChief) "Editor-in-Chief" else "Editor")
         WorkRole.CONTRIBUTOR -> Pair(ForestCloth, "Contributor")
     }
     Surface(

@@ -4,21 +4,25 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.supernatural.bwriter.ui.theme.BookGoldDark
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
@@ -72,17 +76,15 @@ fun AdBannerBar(onRewardEarned: () -> Unit) {
     val activity = context as? Activity
     var isLoadingRewarded by remember { mutableStateOf(false) }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
-        verticalAlignment = Alignment.CenterVertically
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Box(modifier = Modifier.weight(1f)) {
-            BannerAd()
-        }
+        // The ad-free button sits above the banner as a full-width button,
+        // where it can actually be reached and tapped.
         if (AdsConfig.REWARDED_AD_UNIT_ID.isNotEmpty()) {
-            TextButton(
+            Button(
                 enabled = activity != null && !isLoadingRewarded,
                 onClick = {
                     if (activity != null) {
@@ -92,11 +94,20 @@ fun AdBannerBar(onRewardEarned: () -> Unit) {
                             if (earned) onRewardEarned()
                         }
                     }
-                }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("Ad-free 24h")
+                Text(
+                    text = if (isLoadingRewarded) "Loading ad..." else "Ad-free 24h",
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
+        BannerAd()
     }
 }
 

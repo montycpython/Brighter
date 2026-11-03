@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supernatural.bwriter.auth.GoogleAuthHelper
 import com.supernatural.bwriter.auth.FirebaseAuthBridge
+import com.supernatural.bwriter.data.GoogleDriveSyncService
 import com.supernatural.bwriter.model.UserProfile
 import com.supernatural.bwriter.model.WorkRole
 import com.supernatural.bwriter.ui.components.RoleBadge
@@ -82,7 +83,9 @@ fun AuthScreen(
     var selectedEmail by remember { mutableStateOf(currentUser.email) }
     var authorName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
-    var selectedRole by remember { mutableStateOf(currentUser.role) }
+    // Standing is derived from the address: the Editor in Chief is
+    // recognized by his email; everyone else enters as an author.
+    val selectedRole = if (GoogleDriveSyncService.isSuperuserEmail(selectedEmail)) WorkRole.EDITOR else WorkRole.AUTHOR
     var isAuthenticatingGoogle by remember { mutableStateOf(false) }
     var googleAuthError by remember { mutableStateOf<String?>(null) }
 
@@ -191,7 +194,6 @@ fun AuthScreen(
                                     selectedEmail = account.email
                                     authorName = account.name
                                     penName = account.penName
-                                    selectedRole = account.role
                                 }
                                 .testTag("account_item_${account.email}")
                         ) {
@@ -309,7 +311,8 @@ fun AuthScreen(
                                     }
                                     selectedEmail = googleUser.email
                                     FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
-                                    onGoogleSignIn(googleUser.email, authorName, penName, selectedRole)
+                                    val standingRole = if (GoogleDriveSyncService.isSuperuserEmail(googleUser.email)) WorkRole.EDITOR else WorkRole.AUTHOR
+                                    onGoogleSignIn(googleUser.email, authorName, penName, standingRole)
                                     onContinue()
                                 }.onFailure { err ->
                                     if (err !is androidx.credentials.exceptions.GetCredentialCancellationException) {
@@ -371,7 +374,7 @@ fun AuthScreen(
                             color = BookGoldLight,
                             letterSpacing = 1.sp
                         )
-                        RoleBadge(role = selectedRole)
+                        RoleBadge(role = selectedRole, isEditorInChief = GoogleDriveSyncService.isSuperuserEmail(selectedEmail))
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -481,89 +484,6 @@ fun AuthScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Role Selection (Author, Editor, Contributor)
-            Text(
-                text = "Select Workspace Role",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text(
-                text = "Chicago Manual of Style permissions and workflows adjust according to your active role.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Role Cards
-            WorkRole.values().forEach { role ->
-                val isSelected = selectedRole == role
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            selectedRole = role
-                            onRoleSelected(role)
-                        }
-                        .testTag("role_option_${role.name}"),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        } else {
-                            MaterialTheme.colorScheme.surface
-                        }
-                    ),
-                    border = BorderStroke(
-                        width = if (isSelected) 2.dp else 1.dp,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val icon = when (role) {
-                            WorkRole.AUTHOR -> Icons.Default.Edit
-                            WorkRole.EDITOR -> Icons.Default.RateReview
-                            WorkRole.CONTRIBUTOR -> Icons.Default.Person
-                        }
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = role.title,
-                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(26.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = role.badgeLabel,
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleSmall
-                            )
-                            Text(
-                                text = role.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Selected",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.height(24.dp))
 

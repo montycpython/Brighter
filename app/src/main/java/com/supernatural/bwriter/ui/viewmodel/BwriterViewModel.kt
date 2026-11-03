@@ -74,7 +74,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateRole(newRole: WorkRole) {
-        val updated = _currentUser.value.copy(role = newRole)
+        // Standing is derived from the address, never self-assigned.
+        val updated = _currentUser.value.copy(role = standingRoleFor(_currentUser.value.email))
         _currentUser.value = updated
         userPreferences.saveUserProfile(updated)
         userPreferences.addOrUpdateSavedAccount(updated)
@@ -94,7 +95,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             name = if (name.isNotBlank()) name.trim() else "Author",
             penName = penName.trim(),
             email = if (email.isNotBlank()) email.trim() else _currentUser.value.email,
-            role = role,
+            role = standingRoleFor(if (email.isNotBlank()) email.trim() else _currentUser.value.email),
             organization = if (organization.isNotBlank()) organization.trim() else "Author Studio",
             preferredCmosEdition = preferredCmosEdition
         )
@@ -118,8 +119,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val effectiveName = if (name.isNotBlank()) name.trim() else (if (effectiveEmail.contains("@")) effectiveEmail.substringBefore("@").replace(".", " ").capitalizeWords() else "Author")
         val effectivePenName = penName.trim()
 
-        val isEditorInChief = effectiveEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
-        val effectiveRole = if (isEditorInChief && role == WorkRole.AUTHOR) WorkRole.EDITOR else role
+        val isEditorInChief = GoogleDriveSyncService.isSuperuserEmail(effectiveEmail)
+        val effectiveRole = standingRoleFor(effectiveEmail)
 
         val updated = UserProfile(
             id = "google_user_${effectiveEmail.replace("[^a-zA-Z0-9]".toRegex(), "_")}",
@@ -142,14 +143,21 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         refreshDriveNetwork()
     }
 
+    /** Standing comes from the address alone: the Editor in Chief is an
+     * editor; everyone else is an author until invited to edit a book. */
+    private fun standingRoleFor(email: String): WorkRole {
+        return if (GoogleDriveSyncService.isSuperuserEmail(email)) WorkRole.EDITOR else WorkRole.AUTHOR
+    }
+
     fun switchGoogleAccount(account: UserProfile) {
-        _currentUser.value = account
-        userPreferences.saveUserProfile(account)
-        userPreferences.addOrUpdateSavedAccount(account)
+        val corrected = account.copy(role = standingRoleFor(account.email))
+        _currentUser.value = corrected
+        userPreferences.saveUserProfile(corrected)
+        userPreferences.addOrUpdateSavedAccount(corrected)
         userPreferences.setLoggedIn(true)
         _isLoggedIn.value = true
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
-        _userAiSubscription.value = userPreferences.getUserSubscription(account.email)
+        _userAiSubscription.value = userPreferences.getUserSubscription(corrected.email)
         _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         restoreManuscriptsFromGoogleDrive()
         refreshDriveNetwork()
