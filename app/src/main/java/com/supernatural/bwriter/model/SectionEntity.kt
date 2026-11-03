@@ -29,7 +29,7 @@ data class SectionEntity(
     val content: String = "",
     val aiDraftPrompt: String = "",
     val contributorNotes: String = "",
-    val assignedAuthor: String = "Author",
+    val assignedAuthor: String = "",
     val assignedRole: WorkRole = WorkRole.AUTHOR,
     val status: SectionStatus = SectionStatus.DRAFT,
     val startOnRecto: Boolean = true,

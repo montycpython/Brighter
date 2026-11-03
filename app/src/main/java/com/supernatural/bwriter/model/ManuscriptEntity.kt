@@ -17,7 +17,7 @@ data class ManuscriptEntity(
     val publisher: String = "Bwriter Editions",
     val edition: String = "First Edition",
     val year: String = "2026",
-    val isbn: String = "978-0-226-10403-4",
+    val isbn: String = "",
     val copyrightText: String = "",
     val dedication: String = "",
     val epigraphText: String = "",
@@ -36,7 +36,7 @@ data class ManuscriptEntity(
             return when {
                 authorPenName.isNotBlank() -> authorPenName.trim()
                 authorName.isNotBlank() -> authorName.trim()
-                else -> "Author"
+                else -> authorEmail
             }
         }
 
@@ -51,7 +51,7 @@ data class ManuscriptEntity(
      */
     val effectiveCopyrightText: String
         get() {
-            if (copyrightText.isNotBlank() && !copyrightText.contains("Arthur Vance")) {
+            if (copyrightText.isNotBlank()) {
                 return copyrightText
             }
             val byline = effectiveAuthorByline
