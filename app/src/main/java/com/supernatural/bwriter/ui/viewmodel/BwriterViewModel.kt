@@ -305,7 +305,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun loadVersionHistory(manuscriptId: Long) {
         viewModelScope.launch {
-            _versionHistory.value = networkService.getVersionHistory(manuscriptId)
+            _versionHistory.value = networkService.getVersionHistory(manuscriptId, _currentUser.value.email)
         }
     }
 

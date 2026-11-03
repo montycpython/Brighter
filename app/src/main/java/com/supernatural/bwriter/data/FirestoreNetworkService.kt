@@ -535,11 +535,13 @@ class FirestoreNetworkService(private val context: Context) {
     // Version history
     // ------------------------------------------------------------------
 
-    suspend fun getVersionHistory(manuscriptId: Long): List<BookVersionSnapshot> = withContext(Dispatchers.IO) {
+    suspend fun getVersionHistory(manuscriptId: Long, requesterEmail: String): List<BookVersionSnapshot> = withContext(Dispatchers.IO) {
         try {
-            val snap = db.collection(COL_VERSIONS)
+            val base = db.collection(COL_VERSIONS)
                 .whereEqualTo("manuscriptId", manuscriptId)
-                .get().await()
+            val query = if (isSuperuserEmail(requesterEmail)) base
+                else base.whereEqualTo("authorEmail", requesterEmail)
+            val snap = query.get().await()
             snap.documents.mapNotNull { docToSnapshot(it.data) }.sortedByDescending { it.timestamp }
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Version history failed", e)

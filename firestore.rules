@@ -99,10 +99,13 @@ service cloud.firestore {
         || (signedIn() && resource.data.ownerEmail == request.auth.token.email);
     }
 
-    // Version history snapshots for a manuscript.
+    // Version history snapshots for a manuscript: only the author (and
+    // the Editor in Chief) may read them; an author creates only their own.
     match /versionSnapshots/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn();
+      allow read: if isSuper()
+        || (signedIn() && resource.data.authorEmail == request.auth.token.email);
+      allow create: if signedIn()
+        && request.resource.data.authorEmail == request.auth.token.email;
       allow update, delete: if isSuper();
     }
   }
