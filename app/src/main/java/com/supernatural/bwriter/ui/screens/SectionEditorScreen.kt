@@ -176,7 +176,7 @@ fun SectionEditorScreen(
     val clipboardManager = remember { context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager }
 
     val isAuthorOfBook = manuscript?.authorEmail.equals(currentUser.email, ignoreCase = true) ||
-                         currentUser.email.equals(com.supernatural.bwriter.data.FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+                         com.supernatural.bwriter.data.StudioStanding.isEditorInChief
 
     val isNonAuthorMode = !isAuthorOfBook
     val isAuthorRoleBlocked = isNonAuthorMode && currentUser.role == WorkRole.AUTHOR
@@ -1459,7 +1459,7 @@ ${contributorNotes.ifBlank { "Please draft or review this section adhering stric
 
 Cordially,
 ${currentUser.displayName}
-${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chief • Bwriter Editions" else "Lead Author • Bwriter Editions"}
+${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-Chief • Bwriter Editions" else "Lead Author • Bwriter Editions"}
                         """.trimIndent()
 
                         Row(
@@ -2109,7 +2109,7 @@ ${if (currentUser.email.equals("real.artistry@gmail.com", true)) "Editor-in-Chie
                         // F. SUBSCRIPTION WALLET & CREDITS
                         // ==========================================
                         if (subscription != null) {
-                            val isSuper = currentUser.email.equals("real.artistry@gmail.com", ignoreCase = true) || subscription.plan == com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED
+                            val isSuper = com.supernatural.bwriter.data.StudioStanding.isEditorInChief || subscription.plan == com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()

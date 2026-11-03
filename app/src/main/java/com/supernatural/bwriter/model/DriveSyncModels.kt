@@ -13,6 +13,7 @@ data class GlobalBookIndexEntry(
     val lastSyncedTimestamp: Long = System.currentTimeMillis(),
     val isPublicInCommunity: Boolean = true, // If false, hidden to all except author and Editor in Chief
     val version: String = "1.0",
+    val editorInChief: Boolean = false,
 )
 
 data class SuspendedUserEntry(

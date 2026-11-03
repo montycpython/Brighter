@@ -175,7 +175,7 @@ class UserPreferences(context: Context) {
     }
 
     fun getUserSubscription(email: String): com.supernatural.bwriter.model.UserAiSubscription {
-        val isEditorInChief = email.equals("real.artistry@gmail.com", ignoreCase = true)
+        val isEditorInChief = StudioStanding.isEditorInChief
         val defaultPlan = if (isEditorInChief) com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.supernatural.bwriter.model.SubscriptionPlan.FREE
         val defaultCredits = if (isEditorInChief) 999999 else 5
 
@@ -217,7 +217,7 @@ class UserPreferences(context: Context) {
         modelUsed: String
     ): com.supernatural.bwriter.model.UserAiSubscription {
         val current = getUserSubscription(email)
-        val isEditorInChief = email.equals("real.artistry@gmail.com", ignoreCase = true)
+        val isEditorInChief = StudioStanding.isEditorInChief
         val newCredits = if (isEditorInChief) current.creditsRemaining else Math.max(0, current.creditsRemaining - 1)
         val newTokensUsed = current.totalTokensUsed + totalTokens
         val newGenerations = current.totalGenerationsCount + 1

@@ -121,7 +121,7 @@ fun ManuscriptListScreen(
 ) {
     var showProfileDialog by remember { mutableStateOf(false) }
     var manuscriptToDelete by remember { mutableStateOf<ManuscriptEntity?>(null) }
-    val isEditorInChief = currentUser.email.equals(com.supernatural.bwriter.data.FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+    val isEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
 
     Scaffold(
         topBar = {

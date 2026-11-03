@@ -86,7 +86,7 @@ fun AuthScreen(
     // screen opens with no standing: nobody is Editor in Chief here
     // until they actually sign in.
     var sessionEmail by remember { mutableStateOf<String?>(null) }
-    val sessionIsEditorInChief = FirestoreNetworkService.isSuperuserEmail(sessionEmail ?: "")
+    val sessionIsEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
     val selectedRole = if (sessionIsEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
     var isAuthenticatingGoogle by remember { mutableStateOf(false) }
     var googleAuthError by remember { mutableStateOf<String?>(null) }
@@ -179,8 +179,6 @@ fun AuthScreen(
                     }
                     displayAccounts.forEach { account ->
                         val isSelected = selectedEmail.equals(account.email, ignoreCase = true)
-                        val isEditorInChief = account.email.equals("real.artistry@gmail.com", ignoreCase = true)
-                        val isAuthorStudioSuperuser = account.email.equals("author.studio@bwriter.io", ignoreCase = true) || account.email.lowercase().startsWith("author.studio@")
 
                         Surface(
                             shape = RoundedCornerShape(10.dp),
@@ -210,14 +208,14 @@ fun AuthScreen(
                                     modifier = Modifier
                                         .size(40.dp)
                                         .clip(CircleShape)
-                                        .background(if (isEditorInChief || isAuthorStudioSuperuser) BookGoldDark else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = (account.displayName.take(1).ifBlank { account.email.take(1) }).uppercase(),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 18.sp,
-                                        color = if (isEditorInChief || isAuthorStudioSuperuser) Color.White else MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 }
 
@@ -250,7 +248,7 @@ fun AuthScreen(
                                         tint = BookGold,
                                         modifier = Modifier.size(22.dp)
                                     )
-                                } else if (!isEditorInChief && !isAuthorStudioSuperuser && displayAccounts.size > 1) {
+                                } else if (displayAccounts.size > 1) {
                                     IconButton(
                                         onClick = { onRemoveSavedAccount(account.email) },
                                         modifier = Modifier.size(24.dp)
@@ -286,7 +284,7 @@ fun AuthScreen(
                                     selectedEmail = googleUser.email
                                     sessionEmail = googleUser.email
                                     FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
-                                    val standingRole = if (FirestoreNetworkService.isSuperuserEmail(googleUser.email)) WorkRole.EDITOR else WorkRole.AUTHOR
+                                    val standingRole = WorkRole.AUTHOR
                                     onGoogleSignIn(googleUser.email, authorName, penName, standingRole)
                                     onContinue()
                                 }.onFailure { err ->

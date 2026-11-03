@@ -1025,7 +1025,7 @@ fun MailboxDispatcherTab(
                     onSendMessage(
                         ServerlessMailMessage(
                             recipientEmail = selectedRecipient,
-                            senderEmail = FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL,
+                            senderEmail = FirestoreNetworkService.DEFAULT_STUDIO_AUTHOR_EMAIL,
                             senderName = "Editor in Chief",
                             subject = subject.trim(),
                             body = body.trim(),

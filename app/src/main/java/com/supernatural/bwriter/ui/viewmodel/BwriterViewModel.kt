@@ -106,8 +106,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val effectiveName = if (name.isNotBlank()) name.trim() else (if (effectiveEmail.contains("@")) effectiveEmail.substringBefore("@").replace(".", " ").capitalizeWords() else "Author")
         val effectivePenName = penName.trim()
 
-        val isEditorInChief = FirestoreNetworkService.isSuperuserEmail(effectiveEmail)
-        val effectiveRole = standingRoleFor(effectiveEmail)
+        val isEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
+        val effectiveRole = standingRoleFor()
 
         val updated = UserProfile(
             id = "google_user_${effectiveEmail.replace("[^a-zA-Z0-9]".toRegex(), "_")}",
@@ -129,14 +129,15 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         refreshNetwork()
     }
 
-    /** Standing comes from the address alone: the Editor in Chief is an
-     * editor; everyone else is an author until invited to edit a book. */
-    private fun standingRoleFor(email: String): WorkRole {
-        return if (FirestoreNetworkService.isSuperuserEmail(email)) WorkRole.EDITOR else WorkRole.AUTHOR
+    /** Standing is proven against the back room: the Editor in Chief is
+     * an editor; everyone else is an author until invited to edit a book. */
+    private fun standingRoleFor(): WorkRole {
+        return if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
     }
 
     fun switchGoogleAccount(account: UserProfile) {
-        val corrected = account.copy(role = standingRoleFor(account.email))
+        com.supernatural.bwriter.data.StudioStanding.isEditorInChief = false
+        val corrected = account.copy(role = standingRoleFor())
         _currentUser.value = corrected
         userPreferences.saveUserProfile(corrected)
         userPreferences.addOrUpdateSavedAccount(corrected)
@@ -149,6 +150,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun signOutGoogleAccount() {
+        com.supernatural.bwriter.data.StudioStanding.isEditorInChief = false
         userPreferences.signOut()
         _isLoggedIn.value = false
     }
@@ -177,7 +179,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _selectedWorkTypeFilter,
         _currentUser
     ) { list, filter, user ->
-        val isEditorInChief = user.email.equals(FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+        val isEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
         val userBooks = if (isEditorInChief) {
             list
         } else {
@@ -369,7 +371,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         onRequiresUpgrade: () -> Unit = { openPaywall() }
     ) {
         val currentSub = _userAiSubscription.value
-        val isEditorInChief = _currentUser.value.email.equals(FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+        val isEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
 
         if (!isEditorInChief && currentSub.creditsRemaining <= 0) {
             onRequiresUpgrade()
@@ -585,7 +587,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val editorPenName = if (_currentUser.value.penName.isNotBlank()) _currentUser.value.penName else _currentUser.value.name
                 networkService.sendServerlessMail(
                     ServerlessMailMessage(
-                        recipientEmail = manuscript.authorEmail.ifBlank { FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL },
+                        recipientEmail = manuscript.authorEmail.ifBlank { FirestoreNetworkService.DEFAULT_STUDIO_AUTHOR_EMAIL },
                         senderEmail = _currentUser.value.email,
                         senderName = editorPenName,
                         subject = "Revision Proposed for '${section.title}'",
@@ -800,6 +802,21 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun refreshNetwork() {
         viewModelScope.launch {
+            com.supernatural.bwriter.data.StudioStanding.isEditorInChief = networkService.verifyEditorInChief()
+            val provenStanding = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
+            val userNow = _currentUser.value
+            if (provenStanding && userNow.role != WorkRole.EDITOR) {
+                val corrected = userNow.copy(role = WorkRole.EDITOR, organization = "Bwriter Editorial Board")
+                _currentUser.value = corrected
+                userPreferences.saveUserProfile(corrected)
+                _userAiSubscription.value = userPreferences.getUserSubscription(corrected.email)
+            } else if (!provenStanding && userNow.role == WorkRole.EDITOR && userNow.email.isNotBlank()) {
+                val corrected = userNow.copy(role = WorkRole.AUTHOR)
+                _currentUser.value = corrected
+                userPreferences.saveUserProfile(corrected)
+                _userAiSubscription.value = userPreferences.getUserSubscription(corrected.email)
+            }
+
             checkAccountSuspension()
 
             // Fetch index
@@ -818,7 +835,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
             // If Editor in Chief, refresh suspended users list and the
             // registry approval queue
-            if (_currentUser.value.email.equals(FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) {
                 _suspendedUsers.value = networkService.getSuspendedUsers()
                 _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
             }

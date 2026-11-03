@@ -2,7 +2,7 @@ rules_version = '2';
 
 // Bwriter back room — Firestore security rules.
 // Identity comes from Firebase Auth (Google sign-in bridge in the app).
-// The Editor in Chief is the account real.artistry@gmail.com.
+// The Editor in Chief is identified by the owner account.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -22,7 +22,8 @@ service cloud.firestore {
       allow create: if isSuper();
       allow update: if isSuper()
         || (signedIn() && resource.data.authorEmail == request.auth.token.email
-            && request.resource.data.authorEmail == request.auth.token.email);
+            && request.resource.data.authorEmail == request.auth.token.email
+            && request.resource.data.get('editorInChief', false) == resource.data.get('editorInChief', false));
       allow delete: if isSuper()
         || (signedIn() && resource.data.authorEmail == request.auth.token.email);
 
@@ -47,7 +48,8 @@ service cloud.firestore {
       allow read: if isSuper()
         || (signedIn() && resource.data.authorEmail == request.auth.token.email);
       allow create: if signedIn()
-        && request.resource.data.authorEmail == request.auth.token.email;
+        && request.resource.data.authorEmail == request.auth.token.email
+        && request.resource.data.get('editorInChief', false) == false;
       allow update: if isSuper()
         || (signedIn() && resource.data.authorEmail == request.auth.token.email
             && request.resource.data.authorEmail == request.auth.token.email);
@@ -101,6 +103,13 @@ service cloud.firestore {
 
     // Version history snapshots for a manuscript: only the author (and
     // the Editor in Chief) may read them; an author creates only their own.
+    // Studio configuration: released only to the Editor in Chief. The
+    // app proves standing by reading it; the app never writes it.
+    match /studioConfig/{docId} {
+      allow read: if isSuper();
+      allow write: if false;
+    }
+
     match /versionSnapshots/{docId} {
       allow read: if isSuper()
         || (signedIn() && resource.data.authorEmail == request.auth.token.email);
@@ -110,3 +119,4 @@ service cloud.firestore {
     }
   }
 }
+

@@ -90,7 +90,7 @@ fun AuthorProfileDialog(
     var penName by remember { mutableStateOf(currentUser.penName) }
     var email by remember { mutableStateOf(currentUser.email) }
     // Standing is derived from the address, never picked.
-    val selectedRole = if (FirestoreNetworkService.isSuperuserEmail(currentUser.email)) WorkRole.EDITOR else WorkRole.AUTHOR
+    val selectedRole = if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
     var organization by remember { mutableStateOf(currentUser.organization) }
     var cmosEdition by remember { mutableStateOf(currentUser.preferredCmosEdition) }
 
@@ -185,7 +185,7 @@ fun AuthorProfileDialog(
                                 color = BookGoldLight,
                                 letterSpacing = 1.sp
                             )
-                            RoleBadge(role = selectedRole, isEditorInChief = FirestoreNetworkService.isSuperuserEmail(currentUser.email))
+                            RoleBadge(role = selectedRole, isEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -352,7 +352,7 @@ fun AuthorProfileDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    RoleBadge(role = selectedRole, isEditorInChief = FirestoreNetworkService.isSuperuserEmail(currentUser.email))
+                    RoleBadge(role = selectedRole, isEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief)
                     Text(
                         text = "Editor standing is granted by invitation.",
                         fontSize = 12.sp,

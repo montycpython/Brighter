@@ -36,20 +36,23 @@ import org.json.JSONObject
  * This is the only network service. (An earlier on-device class pretended
  * to be Google Drive; it was removed. Real Drive lives in GoogleDriveClient.)
  */
+/**
+ * Standing of the signed-in account, proven against the back room:
+ * the studio configuration document is released by the security rules
+ * only to the Editor in Chief, so a successful read is the proof.
+ * Nothing about that account is stored in the app itself.
+ */
+object StudioStanding {
+    @Volatile
+    var isEditorInChief: Boolean = false
+}
+
 class FirestoreNetworkService(private val context: Context) {
 
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
     companion object {
-        const val EDITOR_IN_CHIEF_EMAIL = "real.artistry@gmail.com"
         const val DEFAULT_STUDIO_AUTHOR_EMAIL = "author.studio@bwriter.io"
-
-        fun isSuperuserEmail(email: String): Boolean {
-            val clean = email.trim().lowercase()
-            return clean == EDITOR_IN_CHIEF_EMAIL.lowercase() ||
-                   clean == DEFAULT_STUDIO_AUTHOR_EMAIL.lowercase() ||
-                   clean.startsWith("author.studio@")
-        }
 
         private const val COL_REGISTRY = "registry"
         private const val COL_PENDING = "registryPending"
@@ -57,6 +60,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_MAIL = "mail"
         private const val COL_CLOUD_BOOKS = "cloudBooks"
         private const val COL_VERSIONS = "versionSnapshots"
+        private const val COL_STUDIO_CONFIG = "studioConfig"
     }
 
     @Volatile
@@ -95,7 +99,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun suspendUser(adminEmail: String, targetEmail: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!StudioStanding.isEditorInChief) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can suspend users."))
             }
             val entry = SuspendedUserEntry(
@@ -109,7 +113,7 @@ class FirestoreNetworkService(private val context: Context) {
             sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = targetEmail.trim(),
-                    senderEmail = EDITOR_IN_CHIEF_EMAIL,
+                    senderEmail = DEFAULT_STUDIO_AUTHOR_EMAIL,
                     senderName = "Editor in Chief",
                     subject = "Account Suspended: Governance Notice",
                     body = "Your account has been suspended by the Editor in Chief.\n\nReason: $reason\n\nAll editing and network capabilities are locked until further review.",
@@ -124,7 +128,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun unsuspendUser(adminEmail: String, targetEmail: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!StudioStanding.isEditorInChief) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can unsuspend users."))
             }
             db.collection(COL_SUSPENDED).document(normEmail(targetEmail)).delete().await()
@@ -132,7 +136,7 @@ class FirestoreNetworkService(private val context: Context) {
             sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = targetEmail.trim(),
-                    senderEmail = EDITOR_IN_CHIEF_EMAIL,
+                    senderEmail = DEFAULT_STUDIO_AUTHOR_EMAIL,
                     senderName = "Editor in Chief",
                     subject = "Account Restored",
                     body = "Your account access has been fully restored by the Editor in Chief. You may now sync and edit your manuscripts normally.",
@@ -186,9 +190,9 @@ class FirestoreNetworkService(private val context: Context) {
 
             // A book lives in exactly one place: the approval queue until
             // the Editor in Chief approves it, then the public registry.
-            // His own books go straight to the registry. A re-sync updates
+            // The Editor in Chief's own books go straight to the registry. A re-sync updates
             // the copy wherever it currently lives.
-            val isEditorInChief = currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+            val isEditorInChief = StudioStanding.isEditorInChief
             val pendingExisting = findDocInCollection(COL_PENDING, manuscript.id, currentUser.email)
             val registryExisting = if (pendingExisting == null) findRegistryDoc(manuscript.id, currentUser.email) else null
             val existing = pendingExisting ?: registryExisting
@@ -212,6 +216,7 @@ class FirestoreNetworkService(private val context: Context) {
                 totalLeaves = estimatedLeaves,
                 lastSyncedTimestamp = System.currentTimeMillis(),
                 isPublicInCommunity = isPublicInCommunity,
+                editorInChief = StudioStanding.isEditorInChief,
                 version = manuscript.edition.ifBlank { "1.0" },
             )
             db.collection(targetCollection).document(fileId).set(registryToMap(indexEntry)).await()
@@ -247,10 +252,10 @@ class FirestoreNetworkService(private val context: Context) {
             db.collection(COL_VERSIONS).add(snapshotToMap(snapshot)).await()
 
             // 4. Notify the Editor in Chief
-            if (!currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!StudioStanding.isEditorInChief) {
                 sendServerlessMail(
                     ServerlessMailMessage(
-                        recipientEmail = EDITOR_IN_CHIEF_EMAIL,
+                        recipientEmail = DEFAULT_STUDIO_AUTHOR_EMAIL,
                         senderEmail = currentUser.email,
                         senderName = currentUser.displayName,
                         subject = "Manuscript Synced: ${manuscript.title}",
@@ -292,7 +297,7 @@ class FirestoreNetworkService(private val context: Context) {
         try {
             val snap = db.collection(COL_REGISTRY).get().await()
             val allEntries = snap.documents.mapNotNull { docToRegistry(it.data) }
-            val isEditorInChief = currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+            val isEditorInChief = StudioStanding.isEditorInChief
 
             val synchronizedEntries = allEntries.map { entry ->
                 if (entry.authorEmail.equals(currentUser.email, ignoreCase = true) && !isEditorInChief) {
@@ -360,7 +365,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun revokeManuscriptAccess(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!StudioStanding.isEditorInChief) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can revoke drive access."))
             }
             val docRef = db.collection(COL_REGISTRY).document(fileId)
@@ -372,7 +377,7 @@ class FirestoreNetworkService(private val context: Context) {
                 sendServerlessMail(
                     ServerlessMailMessage(
                         recipientEmail = removed.authorEmail,
-                        senderEmail = EDITOR_IN_CHIEF_EMAIL,
+                        senderEmail = DEFAULT_STUDIO_AUTHOR_EMAIL,
                         senderName = "Editor in Chief",
                         subject = "Manuscript Access Revoked: ${removed.title}",
                         body = "The shared access for '${removed.title}' (File ID: $fileId) has been revoked from the global registry by the Editor in Chief.",
@@ -405,7 +410,7 @@ class FirestoreNetworkService(private val context: Context) {
     /** Move a pending book into the public registry. */
     suspend fun approvePendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!StudioStanding.isEditorInChief) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can approve books."))
             }
             val pendingRef = db.collection(COL_PENDING).document(fileId)
@@ -425,7 +430,7 @@ class FirestoreNetworkService(private val context: Context) {
             sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = entry.authorEmail,
-                    senderEmail = EDITOR_IN_CHIEF_EMAIL,
+                    senderEmail = DEFAULT_STUDIO_AUTHOR_EMAIL,
                     senderName = "Editor in Chief",
                     subject = "Manuscript Approved: ${entry.title}",
                     body = "Your manuscript '${entry.title}' (File ID: $fileId) has been approved by the Editor in Chief and is now in the global registry.",
@@ -442,7 +447,7 @@ class FirestoreNetworkService(private val context: Context) {
     /** Remove a pending book without approving it. The author's own cloud copy is untouched. */
     suspend fun rejectPendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!StudioStanding.isEditorInChief) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can reject books."))
             }
             val pendingRef = db.collection(COL_PENDING).document(fileId)
@@ -454,7 +459,7 @@ class FirestoreNetworkService(private val context: Context) {
                 sendServerlessMail(
                     ServerlessMailMessage(
                         recipientEmail = entry.authorEmail,
-                        senderEmail = EDITOR_IN_CHIEF_EMAIL,
+                        senderEmail = DEFAULT_STUDIO_AUTHOR_EMAIL,
                         senderName = "Editor in Chief",
                         subject = "Manuscript Not Approved: ${entry.title}",
                         body = "Your manuscript '${entry.title}' (File ID: $fileId) was not approved for the global registry by the Editor in Chief. Your own cloud copy is unchanged.",
@@ -474,7 +479,7 @@ class FirestoreNetworkService(private val context: Context) {
     // ------------------------------------------------------------------
 
     suspend fun sendServerlessMail(message: ServerlessMailMessage): Result<Unit> = withContext(Dispatchers.IO) {
-        val message = if (message.senderEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+        val message = if (StudioStanding.isEditorInChief) {
             message.copy(senderEmail = DEFAULT_STUDIO_AUTHOR_EMAIL)
         } else {
             message
@@ -496,16 +501,25 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    /**
+     * Standing proof: the studio configuration document is released by
+     * the security rules only to the Editor in Chief. A successful read
+     * proves the standing; a refusal proves its absence.
+     */
+    suspend fun verifyEditorInChief(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            db.collection(COL_STUDIO_CONFIG).document("main").get().await()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun fetchMailboxMessages(userEmail: String): Result<List<ServerlessMailMessage>> = withContext(Dispatchers.IO) {
         try {
             val mine = fetchMailboxFor(userEmail)
-            val combined = if (isSuperuserEmail(userEmail)) {
-                val aliasEmail = if (userEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
-                    DEFAULT_STUDIO_AUTHOR_EMAIL
-                } else {
-                    EDITOR_IN_CHIEF_EMAIL
-                }
-                (mine + fetchMailboxFor(aliasEmail)).distinctBy { it.id }.sortedByDescending { it.timestamp }
+            val combined = if (StudioStanding.isEditorInChief) {
+                (mine + fetchMailboxFor(DEFAULT_STUDIO_AUTHOR_EMAIL)).distinctBy { it.id }.sortedByDescending { it.timestamp }
             } else {
                 mine
             }
@@ -539,7 +553,7 @@ class FirestoreNetworkService(private val context: Context) {
         try {
             val base = db.collection(COL_VERSIONS)
                 .whereEqualTo("manuscriptId", manuscriptId)
-            val query = if (isSuperuserEmail(requesterEmail)) base
+            val query = if (StudioStanding.isEditorInChief) base
                 else base.whereEqualTo("authorEmail", requesterEmail)
             val snap = query.get().await()
             snap.documents.mapNotNull { docToSnapshot(it.data) }.sortedByDescending { it.timestamp }
@@ -741,6 +755,7 @@ class FirestoreNetworkService(private val context: Context) {
         "totalLeaves" to e.totalLeaves,
         "lastSyncedTimestamp" to e.lastSyncedTimestamp,
         "isPublicInCommunity" to e.isPublicInCommunity,
+        "editorInChief" to e.editorInChief,
         "version" to e.version,
         "hasFullText" to true
     )
@@ -760,6 +775,7 @@ class FirestoreNetworkService(private val context: Context) {
                 totalLeaves = (data["totalLeaves"] as? Number)?.toInt() ?: 0,
                 lastSyncedTimestamp = (data["lastSyncedTimestamp"] as? Number)?.toLong() ?: 0L,
                 isPublicInCommunity = data["isPublicInCommunity"] as? Boolean ?: true,
+                editorInChief = data["editorInChief"] as? Boolean ?: false,
                 version = data["version"] as? String ?: "1.0",
             )
         } catch (e: Exception) {
@@ -815,7 +831,7 @@ class FirestoreNetworkService(private val context: Context) {
             ServerlessMailMessage(
                 id = data["id"] as? String ?: return null,
                 recipientEmail = data["recipientEmailDisplay"] as? String ?: (data["recipientEmail"] as? String ?: ""),
-                senderEmail = (data["senderEmail"] as? String ?: "").let { if (it.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) DEFAULT_STUDIO_AUTHOR_EMAIL else it },
+                senderEmail = data["senderEmail"] as? String ?: "",
                 senderName = data["senderName"] as? String ?: "",
                 subject = data["subject"] as? String ?: "",
                 body = data["body"] as? String ?: "",
