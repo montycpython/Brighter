@@ -568,11 +568,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         SubscriptionPaywallDialog(
             subscription = userSubscription,
             recentTransactions = tokenTransactions,
-            onDismiss = { viewModel.dismissPaywall() },
-            onSelectPlan = { plan ->
-                viewModel.updateSubscriptionPlan(plan)
-                Toast.makeText(context, "Upgraded to ${plan.title}!", Toast.LENGTH_SHORT).show()
-            }
+            onDismiss = { viewModel.dismissPaywall() }
         )
     }
 

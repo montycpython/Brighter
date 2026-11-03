@@ -351,19 +351,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _showPaywall.value = false
     }
 
-    fun updateSubscriptionPlan(plan: com.supernatural.bwriter.model.SubscriptionPlan) {
-        val current = _userAiSubscription.value
-        val updated = current.copy(
-            plan = plan,
-            creditsRemaining = plan.monthlyCredits,
-            monthlyRenewalTimestamp = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000),
-            isActive = true
-        )
-        _userAiSubscription.value = updated
-        userPreferences.saveUserSubscription(updated)
-        _showPaywall.value = false
-    }
-
     fun generateAiDraftFromPrompt(
         section: SectionEntity,
         prompt: String,

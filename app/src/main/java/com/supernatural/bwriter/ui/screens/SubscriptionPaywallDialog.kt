@@ -2,7 +2,6 @@ package com.supernatural.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,17 +21,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,16 +41,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -74,12 +65,9 @@ import java.util.Locale
 fun SubscriptionPaywallDialog(
     subscription: UserAiSubscription,
     recentTransactions: List<AiTokenTransaction> = emptyList(),
-    onDismiss: () -> Unit,
-    onSelectPlan: (SubscriptionPlan) -> Unit
+    onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    var chosenPlan by remember { mutableStateOf(SubscriptionPlan.STANDARD_AUTHOR) }
-    var isProcessingPurchase by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -230,7 +218,7 @@ fun SubscriptionPaywallDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (selectedTab == 0) {
-                    // Plans Selection Column
+                    // Coming-soon preview of the paid structure
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -238,78 +226,30 @@ fun SubscriptionPaywallDialog(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Standard Plan Card
-                        PlanOptionCard(
-                            plan = SubscriptionPlan.STANDARD_AUTHOR,
-                            isSelected = chosenPlan == SubscriptionPlan.STANDARD_AUTHOR,
-                            badge = "POPULAR FOR NOVELISTS",
-                            features = listOf(
-                                "500 AI Chapter Generations / month",
-                                "~500,000 CMOS formatted tokens",
-                                "Gemini 2.5 Flash Prose Synthesis",
-                                "Character & Setting context injection",
-                                "Chicago Manual §6, §13 punctuation adherence"
-                            ),
-                            onClick = { chosenPlan = SubscriptionPlan.STANDARD_AUTHOR }
+                        Text(
+                            text = "Coming in the next update.",
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = BookGoldLight
                         )
 
-                        // Pro Plan Card
-                        PlanOptionCard(
-                            plan = SubscriptionPlan.PRO_IMPRINT,
-                            isSelected = chosenPlan == SubscriptionPlan.PRO_IMPRINT,
-                            badge = "BEST FOR PUBLISHERS & STUDIOS",
-                            features = listOf(
-                                "2,500 AI Chapter Generations / month",
-                                "~2,500,000 CMOS formatted tokens",
-                                "Gemini 2.5 Pro Priority Access",
-                                "Multi-character dialogue & dialect tuning",
-                                "Unlimited Intertextuality Masterwork analysis",
-                                "Decentralized Google Drive Master Sync"
-                            ),
-                            onClick = { chosenPlan = SubscriptionPlan.PRO_IMPRINT }
+                        Text(
+                            text = "Go ad-free for $2.99, billed through Google Play. AI generations run on prepaid tokens — 20 for $0.99, credited to your account by the Editor in Chief. A token is spent only when you generate. Nothing is charged in this version.",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFC8C2B7)
+                        )
+
+                        ComingSoonCard(
+                            title = "Ad-Free — $2.99",
+                            detail = "No ads anywhere in the app."
+                        )
+
+                        ComingSoonCard(
+                            title = "AI Tokens — 20 for $0.99",
+                            detail = "Prepaid generations, credited by the Editor in Chief."
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Purchase / Upgrade Action Button
-                    Button(
-                        onClick = {
-                            isProcessingPurchase = true
-                            onSelectPlan(chosenPlan)
-                        },
-                        enabled = !isProcessingPurchase,
-                        colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .testTag("btn_confirm_subscription")
-                    ) {
-                        if (isProcessingPurchase) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Processing via Google Play...", fontSize = 12.sp)
-                        } else {
-                            Icon(Icons.Default.MonetizationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Subscribe ${chosenPlan.title} (${chosenPlan.priceMonthly})",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Google Play In-App Subscription • Billed monthly • Cancel anytime in Google Play Store.",
-                        fontSize = 10.sp,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 } else {
                     // Token Ledger / Audit Tab
                     if (recentTransactions.isEmpty()) {
@@ -345,76 +285,34 @@ fun SubscriptionPaywallDialog(
 }
 
 @Composable
-private fun PlanOptionCard(
-    plan: SubscriptionPlan,
-    isSelected: Boolean,
-    badge: String,
-    features: List<String>,
-    onClick: () -> Unit
+private fun ComingSoonCard(
+    title: String,
+    detail: String
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .testTag("plan_card_${plan.name}"),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color(0xFF1E1E2C) else Color(0xFF14141C)
+            containerColor = Color(0xFF14141C)
         ),
-        border = BorderStroke(
-            width = if (isSelected) 1.5.dp else 1.dp,
-            color = if (isSelected) BookGold else Color(0xFF2C2C3A)
-        )
+        border = BorderStroke(1.dp, Color(0xFF2C2C3A))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = BookGoldDark.copy(alpha = 0.25f),
-                    modifier = Modifier.padding(bottom = 4.dp)
-                ) {
-                    Text(
-                        text = badge,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BookGoldLight,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-
-                Text(
-                    text = plan.priceMonthly,
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = BookGoldLight
-                )
-            }
-
             Text(
-                text = plan.title,
+                text = title,
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 color = Color(0xFFF3EFE6)
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            features.forEach { feature ->
-                Row(
-                    modifier = Modifier.padding(vertical = 1.5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = BookGold, modifier = Modifier.size(12.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = feature, fontSize = 10.5.sp, color = Color(0xFFC8C2B7))
-                }
-            }
+            Text(
+                text = detail,
+                fontSize = 10.5.sp,
+                color = Color(0xFFC8C2B7)
+            )
         }
     }
 }

@@ -180,7 +180,7 @@ class UserPreferences(context: Context) {
         val defaultCredits = if (isEditorInChief) 999999 else 5
 
         val planId = prefs.getString(KEY_SUBSCRIPTION_PLAN, defaultPlan.id) ?: defaultPlan.id
-        val plan = if (isEditorInChief) com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.supernatural.bwriter.model.SubscriptionPlan.fromId(planId)
+        val plan = if (isEditorInChief) com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.supernatural.bwriter.model.SubscriptionPlan.fromId(planId).takeIf { it != com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED } ?: com.supernatural.bwriter.model.SubscriptionPlan.FREE
         val credits = prefs.getInt(KEY_CREDITS_REMAINING, defaultCredits)
         val tokensUsed = prefs.getLong(KEY_TOTAL_TOKENS_USED, 0L)
         val generationsCount = prefs.getInt(KEY_TOTAL_GENERATIONS, 0)
