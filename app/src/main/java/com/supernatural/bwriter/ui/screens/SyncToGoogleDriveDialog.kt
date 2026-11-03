@@ -222,7 +222,7 @@ fun SyncToGoogleDriveDialog(
                                 Text("Hide (Private to Author & Editor in Chief)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFF3EFE6))
                             }
                             Text(
-                                "Your visibility will be strictly limited to yourself and the Editor in Chief (${FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL}).",
+                                "Your visibility will be strictly limited to yourself and the Editor in Chief.",
                                 fontSize = 10.sp,
                                 color = Color(0xFFB0A89C),
                                 lineHeight = 13.sp
@@ -247,7 +247,7 @@ fun SyncToGoogleDriveDialog(
                         Icon(Icons.Default.Security, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Auto-Share Hook: Uploading grants ${FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL} writer/editorial access automatically.",
+                            text = "Auto-Share Hook: Uploading grants the Editor in Chief writer/editorial access automatically.",
                             fontSize = 10.sp,
                             color = Color(0xFFB0A89C),
                             lineHeight = 13.sp
