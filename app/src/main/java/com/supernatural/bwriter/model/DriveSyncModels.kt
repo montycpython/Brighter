@@ -26,7 +26,7 @@ data class SuspendedUserEntry(
 data class ServerlessMailMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val recipientEmail: String,
-    val senderEmail: String = "real.artistry@gmail.com",
+    val senderEmail: String = "",
     val senderName: String = "Editor in Chief",
     val subject: String,
     val body: String,

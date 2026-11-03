@@ -26,12 +26,12 @@ enum class WorkRole(
 
 data class UserProfile(
     val id: String = "user_google_1",
-    val email: String = "real.artistry@gmail.com",
-    val name: String = "Author",
+    val email: String = "",
+    val name: String = "",
     val penName: String = "",
     val role: WorkRole = WorkRole.AUTHOR,
     val avatarUrl: String = "",
-    val organization: String = "Author Studio",
+    val organization: String = "",
     val preferredCmosEdition: String = "17th Edition"
 ) {
     val displayName: String

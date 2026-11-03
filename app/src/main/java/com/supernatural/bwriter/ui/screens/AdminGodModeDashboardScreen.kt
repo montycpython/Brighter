@@ -155,7 +155,7 @@ fun AdminGodModeDashboardScreen(
                                 color = Color(0xFFF3EFE6)
                             )
                             Text(
-                                text = "God-Mode Governance • ${FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL}",
+                                text = "God-Mode Governance • Editor in Chief",
                                 fontSize = 10.5.sp,
                                 color = BookGoldLight
                             )
