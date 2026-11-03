@@ -719,7 +719,7 @@ fun VersionHistoryTab(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Every sync to Google Drive generates an immutable cryptographic snapshot with word counts, division hierarchy, and author credits. Any rebuilt app can restore from this record.",
+                        text = "Every sync saves a version snapshot with word counts, division hierarchy, and author credits in the back room, and a copy of the book in your Google Drive. A rebuilt app can restore from either.",
                         color = Color(0xFFD0CCE0),
                         fontSize = 11.5.sp,
                         lineHeight = 15.sp
