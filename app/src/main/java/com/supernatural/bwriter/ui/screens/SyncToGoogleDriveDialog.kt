@@ -126,7 +126,7 @@ fun SyncToGoogleDriveDialog(
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    text = manuscript.edition.ifBlank { "v1.0" },
+                                    text = manuscript.edition.ifBlank { "v1.1.0" },
                                     color = BookGoldLight,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp,
@@ -141,7 +141,7 @@ fun SyncToGoogleDriveDialog(
                             color = Color(0xFFB0A89C)
                         )
                         Text(
-                            text = "Status: ${manuscript.manuscriptStatus} • Sync creates an immutable backup record",
+                            text = "Status: ${manuscript.manuscriptStatus} • Sync creates a backup record",
                             fontSize = 10.sp,
                             color = BookGoldLight
                         )
