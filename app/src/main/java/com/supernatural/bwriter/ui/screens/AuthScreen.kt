@@ -21,20 +21,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RateReview
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -48,11 +42,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,7 +67,6 @@ import com.supernatural.bwriter.ui.components.RoleBadge
 import com.supernatural.bwriter.ui.theme.BookGold
 import com.supernatural.bwriter.ui.theme.BookGoldDark
 import com.supernatural.bwriter.ui.theme.BookGoldLight
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -93,11 +83,6 @@ fun AuthScreen(
     var authorName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
     var selectedRole by remember { mutableStateOf(currentUser.role) }
-    var isAddingNewAccount by remember { mutableStateOf(false) }
-    var customEmailInput by remember { mutableStateOf("") }
-    var showVerificationDialog by remember { mutableStateOf(false) }
-    var pendingVerificationEmail by remember { mutableStateOf("") }
-    var pendingVerificationCode by remember { mutableStateOf("") }
     var isAuthenticatingGoogle by remember { mutableStateOf(false) }
     var googleAuthError by remember { mutableStateOf<String?>(null) }
 
@@ -113,21 +98,6 @@ fun AuthScreen(
     }
 
     val scrollState = rememberScrollState()
-
-    if (showVerificationDialog) {
-        EmailVerificationDialog(
-            targetEmail = pendingVerificationEmail,
-            generatedCode = pendingVerificationCode,
-            onCodeVerified = {
-                showVerificationDialog = false
-                onGoogleSignIn(pendingVerificationEmail, authorName, penName, selectedRole)
-                onContinue()
-            },
-            onDismiss = {
-                showVerificationDialog = false
-            }
-        )
-    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -188,20 +158,22 @@ fun AuthScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "SELECT GOOGLE ACCOUNT",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BookGoldLight,
-                        letterSpacing = 1.sp
-                    )
+                    // Saved Accounts List: only accounts this user has
+                    // really signed in with on this device.
+                    val displayAccounts = savedAccounts
+                    if (displayAccounts.isNotEmpty()) {
+                        Text(
+                            text = "SELECT GOOGLE ACCOUNT",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BookGoldLight,
+                            letterSpacing = 1.sp
+                        )
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Saved Accounts List
-                    val displayAccounts = if (savedAccounts.isNotEmpty()) savedAccounts else listOf(currentUser)
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
                     displayAccounts.forEach { account ->
-                        val isSelected = (!isAddingNewAccount) && (selectedEmail.equals(account.email, ignoreCase = true))
+                        val isSelected = selectedEmail.equals(account.email, ignoreCase = true)
                         val isEditorInChief = account.email.equals("real.artistry@gmail.com", ignoreCase = true)
                         val isAuthorStudioSuperuser = account.email.equals("author.studio@bwriter.io", ignoreCase = true) || account.email.lowercase().startsWith("author.studio@")
 
@@ -216,7 +188,6 @@ fun AuthScreen(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clickable {
-                                    isAddingNewAccount = false
                                     selectedEmail = account.email
                                     authorName = account.name
                                     penName = account.penName
@@ -322,122 +293,56 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Native Google Identity Sign-In & Use Another Account
-                    if (!isAddingNewAccount) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    isAuthenticatingGoogle = true
-                                    googleAuthError = null
-                                    coroutineScope.launch {
-                                        val result = GoogleAuthHelper.signInWithGoogle(context)
-                                        isAuthenticatingGoogle = false
-                                        result.onSuccess { googleUser ->
-                                            if (googleUser.displayName.isNotBlank()) {
-                                                authorName = googleUser.displayName
-                                            }
-                                            selectedEmail = googleUser.email
-                                            val isSuperUser = googleUser.email.equals("real.artistry@gmail.com", ignoreCase = true) ||
-                                                    googleUser.email.equals("author.studio@bwriter.io", ignoreCase = true) ||
-                                                    googleUser.email.lowercase().startsWith("author.studio@")
-                                            FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
-                                            onGoogleSignIn(googleUser.email, authorName, penName, selectedRole)
-                                            onContinue()
-                                        }.onFailure { err ->
-                                            if (err !is androidx.credentials.exceptions.GetCredentialCancellationException) {
-                                                googleAuthError = err.localizedMessage ?: "Google Identity sign-in failed. Please try manual entry."
-                                            }
-                                        }
+                    // Google Identity Sign-In: opens the system account
+                    // chooser, where the user picks which Google account
+                    // to enter with. It is the only way in.
+                    Button(
+                        onClick = {
+                            isAuthenticatingGoogle = true
+                            googleAuthError = null
+                            coroutineScope.launch {
+                                val result = GoogleAuthHelper.signInWithGoogle(context)
+                                isAuthenticatingGoogle = false
+                                result.onSuccess { googleUser ->
+                                    if (googleUser.displayName.isNotBlank()) {
+                                        authorName = googleUser.displayName
                                     }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
-                                shape = RoundedCornerShape(8.dp),
-                                enabled = !isAuthenticatingGoogle,
-                                modifier = Modifier
-                                    .weight(1.3f)
-                                    .testTag("btn_native_google_identity")
-                            ) {
-                                if (isAuthenticatingGoogle) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Verifying...", fontSize = 12.sp)
-                                } else {
-                                    Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Sign In with Google", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                    selectedEmail = googleUser.email
+                                    FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
+                                    onGoogleSignIn(googleUser.email, authorName, penName, selectedRole)
+                                    onContinue()
+                                }.onFailure { err ->
+                                    if (err !is androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                        googleAuthError = err.localizedMessage ?: "Google Identity sign-in failed. Please try again."
+                                    }
                                 }
                             }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                        shape = RoundedCornerShape(8.dp),
+                        enabled = !isAuthenticatingGoogle,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_native_google_identity")
+                    ) {
+                        if (isAuthenticatingGoogle) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Verifying...", fontSize = 12.sp)
+                        } else {
+                            Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sign In with Google", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
 
-                            OutlinedButton(
-                                onClick = {
-                                    isAddingNewAccount = true
-                                    customEmailInput = ""
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("btn_use_another_account"),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Add Email", fontSize = 12.sp)
-                            }
-                        }
-
-                        if (googleAuthError != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = googleAuthError!!,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    } else {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                                .padding(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Enter Google Account Email",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                TextButton(
-                                    onClick = { isAddingNewAccount = false },
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(24.dp)
-                                ) {
-                                    Text("Cancel", fontSize = 11.sp)
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            OutlinedTextField(
-                                value = customEmailInput,
-                                onValueChange = {
-                                    customEmailInput = it
-                                    selectedEmail = it
-                                },
-                                label = { Text("Google Email (e.g. author@gmail.com)") },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                },
-                                singleLine = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("input_custom_google_email")
-                            )
-                        }
+                    if (googleAuthError != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = googleAuthError!!,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }
@@ -662,285 +567,11 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Enter Studio / Sign In with Google Button
-            Button(
-                onClick = {
-                    val finalEmail = if (isAddingNewAccount && customEmailInput.isNotBlank()) customEmailInput.trim() else selectedEmail
-                    val isSuperUser = finalEmail.equals("real.artistry@gmail.com", ignoreCase = true) ||
-                            finalEmail.equals("author.studio@bwriter.io", ignoreCase = true) ||
-                            finalEmail.lowercase().startsWith("author.studio@")
-                    
-                    if (isSuperUser) {
-                        // Superuser and Superuser Active Studio Personas bypass code verification
-                        onGoogleSignIn(finalEmail, authorName, penName, selectedRole)
-                        onContinue()
-                    } else {
-                        // All external peer email addresses require cryptographic code verification
-                        val generatedCode = (100000..999999).random().toString()
-                        pendingVerificationEmail = finalEmail
-                        pendingVerificationCode = generatedCode
-                        showVerificationDialog = true
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = BookGoldDark
-                ),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("btn_enter_studio")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Sign In & Open Manuscript Studio",
-                    fontSize = 15.5.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Security,
-                    contentDescription = null,
-                    tint = BookGoldLight,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Decentralized Workspace Sync: Cryptographic Code Verification on peer accounts.",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-            }
-
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
-@Composable
-fun EmailVerificationDialog(
-    targetEmail: String,
-    generatedCode: String,
-    onCodeVerified: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    var enteredCode by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var currentCode by remember { mutableStateOf(generatedCode) }
-    var countdown by remember { mutableIntStateOf(30) }
-    var isTimerActive by remember { mutableStateOf(true) }
-
-    LaunchedEffect(isTimerActive, countdown) {
-        if (isTimerActive && countdown > 0) {
-            delay(1000L)
-            countdown--
-        } else if (countdown == 0) {
-            isTimerActive = false
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (enteredCode.trim() == currentCode.trim()) {
-                        onCodeVerified()
-                    } else {
-                        errorMessage = "Invalid verification code. Please check code or tap Resend."
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
-                shape = RoundedCornerShape(6.dp),
-                modifier = Modifier.testTag("btn_confirm_verification")
-            ) {
-                Text("Verify & Authenticate", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(BookGoldDark.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Security,
-                        contentDescription = null,
-                        tint = BookGoldDark,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text("Email Code Verification", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("Decentralized Network Security", fontSize = 11.sp, color = Color.Gray)
-                }
-            }
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "To access this account on the decentralized peer network, enter the 6-digit cryptographic verification code sent to:",
-                    fontSize = 12.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 17.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(imageVector = Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = targetEmail,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Production Gmail & Google Identity Verification Notice
-                Surface(
-                    color = Color(0xFF1E1E2C),
-                    border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.MarkEmailRead,
-                                    contentDescription = null,
-                                    tint = BookGoldLight,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "ENCRYPTED ACCESS DISPATCH",
-                                    color = BookGoldLight,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-                            TextButton(
-                                onClick = {
-                                    enteredCode = currentCode
-                                    errorMessage = null
-                                },
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                                modifier = Modifier.height(26.dp)
-                            ) {
-                                Text("Autofill Code", fontSize = 11.sp, color = BookGoldLight, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Access Code: $currentCode",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White,
-                            letterSpacing = 2.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                OutlinedTextField(
-                    value = enteredCode,
-                    onValueChange = { input ->
-                        if (input.length <= 6 && input.all { it.isDigit() }) {
-                            enteredCode = input
-                            errorMessage = null
-                        }
-                    },
-                    label = { Text("6-Digit Verification Code") },
-                    placeholder = { Text("e.g. 583921") },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Default.Key, contentDescription = null, tint = BookGoldDark)
-                    },
-                    singleLine = true,
-                    isError = errorMessage != null,
-                    supportingText = {
-                        if (errorMessage != null) {
-                            Text(errorMessage!!, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
-                        } else {
-                            Text("Enter the 6 digits sent to your email", fontSize = 11.sp)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().testTag("input_verification_code")
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (countdown > 0) "Resend available in ${countdown}s" else "Code expired?",
-                        fontSize = 11.sp,
-                        color = Color.Gray
-                    )
-                    TextButton(
-                        onClick = {
-                            val newCode = (100000..999999).random().toString()
-                            currentCode = newCode
-                            enteredCode = ""
-                            errorMessage = null
-                            countdown = 30
-                            isTimerActive = true
-                        },
-                        enabled = countdown == 0
-                    ) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Resend Code", fontSize = 11.5.sp)
-                    }
-                }
-            }
-        }
-    )
-}
 
 private fun String.capitalizeWords(): String {
     return split(" ").joinToString(" ") { it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() } }

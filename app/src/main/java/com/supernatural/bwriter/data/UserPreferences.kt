@@ -81,24 +81,6 @@ class UserPreferences(context: Context) {
 
     fun getSavedGoogleAccounts(): List<UserProfile> {
         val list = mutableListOf<UserProfile>()
-        val defaultEditor = UserProfile(
-            id = "user_editor_in_chief",
-            email = "real.artistry@gmail.com",
-            name = "Editor-in-Chief",
-            penName = "real.artistry",
-            role = WorkRole.EDITOR,
-            organization = "Bwriter Editorial Board",
-            preferredCmosEdition = "17th Edition"
-        )
-        val defaultAuthor = UserProfile(
-            id = "user_author_demo",
-            email = "author.studio@bwriter.io",
-            name = "Jane Austen",
-            penName = "J. Austen",
-            role = WorkRole.AUTHOR,
-            organization = "Literary Arts Studio",
-            preferredCmosEdition = "17th Edition"
-        )
 
         try {
             val jsonStr = prefs.getString(KEY_SAVED_ACCOUNTS_JSON, null)
@@ -127,18 +109,15 @@ class UserPreferences(context: Context) {
             e.printStackTrace()
         }
 
-        // Prepopulate with default accounts if empty
-        if (list.isEmpty()) {
-            list.add(defaultEditor)
-            list.add(defaultAuthor)
-            saveSavedGoogleAccounts(list)
-        } else {
-            // Ensure real.artistry is available in list
-            if (list.none { it.email.equals(defaultEditor.email, ignoreCase = true) }) {
-                list.add(0, defaultEditor)
-            }
+        // Older builds planted two built-in accounts in this list. They
+        // were never real sign-ins; remove them wherever they were saved.
+        val cleaned = list.filterNot {
+            it.id == "user_editor_in_chief" || it.id == "user_author_demo"
         }
-        return list
+        if (cleaned.size != list.size) {
+            saveSavedGoogleAccounts(cleaned)
+        }
+        return cleaned
     }
 
     fun saveSavedGoogleAccounts(accounts: List<UserProfile>) {
