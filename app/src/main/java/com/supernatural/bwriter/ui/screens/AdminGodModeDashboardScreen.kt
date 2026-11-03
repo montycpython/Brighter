@@ -419,7 +419,7 @@ fun AdminGodModeDashboardScreen(
                         color = Color(0xFFE57373)
                     )
                     Text(
-                        text = "This will write to suspended_users.json in the Master Shared Drive. The client app will trigger a hard kill-switch lock on next ping.",
+                        text = "This adds the account to the suspension list in the back room. The account is locked out on its next check.",
                         fontSize = 11.sp,
                         color = Color(0xFFB0A89C),
                         lineHeight = 15.sp
@@ -921,7 +921,7 @@ fun MailboxDispatcherTab(
             color = Color(0xFFF3EFE6)
         )
         Text(
-            text = "Dispatches direct messages or broadcasts to /Mailboxes/<userEmail>/messages.json in the Master Shared Drive.",
+            text = "Sends direct messages or broadcasts through the back room mailbox.",
             fontSize = 11.sp,
             color = Color(0xFFB0A89C)
         )
