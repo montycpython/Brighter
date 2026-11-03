@@ -234,7 +234,7 @@ fun ManuscriptListScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AdminPanelSettings,
-                                contentDescription = "Master Shared Drive Admin",
+                                contentDescription = "Admin Dashboard",
                                 tint = Color(0xFFE5A93C)
                             )
                         }
