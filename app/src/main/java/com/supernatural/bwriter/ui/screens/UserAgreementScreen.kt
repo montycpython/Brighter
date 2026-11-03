@@ -206,7 +206,7 @@ fun UserAgreementScreen(
                     content = """
                     • Assistive Drafting: Gemini AI prose generation is provided as a creative writing assistant. You are responsible for reviewing, verifying, and editing all AI-suggested text.
                     • CMOS Typographic Standards: AI generation is formatted to adhere to the Chicago Manual of Style (17th Edition) for dialogue punctuation, paragraph indents, and block quotes.
-                    • Content Policy: You agree not to generate hate speech, harassment, malware instructions, or illegal material through the AI drafting tools.
+                    • Content Policy: You agree not to generate hate speech, harassment, malware instructions, or illegal material through the AI drafting tools. In this version, drafting assistance is provided by the app's built-in engine; Gemini-powered generation arrives in the next update.
                     """.trimIndent()
                 )
 

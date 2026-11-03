@@ -149,7 +149,7 @@ object GeminiProseGenerator {
                     promptTokens = estimatedPromptTokens,
                     completionTokens = completionTokens,
                     totalTokens = totalTokens,
-                    modelUsed = "gemini-2.5-flash (Simulated CMOS Engine)",
+                    modelUsed = "Built-in CMOS Engine",
                     isSuccess = true
                 )
             )
@@ -196,7 +196,7 @@ object GeminiProseGenerator {
                         promptTokens = estimatedPromptTokens,
                         completionTokens = compTokens,
                         totalTokens = estimatedPromptTokens + compTokens,
-                        modelUsed = "gemini-2.5-flash (Offline CMOS Fallback)",
+                        modelUsed = "Built-in CMOS Engine",
                         isSuccess = true
                     )
                 )
@@ -241,7 +241,7 @@ object GeminiProseGenerator {
                     promptTokens = estimatedPromptTokens,
                     completionTokens = compTokens,
                     totalTokens = estimatedPromptTokens + compTokens,
-                    modelUsed = "gemini-2.5-flash (Synthesized)",
+                    modelUsed = "Built-in CMOS Engine",
                     isSuccess = true
                 )
             )
@@ -254,7 +254,7 @@ object GeminiProseGenerator {
                     promptTokens = estimatedPromptTokens,
                     completionTokens = compTokens,
                     totalTokens = estimatedPromptTokens + compTokens,
-                    modelUsed = "gemini-2.5-flash (Synthesized Error Recovery)",
+                    modelUsed = "Built-in CMOS Engine (Recovered)",
                     isSuccess = true
                 )
             )
