@@ -705,33 +705,6 @@ object CmosLeafEngine {
         return Pair(trimmed, "")
     }
 
-    /**
-     * Generates structured TocItem objects for rich UI and interactive navigation.
-     */
-    fun generateTocItems(
-        sections: List<SectionEntity>,
-        leaves: List<CalculatedLeaf>
-    ): List<com.supernatural.bwriter.model.TocItem> {
-        val pageMap = mutableMapOf<Long, String>()
-        for (leaf in leaves) {
-            if (leaf.isOpener && leaf.sectionId != null && !pageMap.containsKey(leaf.sectionId)) {
-                pageMap[leaf.sectionId] = leaf.pageNumberDisplay
-            }
-        }
-
-        return sections.map { sec ->
-            val page = pageMap[sec.id] ?: if (sec.matterType == MatterType.FRONT_MATTER) "i" else "1"
-            com.supernatural.bwriter.model.TocItem(
-                title = sec.title,
-                subtitle = sec.subtitle,
-                matterType = sec.matterType,
-                sectionType = sec.sectionType,
-                sectionId = sec.id,
-                pageNumberDisplay = page,
-                isPartDivider = sec.sectionType == SectionType.PART_DIVIDER
-            )
-        }
-    }
 
 
     /**
