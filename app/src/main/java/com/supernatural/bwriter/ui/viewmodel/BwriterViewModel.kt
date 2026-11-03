@@ -67,7 +67,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val db = BwriterDatabase.getDatabase(application)
         repository = BwriterRepository(db)
         viewModelScope.launch {
-            repository.seedInitialWorksIfEmpty()
             refreshNetwork()
         }
     }
