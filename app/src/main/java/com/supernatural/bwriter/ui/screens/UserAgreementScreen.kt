@@ -64,7 +64,7 @@ import com.supernatural.bwriter.ui.theme.BookGold
 import com.supernatural.bwriter.ui.theme.BookGoldDark
 import com.supernatural.bwriter.ui.theme.BookGoldLight
 
-const val CURRENT_TERMS_VERSION = "1.1.0-PROD"
+const val CURRENT_TERMS_VERSION = "1.1.0"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
