@@ -198,7 +198,7 @@ class FirestoreNetworkService(private val context: Context) {
                 isEditorInChief -> COL_REGISTRY
                 else -> COL_PENDING
             }
-            val fileId = existing?.id ?: "drv_book_${manuscript.id}_${System.currentTimeMillis().toString().takeLast(6)}"
+            val fileId = existing?.id ?: "book_${manuscript.id}_${System.currentTimeMillis().toString().takeLast(6)}"
             val driveUrl = ""
 
             val indexEntry = GlobalBookIndexEntry(
