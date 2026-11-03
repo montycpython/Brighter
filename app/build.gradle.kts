@@ -91,6 +91,7 @@ dependencies {
 
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
@@ -153,3 +154,4 @@ tasks.matching { it.name == "assembleRelease" }.configureEach {
 tasks.matching { it.name == "bundleRelease" }.configureEach {
   doLast { renameBuiltFile("outputs/bundle/release", "app-release.aab", "bwriter-$appVersionName-release.aab") }
 }
+
