@@ -647,7 +647,7 @@ fun SectionEditorScreen(
 
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "By: ${section.revisionAuthorPenName.ifBlank { "Contributor" }} (${section.revisionAuthorRole}) • ${section.revisionAuthorEmail}",
+                                        text = "By: ${section.revisionAuthorPenName.ifBlank { "Contributor" }} (${section.revisionAuthorRole})",
                                         fontSize = 11.sp,
                                         color = Color(0xFF5A1A1A),
                                         fontFamily = FontFamily.Serif
