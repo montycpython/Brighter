@@ -119,6 +119,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val userSubscription by viewModel.userAiSubscription.collectAsState()
     val tokenTransactions by viewModel.tokenTransactions.collectAsState()
     val showPaywall by viewModel.showPaywall.collectAsState()
+    val creditBalance by viewModel.creditBalance.collectAsState()
+    val unclaimedCredit by viewModel.unclaimedCredit.collectAsState()
     val versionHistory by viewModel.versionHistory.collectAsState()
 
     var showNewWorkDialog by remember { mutableStateOf(false) }
@@ -568,6 +570,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         SubscriptionPaywallDialog(
             subscription = userSubscription,
             recentTransactions = tokenTransactions,
+            creditBalance = creditBalance,
+            unclaimedCredit = unclaimedCredit,
+            onClaimCredit = { viewModel.claimCredit() },
             onDismiss = { viewModel.dismissPaywall() }
         )
     }

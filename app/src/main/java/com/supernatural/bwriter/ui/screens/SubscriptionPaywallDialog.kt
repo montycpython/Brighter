@@ -1,6 +1,7 @@
 package com.supernatural.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +66,9 @@ import java.util.Locale
 fun SubscriptionPaywallDialog(
     subscription: UserAiSubscription,
     recentTransactions: List<AiTokenTransaction> = emptyList(),
+    creditBalance: Int = 0,
+    unclaimedCredit: Int = 0,
+    onClaimCredit: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -191,6 +195,30 @@ fun SubscriptionPaywallDialog(
                                 fontSize = 10.5.sp,
                                 color = Color(0xFFB0A89C)
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "In-app credit: $creditBalance",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BookGoldLight
+                            )
+                            if (unclaimedCredit > 0) {
+                                Text(
+                                    text = "Unclaimed: $unclaimedCredit \u2014 tap to mine",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BookGoldLight,
+                                    modifier = Modifier.clickable { onClaimCredit() }
+                                )
+                            }
                         }
                     }
                 }

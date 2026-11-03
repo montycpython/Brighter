@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.supernatural.bwriter.cmos.CmosLeafEngine
 import com.supernatural.bwriter.data.AuthorKeys
 import com.supernatural.bwriter.data.BookStamp
+import com.supernatural.bwriter.data.CreditChain
+import com.supernatural.bwriter.data.CreditSchedule
 import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
@@ -36,7 +38,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -345,6 +349,15 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     private val _showPaywall = MutableStateFlow(false)
     val showPaywall: StateFlow<Boolean> = _showPaywall.asStateFlow()
+
+    private val _creditBalance = MutableStateFlow(0)
+    val creditBalance: StateFlow<Int> = _creditBalance.asStateFlow()
+
+    private val _unclaimedCredit = MutableStateFlow(0)
+    val unclaimedCredit: StateFlow<Int> = _unclaimedCredit.asStateFlow()
+
+    private val _isMiningCredit = MutableStateFlow(false)
+    val isMiningCredit: StateFlow<Boolean> = _isMiningCredit.asStateFlow()
 
     fun openPaywall() {
         _showPaywall.value = true
@@ -809,6 +822,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
             checkAccountSuspension()
 
+            refreshCredit()
+
             // Fetch index
             val indexResult = networkService.fetchGlobalBookIndex(_currentUser.value)
             if (indexResult.isSuccess) {
@@ -888,6 +903,11 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     )
                     repository.updateManuscript(fullyStamped)
                     val entry = result.getOrNull()
+                    if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief && entry != null &&
+                        entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)
+                    ) {
+                        networkService.issueCredit(entry)
+                    }
                     // The same whole book, saved to the writer's own Google Drive.
                     val payload = networkService.buildPayloadJson(
                         fullyStamped, sections, _currentUser.value, isPublicInCommunity
@@ -925,6 +945,49 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     syncError = e.message
                 )
                 onDone(Result.failure(e))
+            }
+        }
+    }
+
+    /** Refresh the signed-in author's in-app credit: claimed balance and unclaimed issuances. */
+    fun refreshCredit() {
+        viewModelScope.launch {
+            val email = _currentUser.value.email
+            if (email.isBlank()) {
+                _creditBalance.value = 0
+                _unclaimedCredit.value = 0
+                return@launch
+            }
+            val issuances = networkService.fetchIssuancesFor(email)
+            val claimed = networkService.fetchClaimedIssuanceIds(email)
+            _creditBalance.value = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+            _unclaimedCredit.value = issuances.filterNot { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+        }
+    }
+
+    /** Mine the oldest unclaimed issuance on this device; the work is the claim. */
+    fun claimCredit() {
+        if (_isMiningCredit.value) return
+        _isMiningCredit.value = true
+        viewModelScope.launch {
+            try {
+                val email = _currentUser.value.email
+                val issuances = networkService.fetchIssuancesFor(email).sortedBy { it.issuedAtMillis }
+                val claimed = networkService.fetchClaimedIssuanceIds(email)
+                val index = issuances.indexOfFirst { !claimed.contains(it.issuanceHash) }
+                if (index >= 0) {
+                    val target = issuances[index]
+                    val difficulty = CreditSchedule.difficultyBits(index)
+                    val nonce = withContext(Dispatchers.Default) {
+                        CreditChain.mineClaim(target.issuanceHash, difficulty)
+                    }
+                    if (nonce != null) {
+                        networkService.recordClaim(email, target, nonce)
+                    }
+                }
+            } finally {
+                _isMiningCredit.value = false
+                refreshCredit()
             }
         }
     }

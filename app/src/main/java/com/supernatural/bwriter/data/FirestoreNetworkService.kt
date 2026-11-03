@@ -75,6 +75,9 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_CLOUD_BOOKS = "cloudBooks"
         private const val COL_VERSIONS = "versionSnapshots"
         private const val COL_STUDIO_CONFIG = "studioConfig"
+        private const val COL_CREDIT_ISSUANCES = "creditIssuances"
+        private const val COL_CREDIT_CLAIMS = "creditClaims"
+        private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
     }
 
     @Volatile
@@ -477,6 +480,7 @@ class FirestoreNetworkService(private val context: Context) {
                     .collection("content").document("fullText")
                     .set(contentSnap.data ?: emptyMap<String, Any>()).await()
             }
+            issueCredit(entry)
             pendingRef.collection("content").document("fullText").delete().await()
             pendingRef.delete().await()
 
@@ -526,6 +530,202 @@ class FirestoreNetworkService(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    // ------------------------------------------------------------------
+    // In-app credit
+    // ------------------------------------------------------------------
+
+    /** Every credit issuance recorded for one author, oldest first. */
+    suspend fun fetchIssuancesFor(email: String): List<CreditIssuance> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_CREDIT_ISSUANCES)
+                .whereEqualTo("authorEmail", normEmail(email)).get().await()
+            snap.documents.mapNotNull { docToIssuance(it.data) }
+                .sortedBy { it.issuedAtMillis }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch credit issuances failed", e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Mint the credit an approval generates: the author, and every
+     * editor of record on the book at the same amount as the author.
+     * Runs only with Editor in Chief standing, once per book, and is
+     * best-effort: a credit failure never fails the approval.
+     */
+    suspend fun issueCredit(entry: GlobalBookIndexEntry) {
+        if (!StudioStanding.isEditorInChief) return
+        try {
+            val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
+                .whereEqualTo("fileId", entry.fileId).get().await()
+                .documents.mapNotNull { docToIssuance(it.data) }
+            if (existingForBook.any { it.kind == "AUTHOR" && it.authorEmail == normEmail(entry.authorEmail) }) return
+
+            val prior = fetchIssuancesFor(entry.authorEmail).count { it.kind == "AUTHOR" }
+            val amount = CreditSchedule.amountForApproval(prior)
+
+            if (entry.authorAddress.isNotBlank()) {
+                writeIssuance(entry.authorEmail, entry.authorAddress, amount, "AUTHOR", entry)
+            }
+            fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
+                if (assignment.editorAddress.isNotBlank()) {
+                    writeIssuance(assignment.editorEmail, assignment.editorAddress, amount, "EDITOR", entry)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Credit issuance failed", e)
+        }
+    }
+
+    private suspend fun writeIssuance(
+        recipientEmail: String,
+        recipientAddress: String,
+        amount: Int,
+        kind: String,
+        entry: GlobalBookIndexEntry
+    ) {
+        val recipientIssuances = fetchIssuancesFor(recipientEmail)
+        val prevHash = recipientIssuances.maxByOrNull { it.issuedAtMillis }?.issuanceHash ?: ""
+        val issuedAt = System.currentTimeMillis()
+        val hash = CreditChain.issuanceHashFor(prevHash, recipientAddress, amount, entry.fileId, issuedAt)
+        val issuance = CreditIssuance(
+            id = hash,
+            authorEmail = normEmail(recipientEmail),
+            authorAddress = recipientAddress,
+            amount = amount,
+            kind = kind,
+            fileId = entry.fileId,
+            birthId = entry.birthId,
+            issuedAtMillis = issuedAt,
+            prevIssuanceHash = prevHash,
+            issuanceHash = hash,
+            signature = AuthorKeys.sign(context, hash)
+        )
+        db.collection(COL_CREDIT_ISSUANCES).document(hash).set(issuanceToMap(issuance)).await()
+    }
+
+    /** Hashes of the issuances this author has already claimed. */
+    suspend fun fetchClaimedIssuanceIds(email: String): Set<String> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_CREDIT_CLAIMS)
+                .whereEqualTo("authorEmail", normEmail(email)).get().await()
+            snap.documents.mapNotNull { it.getString("issuanceHash") }.toSet()
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch credit claims failed", e)
+            emptySet()
+        }
+    }
+
+    /** Record a mined claim: the proof-of-work that makes an issuance spendable. */
+    suspend fun recordClaim(email: String, issuance: CreditIssuance, nonce: Long) = withContext(Dispatchers.IO) {
+        try {
+            db.collection(COL_CREDIT_CLAIMS).document(issuance.issuanceHash + "_" + nonce).set(
+                mapOf(
+                    "authorEmail" to normEmail(email),
+                    "issuanceHash" to issuance.issuanceHash,
+                    "nonce" to nonce,
+                    "claimedAtMillis" to System.currentTimeMillis()
+                )
+            ).await()
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Record credit claim failed", e)
+        }
+    }
+
+    private fun docToIssuance(data: Map<String, Any>?): CreditIssuance? {
+        if (data == null) return null
+        val hash = data["issuanceHash"] as? String ?: return null
+        return CreditIssuance(
+            id = data["id"] as? String ?: hash,
+            authorEmail = data["authorEmail"] as? String ?: "",
+            authorAddress = data["authorAddress"] as? String ?: "",
+            amount = (data["amount"] as? Number)?.toInt() ?: 0,
+            kind = data["kind"] as? String ?: "AUTHOR",
+            fileId = data["fileId"] as? String ?: "",
+            birthId = data["birthId"] as? String ?: "",
+            issuedAtMillis = (data["issuedAtMillis"] as? Number)?.toLong() ?: 0L,
+            prevIssuanceHash = data["prevIssuanceHash"] as? String ?: "",
+            issuanceHash = hash,
+            signature = data["signature"] as? String ?: ""
+        )
+    }
+
+    private fun issuanceToMap(i: CreditIssuance): Map<String, Any> = mapOf(
+        "id" to i.id,
+        "authorEmail" to i.authorEmail,
+        "authorAddress" to i.authorAddress,
+        "amount" to i.amount,
+        "kind" to i.kind,
+        "fileId" to i.fileId,
+        "birthId" to i.birthId,
+        "issuedAtMillis" to i.issuedAtMillis,
+        "prevIssuanceHash" to i.prevIssuanceHash,
+        "issuanceHash" to i.issuanceHash,
+        "signature" to i.signature
+    )
+
+    // ------------------------------------------------------------------
+    // Editor assignments
+    // ------------------------------------------------------------------
+
+    /** Every editor assignment recorded for one book. */
+    suspend fun fetchEditorAssignmentsForBook(fileId: String): List<EditorAssignment> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_EDITOR_ASSIGNMENTS)
+                .whereEqualTo("fileId", fileId).get().await()
+            snap.documents.mapNotNull { docToAssignment(it.data) }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch editor assignments failed", e)
+            emptyList()
+        }
+    }
+
+    /** The book's editors of record: assignments the Editor in Chief approved. */
+    suspend fun fetchApprovedEditorAssignments(fileId: String): List<EditorAssignment> =
+        fetchEditorAssignmentsForBook(fileId).filter { it.status == "APPROVED" }
+
+    suspend fun createEditorAssignment(assignment: EditorAssignment) = withContext(Dispatchers.IO) {
+        try {
+            val id = CreditChain.sha256Hex(assignment.fileId + "|" + normEmail(assignment.editorEmail))
+            val stored = assignment.copy(id = id, editorEmail = normEmail(assignment.editorEmail))
+            db.collection(COL_EDITOR_ASSIGNMENTS).document(id).set(assignmentToMap(stored)).await()
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Create editor assignment failed", e)
+        }
+    }
+
+    suspend fun setEditorAssignmentStatus(id: String, status: String) = withContext(Dispatchers.IO) {
+        try {
+            db.collection(COL_EDITOR_ASSIGNMENTS).document(id).update("status", status).await()
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Set editor assignment status failed", e)
+        }
+    }
+
+    private fun docToAssignment(data: Map<String, Any>?): EditorAssignment? {
+        if (data == null) return null
+        val id = data["id"] as? String ?: return null
+        return EditorAssignment(
+            id = id,
+            fileId = data["fileId"] as? String ?: "",
+            bookAuthorEmail = data["bookAuthorEmail"] as? String ?: "",
+            editorEmail = data["editorEmail"] as? String ?: "",
+            editorAddress = data["editorAddress"] as? String ?: "",
+            requestedBy = data["requestedBy"] as? String ?: "",
+            status = data["status"] as? String ?: "PENDING"
+        )
+    }
+
+    private fun assignmentToMap(a: EditorAssignment): Map<String, Any> = mapOf(
+        "id" to a.id,
+        "fileId" to a.fileId,
+        "bookAuthorEmail" to a.bookAuthorEmail,
+        "editorEmail" to a.editorEmail,
+        "editorAddress" to a.editorAddress,
+        "requestedBy" to a.requestedBy,
+        "status" to a.status
+    )
 
     // ------------------------------------------------------------------
     // Mail
