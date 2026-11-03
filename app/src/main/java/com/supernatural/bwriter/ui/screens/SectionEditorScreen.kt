@@ -887,9 +887,9 @@ fun SectionEditorScreen(
                             onRunStyleCheck = {
                                 val findings = mutableListOf<String>()
                                 findings += CmosFormatter.checkOxfordComma(contentValue.text)
-                                contentValue.text.split(Regex("\n\s*\n")).map { it.trim() }.filter { it.isNotBlank() }.forEachIndexed { index, paragraph ->
+                                contentValue.text.split(Regex("""\n\s*\n""")).map { it.trim() }.filter { it.isNotBlank() }.forEachIndexed { index, paragraph ->
                                     if (CmosFormatter.isCandidateForBlockQuote(paragraph)) {
-                                        val wordCount = paragraph.split(Regex("\s+")).filter { it.isNotBlank() }.size
+                                        val wordCount = paragraph.split(Regex("""\s+""")).filter { it.isNotBlank() }.size
                                         findings += "Paragraph ${index + 1} ($wordCount words) may be a block quote: \"${paragraph.take(60)}…\""
                                     }
                                 }

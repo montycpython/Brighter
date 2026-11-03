@@ -83,7 +83,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             name = if (name.isNotBlank()) name.trim() else "Author",
             penName = penName.trim(),
             email = if (email.isNotBlank()) email.trim() else _currentUser.value.email,
-            role = standingRoleFor(if (email.isNotBlank()) email.trim() else _currentUser.value.email),
+            role = standingRoleFor(),
             organization = if (organization.isNotBlank()) organization.trim() else "Author Studio",
             preferredCmosEdition = preferredCmosEdition
         )
