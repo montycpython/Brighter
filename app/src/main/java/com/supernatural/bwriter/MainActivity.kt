@@ -160,7 +160,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             suspension = activeSuspension!!,
             onRetrySync = {
                 viewModel.refreshNetwork()
-                Toast.makeText(context, "Verifying Shared Drive status...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Checking account status...", Toast.LENGTH_SHORT).show()
             },
             onSwitchUser = {
                 viewModel.signOutGoogleAccount()
