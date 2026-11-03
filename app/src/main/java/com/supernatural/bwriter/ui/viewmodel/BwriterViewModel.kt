@@ -837,7 +837,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     }
     }
 
-    fun syncManuscriptToGoogleDrive(
+    fun syncManuscript(
         manuscript: ManuscriptEntity,
         isPublicInCommunity: Boolean,
         onDone: (Result<GlobalBookIndexEntry>) -> Unit

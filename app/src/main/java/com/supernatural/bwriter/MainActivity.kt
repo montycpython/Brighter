@@ -592,7 +592,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             onDismiss = { manuscriptToSync = null },
             onConfirmSync = { isPublic ->
                 val target = manuscriptToSync!!
-                viewModel.syncManuscriptToGoogleDrive(target, isPublic) { res ->
+                viewModel.syncManuscript(target, isPublic) { res ->
                     if (res.isSuccess) {
                         Toast.makeText(context, "Synced “${target.title}” to Google Drive!", Toast.LENGTH_LONG).show()
                         manuscriptToSync = null
