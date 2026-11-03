@@ -75,7 +75,6 @@ import java.util.Calendar
 fun AuthScreen(
     currentUser: UserProfile,
     savedAccounts: List<UserProfile> = emptyList(),
-    onRoleSelected: (WorkRole) -> Unit = {},
     onGoogleSignIn: (email: String, name: String, penName: String, role: WorkRole) -> Unit,
     onRemoveSavedAccount: (String) -> Unit = {},
     onContinue: () -> Unit = {}
