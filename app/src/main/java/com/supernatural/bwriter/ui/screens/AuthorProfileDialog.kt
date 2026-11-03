@@ -101,7 +101,7 @@ fun AuthorProfileDialog(
     val effectiveDisplayName = when {
         penName.isNotBlank() -> penName.trim()
         legalName.isNotBlank() -> legalName.trim()
-        else -> "Author"
+        else -> email
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -282,25 +282,6 @@ fun AuthorProfileDialog(
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
-
-                // Account Email / Username Input
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Account Email / Cloud Identity") },
-                    placeholder = { Text("e.g. author@gmail.com") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = "Email",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("input_profile_email")
-                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
