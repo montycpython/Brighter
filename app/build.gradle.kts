@@ -148,3 +148,15 @@ androidComponents {
     }
   }
 }
+
+// Name the Play bundle the same way: bwriter-<version>-release.aab
+val appVersionName = android.defaultConfig.versionName ?: "1.1"
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+  doLast {
+    val dir = layout.buildDirectory.dir("outputs/bundle/release").get().asFile
+    val built = File(dir, "app-release.aab")
+    if (built.exists()) {
+      built.renameTo(File(dir, "bwriter-$appVersionName-release.aab"))
+    }
+  }
+}
