@@ -148,7 +148,7 @@ fun AdminGodModeDashboardScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Master Shared Drive Admin",
+                                text = "Registry Admin",
                                 fontFamily = FontFamily.Serif,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
@@ -592,7 +592,7 @@ fun MasterBookIndexTab(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No manuscripts currently registered in the Master Shared Drive.",
+                    text = "No manuscripts currently registered in the registry.",
                     color = Color.Gray,
                     fontSize = 12.sp,
                     fontStyle = FontStyle.Italic
