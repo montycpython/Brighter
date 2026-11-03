@@ -247,7 +247,7 @@ fun SyncToGoogleDriveDialog(
                         Icon(Icons.Default.Security, contentDescription = null, tint = BookGoldLight, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Auto-Share Hook: Uploading grants the Editor in Chief writer/editorial access automatically.",
+                            text = "Syncing sends a copy of your book to the Editor in Chief for review, and a backup copy to your own Google Drive.",
                             fontSize = 10.sp,
                             color = Color(0xFFB0A89C),
                             lineHeight = 13.sp
