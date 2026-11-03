@@ -153,7 +153,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         return
     }
 
-    // Hard-lock Kill-Switch: if this account is suspended in suspended_users.json
+    // Hard-lock Kill-Switch: a suspended account stops here.
     if (activeSuspension != null) {
         KillSwitchSuspensionScreen(
             userProfile = currentUser,
