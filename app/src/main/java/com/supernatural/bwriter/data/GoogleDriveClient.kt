@@ -35,6 +35,7 @@ class GoogleDriveClient(context: Context) {
         private const val DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file"
         private const val FOLDER_NAME = "Bwriter"
         private const val FOLDER_MIME = "application/vnd.google-apps.folder"
+        private const val KEY_BACKUP_NAME = "bwriter-author-key.json"
         private const val FILES_URL = "https://www.googleapis.com/drive/v3/files"
         private const val UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
     }
@@ -163,6 +164,64 @@ class GoogleDriveClient(context: Context) {
         }
     }
 
+    /** Save the passphrase-sealed author key backup in the Bwriter folder, updating it in place. */
+    suspend fun uploadKeyBackup(token: String, json: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val folderId = ensureFolder(token)
+            val existingId = findFileIdByName(token, folderId, KEY_BACKUP_NAME)
+            if (existingId != null) {
+                val (code, _) = http(
+                    "PATCH",
+                    "$UPLOAD_URL/$existingId?uploadType=media",
+                    token,
+                    json.toByteArray(Charsets.UTF_8),
+                    "application/json"
+                )
+                if (code !in 200..299) {
+                    return@withContext Result.failure(IllegalStateException("Key backup update failed ($code)"))
+                }
+            } else {
+                val metadata = JSONObject().apply {
+                    put("name", KEY_BACKUP_NAME)
+                    put("mimeType", "application/json")
+                    put("parents", JSONArray().put(folderId))
+                }
+                val boundary = "bwriter-" + System.currentTimeMillis()
+                val body = buildMultipart(boundary, metadata.toString(), json)
+                val (code, response) = http(
+                    "POST",
+                    "$UPLOAD_URL?uploadType=multipart",
+                    token,
+                    body,
+                    "multipart/related; boundary=$boundary"
+                )
+                if (code !in 200..299) {
+                    return@withContext Result.failure(IllegalStateException("Key backup create failed ($code)"))
+                }
+                if (JSONObject(response).optString("id").isBlank()) {
+                    return@withContext Result.failure(IllegalStateException("Key backup create returned no file id"))
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Key backup upload failed", e)
+            Result.failure(e)
+        }
+    }
+
+    /** The sealed author key backup from the Bwriter folder, or null when there is none. */
+    suspend fun downloadKeyBackup(token: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val folderId = findFolderId(token) ?: return@withContext null
+            val fileId = findFileIdByName(token, folderId, KEY_BACKUP_NAME) ?: return@withContext null
+            val (code, content) = http("GET", "$FILES_URL/$fileId?alt=media", token, null, null)
+            if (code in 200..299 && content.isNotBlank()) content else null
+        } catch (e: Exception) {
+            Log.e(TAG, "Key backup download failed", e)
+            null
+        }
+    }
+
     private fun sanitizeFileName(title: String): String {
         val cleaned = title.replace(Regex("[\\\\/:*?\"<>|]"), " ").trim().replace(Regex("\\s+"), " ")
         return cleaned.ifBlank { "Untitled Book" }
@@ -201,6 +260,16 @@ class GoogleDriveClient(context: Context) {
         val q = URLEncoder.encode(
             "mimeType = '$FOLDER_MIME' and name = '$FOLDER_NAME' and trashed = false", "UTF-8"
         )
+        val (code, response) = http("GET", "$FILES_URL?q=$q&fields=files(id,name)", token, null, null)
+        if (code !in 200..299) return null
+        val files = JSONObject(response).optJSONArray("files") ?: return null
+        if (files.length() == 0) return null
+        return files.getJSONObject(0).optString("id").ifBlank { null }
+    }
+
+    private suspend fun findFileIdByName(token: String, folderId: String, name: String): String? {
+        val rawQuery = "name = '$name' and '$folderId' in parents and trashed = false"
+        val q = URLEncoder.encode(rawQuery, "UTF-8")
         val (code, response) = http("GET", "$FILES_URL?q=$q&fields=files(id,name)", token, null, null)
         if (code !in 200..299) return null
         val files = JSONObject(response).optJSONArray("files") ?: return null

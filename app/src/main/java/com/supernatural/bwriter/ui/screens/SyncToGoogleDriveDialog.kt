@@ -27,6 +27,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
@@ -40,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,9 +60,14 @@ fun SyncToGoogleDriveDialog(
     currentUser: UserProfile,
     isSyncing: Boolean,
     onDismiss: () -> Unit,
-    onConfirmSync: (isPublicInCommunity: Boolean) -> Unit
+    onConfirmSync: (isPublicInCommunity: Boolean) -> Unit,
+    onBackupKey: (passphrase: String, onDone: (Result<Unit>) -> Unit) -> Unit,
+    onRestoreKey: (passphrase: String, onDone: (Result<Boolean>) -> Unit) -> Unit
 ) {
     var isPublicInCommunity by remember { mutableStateOf(true) }
+    var keyPassphrase by remember { mutableStateOf("") }
+    var keyStatus by remember { mutableStateOf("") }
+    var keyBusy by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = { if (!isSyncing) onDismiss() }) {
         Surface(
@@ -253,6 +260,83 @@ fun SyncToGoogleDriveDialog(
                             lineHeight = 13.sp
                         )
                     }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color(0xFF2C2C3A))
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Author Key Backup
+                Text(
+                    text = "Author Key Backup",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = BookGoldLight
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = keyPassphrase,
+                    onValueChange = { keyPassphrase = it },
+                    label = { Text("Key passphrase") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            keyBusy = true
+                            keyStatus = ""
+                            onBackupKey(keyPassphrase) { result ->
+                                keyBusy = false
+                                keyStatus = result.fold(
+                                    onSuccess = { "Key backed up to Drive." },
+                                    onFailure = { "Backup failed: ${it.message}" }
+                                )
+                            }
+                        },
+                        enabled = !keyBusy && keyPassphrase.isNotBlank(),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Back Up Key", fontSize = 11.5.sp)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            keyBusy = true
+                            keyStatus = ""
+                            onRestoreKey(keyPassphrase) { result ->
+                                keyBusy = false
+                                keyStatus = result.fold(
+                                    onSuccess = { if (it) "Key restored." else "Restore failed: wrong passphrase." },
+                                    onFailure = { "Restore failed: ${it.message}" }
+                                )
+                            }
+                        },
+                        enabled = !keyBusy && keyPassphrase.isNotBlank(),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Restore Key", fontSize = 11.5.sp)
+                    }
+                }
+                if (keyStatus.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = keyStatus,
+                        fontSize = 10.5.sp,
+                        color = Color(0xFFB0A89C),
+                        lineHeight = 13.sp
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))

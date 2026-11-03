@@ -2,16 +2,19 @@ package com.supernatural.bwriter.data
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
+import android.util.Base64
 import android.security.keystore.KeyProperties
 import org.bouncycastle.crypto.digests.RIPEMD160Digest
 import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.json.JSONObject
 import org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.security.SecureRandom
 import java.security.Signature
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
@@ -22,7 +25,10 @@ import java.security.spec.ECPublicKeySpec
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * The author's own secp256k1 keypair, generated once and kept on this
@@ -38,6 +44,7 @@ object AuthorKeys {
     private const val KEY_PRIV_IV = "priv_iv"
     private const val KEY_PRIV_CT = "priv_ct"
     private const val AES_ALIAS = "bwriter_author_key"
+    private const val PBKDF2_ITERATIONS = 200_000
 
     private val provider = BouncyCastleProvider()
 
@@ -117,6 +124,81 @@ object AuthorKeys {
         } catch (e: Exception) {
             false
         }
+    }
+
+    /**
+     * The private key sealed under a passphrase, for a copy kept in the
+     * writer's own Drive: PBKDF2-HMAC-SHA256 (200,000 rounds) deriving
+     * the AES-256-GCM key. The sealed bytes are the raw 32-byte private
+     * scalar, the same form this object stores. Returns "" on failure.
+     */
+    fun exportEncrypted(context: Context, passphrase: String): String {
+        return try {
+            if (!ensureKeyPair(context)) return ""
+            val priv = loadPrivateKey(context) ?: return ""
+            val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
+            val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, passphraseKey(passphrase, salt), GCMParameterSpec(128, iv))
+            val sealed = cipher.doFinal(priv.s.toFixed32())
+            JSONObject().apply {
+                put("v", 1)
+                put("kdf", "PBKDF2-HMAC-SHA256")
+                put("iter", PBKDF2_ITERATIONS)
+                put("form", "ec-private-scalar-32")
+                put("salt", Base64.encodeToString(salt, Base64.NO_WRAP))
+                put("iv", Base64.encodeToString(iv, Base64.NO_WRAP))
+                put("data", Base64.encodeToString(sealed, Base64.NO_WRAP))
+                put("address", address(context))
+            }.toString()
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /**
+     * Restore a keypair sealed by [exportEncrypted]. A wrong passphrase
+     * fails the GCM tag check and leaves the current keypair untouched.
+     * On success the restored keypair replaces the stored one, and the
+     * check is that the restored address matches the sealed address.
+     */
+    fun importEncrypted(context: Context, json: String, passphrase: String): Boolean {
+        return try {
+            val root = JSONObject(json)
+            val salt = Base64.decode(root.getString("salt"), Base64.NO_WRAP)
+            val iv = Base64.decode(root.getString("iv"), Base64.NO_WRAP)
+            val sealed = Base64.decode(root.getString("data"), Base64.NO_WRAP)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, passphraseKey(passphrase, salt), GCMParameterSpec(128, iv))
+            val scalar = cipher.doFinal(sealed)
+            if (scalar.size != 32) return false
+            val curveSpec = ECNamedCurveTable.getParameterSpec("secp256k1")
+            val point = curveSpec.g.multiply(BigInteger(1, scalar))
+            val pubBytes = point.getEncoded(true)
+            val storeCipher = Cipher.getInstance("AES/GCM/NoPadding")
+            storeCipher.init(Cipher.ENCRYPT_MODE, aesKey())
+            val stored = storeCipher.doFinal(scalar)
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString(KEY_PUB, pubBytes.toHex())
+                .putString(KEY_PRIV_IV, storeCipher.iv.toHex())
+                .putString(KEY_PRIV_CT, stored.toHex())
+                .apply()
+            val expected = root.optString("address")
+            if (expected.isNotBlank()) {
+                address(context) == expected
+            } else {
+                val probe = "bwriter-key-restore-check"
+                verify(publicKeyHex(context), probe, sign(context, probe))
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun passphraseKey(passphrase: String, salt: ByteArray): SecretKey {
+        val spec = PBEKeySpec(passphrase.toCharArray(), salt, PBKDF2_ITERATIONS, 256)
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        return SecretKeySpec(factory.generateSecret(spec).encoded, "AES")
     }
 
     private fun aesKey(): SecretKey {

@@ -594,7 +594,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                         Toast.makeText(context, "Sync Error: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                     }
                 }
-            }
+            },
+            onBackupKey = { passphrase, onDone -> viewModel.backupAuthorKey(passphrase, onDone) },
+            onRestoreKey = { passphrase, onDone -> viewModel.restoreAuthorKey(passphrase, onDone) }
         )
     }
 

@@ -992,6 +992,55 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Seal the author key under a passphrase and keep the copy in the writer's own Drive. */
+    fun backupAuthorKey(passphrase: String, onDone: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val appContext = getApplication<Application>().applicationContext
+                AuthorKeys.ensureKeyPair(appContext)
+                val sealed = withContext(Dispatchers.Default) {
+                    AuthorKeys.exportEncrypted(appContext, passphrase)
+                }
+                if (sealed.isBlank()) {
+                    onDone(Result.failure(IllegalStateException("Could not seal the author key")))
+                    return@launch
+                }
+                googleDriveClient.accessToken(interactive = true).fold(
+                    onSuccess = { token -> onDone(googleDriveClient.uploadKeyBackup(token, sealed)) },
+                    onFailure = { onDone(Result.failure(it)) }
+                )
+            } catch (e: Exception) {
+                onDone(Result.failure(e))
+            }
+        }
+    }
+
+    /** Restore the author key from the Drive backup; a restored key replaces this device's keypair. */
+    fun restoreAuthorKey(passphrase: String, onDone: (Result<Boolean>) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val appContext = getApplication<Application>().applicationContext
+                val tokenResult = googleDriveClient.accessToken(interactive = true)
+                if (tokenResult.isFailure) {
+                    onDone(Result.failure(tokenResult.exceptionOrNull() ?: IllegalStateException("Google Drive access failed")))
+                    return@launch
+                }
+                val sealed = googleDriveClient.downloadKeyBackup(tokenResult.getOrThrow())
+                if (sealed == null) {
+                    onDone(Result.failure(IllegalStateException("No key backup found")))
+                    return@launch
+                }
+                val restored = withContext(Dispatchers.Default) {
+                    AuthorKeys.importEncrypted(appContext, sealed, passphrase)
+                }
+                if (restored) refreshCredit()
+                onDone(Result.success(restored))
+            } catch (e: Exception) {
+                onDone(Result.failure(e))
+            }
+        }
+    }
+
     fun markMailMessageAsRead(messageId: String) {
         viewModelScope.launch {
             networkService.markMailAsRead(_currentUser.value.email, messageId)
