@@ -87,9 +87,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.supernatural.bwriter.data.GoogleDriveSyncService
-import com.supernatural.bwriter.model.AiTokenTransaction
 import com.supernatural.bwriter.model.GlobalBookIndexEntry
-import com.supernatural.bwriter.model.PaidMemberTelemetry
 import com.supernatural.bwriter.model.ServerlessMailMessage
 import com.supernatural.bwriter.model.SuspendedUserEntry
 import com.supernatural.bwriter.model.UserProfile
@@ -106,8 +104,6 @@ fun AdminGodModeDashboardScreen(
     currentUser: UserProfile,
     globalIndex: List<GlobalBookIndexEntry>,
     suspendedUsers: List<SuspendedUserEntry>,
-    paidSubscribers: List<PaidMemberTelemetry> = emptyList(),
-    tokenTransactions: List<AiTokenTransaction> = emptyList(),
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onSuspendUser: (targetEmail: String, reason: String) -> Unit,
@@ -117,19 +113,17 @@ fun AdminGodModeDashboardScreen(
     onApproveBook: (fileId: String) -> Unit = {},
     onRejectBook: (fileId: String) -> Unit = {},
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
-    onGrantBonusCredits: (targetEmail: String, bonusCredits: Int) -> Unit = { _, _ -> },
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Master Book Index", "Paid Subscribers & Tokens", "Author Roster & Governance", "Mailbox Dispatcher", "Drive Storage Health")
+    val tabs = listOf("Master Book Index", "Author Roster & Governance", "Mailbox Dispatcher", "Drive Storage Health")
 
     // Modals
     var showProfileDialog by remember { mutableStateOf(false) }
     var inspectingEntry by remember { mutableStateOf<GlobalBookIndexEntry?>(null) }
     var suspendingTargetUser by remember { mutableStateOf<String?>(null) }
     var suspensionReasonInput by remember { mutableStateOf("Violation of editorial guidelines or unapproved distribution.") }
-    var grantingCreditsTargetUser by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -259,96 +253,22 @@ fun AdminGodModeDashboardScreen(
                     onApproveBook = onApproveBook,
                     onRejectBook = onRejectBook
                 )
-                1 -> PaidSubscribersAndTokensTab(
-                    subscribers = paidSubscribers,
-                    transactions = tokenTransactions,
-                    currentUser = currentUser,
-                    onGrantBonus = { email -> grantingCreditsTargetUser = email }
-                )
-                2 -> AuthorRosterTab(
+                1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
                     suspendedUsers = suspendedUsers,
                     currentUser = currentUser,
                     onOpenSuspendModal = { email -> suspendingTargetUser = email },
                     onUnsuspend = onUnsuspendUser
                 )
-                3 -> MailboxDispatcherTab(
+                2 -> MailboxDispatcherTab(
                     globalIndex = globalIndex,
                     currentUser = currentUser,
                     onSendMessage = onSendServerlessMail
                 )
-                4 -> DriveHealthTab(
+                3 -> DriveHealthTab(
                     globalIndex = globalIndex,
                     suspendedUsers = suspendedUsers
                 )
-            }
-        }
-    }
-
-    // Grant Bonus Credits Dialog
-    grantingCreditsTargetUser?.let { targetUserEmail ->
-        var bonusInput by remember { mutableStateOf("100") }
-        Dialog(onDismissRequest = { grantingCreditsTargetUser = null }) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF14141C),
-                border = BorderStroke(1.dp, BookGold)
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        text = "Grant Bonus AI Credits",
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Serif,
-                        fontSize = 16.sp,
-                        color = Color(0xFFF3EFE6)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Troubleshoot & top up generation balance for $targetUserEmail",
-                        fontSize = 11.5.sp,
-                        color = BookGoldLight
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = bonusInput,
-                        onValueChange = { bonusInput = it },
-                        label = { Text("Credits to Add") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BookGold,
-                            unfocusedBorderColor = Color(0xFF3A3A4C),
-                            focusedContainerColor = Color(0xFF1B1B24),
-                            unfocusedContainerColor = Color(0xFF161620)
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        OutlinedButton(onClick = { grantingCreditsTargetUser = null }) {
-                            Text("Cancel", color = Color.Gray)
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val amount = bonusInput.toIntOrNull() ?: 100
-                                onGrantBonusCredits(targetUserEmail, amount)
-                                grantingCreditsTargetUser = null
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark)
-                        ) {
-                            Text("Grant Credits", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
             }
         }
     }
@@ -1211,242 +1131,3 @@ fun DriveHealthTab(
         }
     }
 }
-
-@Composable
-fun PaidSubscribersAndTokensTab(
-    subscribers: List<PaidMemberTelemetry>,
-    transactions: List<AiTokenTransaction>,
-    currentUser: UserProfile,
-    onGrantBonus: (String) -> Unit
-) {
-    val totalTokensBurned = subscribers.sumOf { it.totalTokensUsed }
-    val totalRuns = subscribers.sumOf { it.totalGenerationsCount }
-    val activeCount = subscribers.count { it.status == "ACTIVE" || it.status == "UNLIMITED_SUPERUSER" }
-    var subTab by remember { mutableIntStateOf(0) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(14.dp)
-    ) {
-        // High-level telemetry cards
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color(0xFF161622),
-                border = BorderStroke(1.dp, BookGoldDark),
-                modifier = Modifier.weight(1f)
-            ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text("PAID / MEMBERS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                    Text("$activeCount / ${subscribers.size}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF3EFE6))
-                }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color(0xFF161622),
-                border = BorderStroke(1.dp, Color(0xFF323244)),
-                modifier = Modifier.weight(1.2f)
-            ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text("TOTAL CMOS TOKENS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                    Text("%,d".format(totalTokensBurned), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = BookGoldLight)
-                }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color(0xFF161622),
-                border = BorderStroke(1.dp, Color(0xFF323244)),
-                modifier = Modifier.weight(1f)
-            ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text("RUNS PRESSED", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                    Text("$totalRuns Runs", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF81C784))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Inner Tab Strip: Member Roster vs Token Ledger Audit
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            FilterChip(
-                selected = subTab == 0,
-                onClick = { subTab = 0 },
-                label = { Text("Subscribers Roster (${subscribers.size})", fontSize = 11.5.sp) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = BookGoldDark,
-                    selectedLabelColor = Color.White
-                )
-            )
-            FilterChip(
-                selected = subTab == 1,
-                onClick = { subTab = 1 },
-                label = { Text("Live Token Stream (${transactions.size})", fontSize = 11.5.sp) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = BookGoldDark,
-                    selectedLabelColor = Color.White
-                )
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (subTab == 0) {
-            if (subscribers.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No subscriber telemetry logged yet.", color = Color.Gray, fontSize = 12.sp)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(subscribers) { sub ->
-                        val isCurrentUser = sub.userEmail.equals(currentUser.email, ignoreCase = true)
-                        val subscriberName = if (isCurrentUser) currentUser.displayName else sub.displayName
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
-                            border = BorderStroke(1.dp, if (isCurrentUser) BookGoldDark else Color(0xFF2C2C3C))
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = subscriberName,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.5.sp,
-                                                color = Color(0xFFF3EFE6)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = if (sub.userEmail.equals("real.artistry@gmail.com", ignoreCase = true)) Color(0xFFFFD700).copy(alpha = 0.2f) else BookGoldDark.copy(alpha = 0.25f)
-                                            ) {
-                                                Text(
-                                                    text = sub.planTitle,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (sub.userEmail.equals("real.artistry@gmail.com", ignoreCase = true)) Color(0xFFFFD700) else BookGoldLight,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                        Text(text = sub.userEmail, fontSize = 10.5.sp, color = Color.Gray)
-                                    }
-
-                                    Button(
-                                        onClick = { onGrantBonus(sub.userEmail) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222230)),
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(30.dp)
-                                    ) {
-                                        Text("+ Grant Credits", fontSize = 10.5.sp, color = BookGoldLight)
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF22222E)))
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Credits: ${if (sub.userEmail.equals("real.artistry@gmail.com", ignoreCase = true)) "∞ Unlimited" else "${sub.creditsRemaining} remaining"}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = BookGoldLight
-                                    )
-                                    Text(
-                                        text = "Tokens: ${"%,d".format(sub.totalTokensUsed)}",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFFC8C2B7)
-                                    )
-                                    Text(
-                                        text = "Runs: ${sub.totalGenerationsCount}",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF81C784)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            // Live Token Transactions
-            if (transactions.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No AI token transactions recorded yet.", color = Color.Gray, fontSize = 12.sp)
-                }
-            } else {
-                val dateFmt = SimpleDateFormat("MMM d, h:mm:ss a", Locale.getDefault())
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(transactions) { tx ->
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFF14141C),
-                            border = BorderStroke(0.5.dp, Color(0xFF262634)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "${tx.userEmail} • ${tx.sectionTitle}",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFF3EFE6)
-                                    )
-                                    Text(
-                                        text = "${dateFmt.format(Date(tx.timestamp))} • ${tx.modelUsed}",
-                                        fontSize = 9.5.sp,
-                                        color = Color.Gray
-                                    )
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = "${tx.totalTokens} tokens",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BookGoldLight
-                                    )
-                                    Text(
-                                        text = "-${tx.creditsDeducted} credit",
-                                        fontSize = 9.5.sp,
-                                        color = if (tx.creditsDeducted > 0) Color(0xFFFF8A80) else Color.LightGray
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-

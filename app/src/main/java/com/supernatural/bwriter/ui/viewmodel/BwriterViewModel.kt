@@ -103,7 +103,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         userPreferences.saveUserProfile(updated)
         userPreferences.addOrUpdateSavedAccount(updated)
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
-        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         refreshDriveNetwork()
     }
 
@@ -138,7 +137,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _isLoggedIn.value = true
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _userAiSubscription.value = userPreferences.getUserSubscription(updated.email)
-        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         restoreManuscriptsFromGoogleDrive()
         refreshDriveNetwork()
     }
@@ -158,7 +156,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _isLoggedIn.value = true
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _userAiSubscription.value = userPreferences.getUserSubscription(corrected.email)
-        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         restoreManuscriptsFromGoogleDrive()
         refreshDriveNetwork()
     }
@@ -352,8 +349,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _tokenTransactions = MutableStateFlow(userPreferences.getTokenTransactions())
     val tokenTransactions: StateFlow<List<com.supernatural.bwriter.model.AiTokenTransaction>> = _tokenTransactions.asStateFlow()
 
-    private val _paidMembersTelemetry = MutableStateFlow(userPreferences.getAllSubscribersTelemetry())
-    val paidMembersTelemetry: StateFlow<List<com.supernatural.bwriter.model.PaidMemberTelemetry>> = _paidMembersTelemetry.asStateFlow()
 
     private val _showPaywall = MutableStateFlow(false)
     val showPaywall: StateFlow<Boolean> = _showPaywall.asStateFlow()
@@ -376,14 +371,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         )
         _userAiSubscription.value = updated
         userPreferences.saveUserSubscription(updated)
-        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         _showPaywall.value = false
-    }
-
-    fun adminGrantBonusCredits(targetEmail: String, bonusCredits: Int) {
-        userPreferences.adminGrantBonusCredits(targetEmail, bonusCredits)
-        _userAiSubscription.value = userPreferences.getUserSubscription(_currentUser.value.email)
-        _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
     }
 
     fun generateAiDraftFromPrompt(
@@ -430,7 +418,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     )
                     _userAiSubscription.value = updatedSub
                     _tokenTransactions.value = userPreferences.getTokenTransactions()
-                    _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
 
                     onGenerated(generatedText)
                 }
@@ -849,7 +836,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             }
 
             // Always synchronize subscribers telemetry with latest profile displayName
-            _paidMembersTelemetry.value = userPreferences.getAllSubscribersTelemetry()
         }
     }
 

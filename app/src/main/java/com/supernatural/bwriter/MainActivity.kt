@@ -118,7 +118,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val savedGoogleAccounts by viewModel.savedGoogleAccounts.collectAsState()
     val userSubscription by viewModel.userAiSubscription.collectAsState()
     val tokenTransactions by viewModel.tokenTransactions.collectAsState()
-    val paidMembersTelemetry by viewModel.paidMembersTelemetry.collectAsState()
     val showPaywall by viewModel.showPaywall.collectAsState()
     val versionHistory by viewModel.versionHistory.collectAsState()
 
@@ -523,8 +522,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 currentUser = currentUser,
                 globalIndex = globalBookIndex,
                 suspendedUsers = suspendedUsers,
-                paidSubscribers = paidMembersTelemetry,
-                tokenTransactions = tokenTransactions,
                 onBack = { navController.popBackStack() },
                 onRefresh = { viewModel.refreshDriveNetwork() },
                 onSuspendUser = { email, reason ->
@@ -551,10 +548,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onSendServerlessMail = { mail ->
                     viewModel.sendServerlessMailDirective(mail)
                     Toast.makeText(context, "Directive dispatched to ${mail.recipientEmail}", Toast.LENGTH_SHORT).show()
-                },
-                onGrantBonusCredits = { targetEmail, bonus ->
-                    viewModel.adminGrantBonusCredits(targetEmail, bonus)
-                    Toast.makeText(context, "Granted $bonus bonus credits to $targetEmail", Toast.LENGTH_SHORT).show()
                 },
                 onUpdateProfile = { name, penName, email, role, org, cmos ->
                     viewModel.updateProfile(name, penName, email, role, org, cmos)

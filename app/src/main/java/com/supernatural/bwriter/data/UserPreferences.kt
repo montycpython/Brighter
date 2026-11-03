@@ -14,7 +14,7 @@ class UserPreferences(context: Context) {
         // No address is built in. An install that has not signed in has
         // no identity at all; standing appears only after sign-in.
         val email = prefs.getString(KEY_EMAIL, "") ?: ""
-        val name = prefs.getString(KEY_NAME, "Author") ?: "Author"
+        val name = prefs.getString(KEY_NAME, "") ?: ""
         val penName = prefs.getString(KEY_PEN_NAME, "") ?: ""
         val roleStr = prefs.getString(KEY_ROLE, WorkRole.AUTHOR.name) ?: WorkRole.AUTHOR.name
         val role = try {
@@ -22,7 +22,7 @@ class UserPreferences(context: Context) {
         } catch (e: Exception) {
             WorkRole.AUTHOR
         }
-        val org = prefs.getString(KEY_ORG, "Author Studio") ?: "Author Studio"
+        val org = prefs.getString(KEY_ORG, "") ?: ""
         val cmos = prefs.getString(KEY_CMOS, "17th Edition") ?: "17th Edition"
 
         return UserProfile(
@@ -66,7 +66,6 @@ class UserPreferences(context: Context) {
         private const val KEY_TOTAL_GENERATIONS = "user_total_generations"
         private const val KEY_RENEWAL_TIMESTAMP = "user_renewal_timestamp"
         private const val KEY_TOKEN_TRANSACTIONS_JSON = "user_token_transactions_json"
-        private const val KEY_ALL_SUBSCRIBERS_JSON = "admin_all_subscribers_json"
     }
 
     fun isLoggedIn(): Boolean {
@@ -94,14 +93,14 @@ class UserPreferences(context: Context) {
                         UserProfile(
                             id = obj.optString("id", "user_${System.currentTimeMillis()}"),
                             email = obj.optString("email", ""),
-                            name = obj.optString("name", "Author"),
+                            name = obj.optString("name", ""),
                             penName = obj.optString("penName", ""),
                             role = try {
                                 WorkRole.valueOf(obj.optString("role", WorkRole.AUTHOR.name))
                             } catch (e: Exception) {
                                 WorkRole.AUTHOR
                             },
-                            organization = obj.optString("organization", "Author Studio"),
+                            organization = obj.optString("organization", ""),
                             preferredCmosEdition = obj.optString("preferredCmosEdition", "17th Edition")
                         )
                     )
@@ -207,7 +206,6 @@ class UserPreferences(context: Context) {
             .putLong(KEY_RENEWAL_TIMESTAMP, subscription.monthlyRenewalTimestamp)
             .apply()
 
-        recordTelemetryInRegistry(subscription)
     }
 
     fun recordTokenUsage(
@@ -303,117 +301,5 @@ class UserPreferences(context: Context) {
             e.printStackTrace()
         }
         return list
-    }
-
-    private fun recordTelemetryInRegistry(sub: com.supernatural.bwriter.model.UserAiSubscription) {
-        try {
-            val raw = prefs.getString(KEY_ALL_SUBSCRIBERS_JSON, "[]") ?: "[]"
-            val array = org.json.JSONArray(raw)
-            val updatedArray = org.json.JSONArray()
-            var found = false
-            val currentProfile = getUserProfile()
-
-            for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                if (obj.optString("userEmail").equals(sub.userEmail, ignoreCase = true)) {
-                    val resolvedName = if (sub.userEmail.equals(currentProfile.email, ignoreCase = true)) currentProfile.displayName else obj.optString("displayName", "Author")
-                    val updatedObj = org.json.JSONObject().apply {
-                        put("userEmail", sub.userEmail)
-                        put("displayName", resolvedName)
-                        put("planId", sub.plan.id)
-                        put("planTitle", sub.plan.title)
-                        put("creditsRemaining", sub.creditsRemaining)
-                        put("totalTokensUsed", sub.totalTokensUsed)
-                        put("totalGenerationsCount", sub.totalGenerationsCount)
-                        put("monthlyRenewalTimestamp", sub.monthlyRenewalTimestamp)
-                        put("lastActiveTimestamp", System.currentTimeMillis())
-                        put("status", if (sub.userEmail.equals("real.artistry@gmail.com", ignoreCase = true)) "UNLIMITED_SUPERUSER" else if (sub.isActive) "ACTIVE" else "EXPIRED")
-                    }
-                    updatedArray.put(updatedObj)
-                    found = true
-                } else {
-                    updatedArray.put(obj)
-                }
-            }
-
-            if (!found) {
-                val resolvedName = if (sub.userEmail.equals(currentProfile.email, ignoreCase = true)) currentProfile.displayName else "Author"
-                val newObj = org.json.JSONObject().apply {
-                    put("userEmail", sub.userEmail)
-                    put("displayName", resolvedName)
-                    put("planId", sub.plan.id)
-                    put("planTitle", sub.plan.title)
-                    put("creditsRemaining", sub.creditsRemaining)
-                    put("totalTokensUsed", sub.totalTokensUsed)
-                    put("totalGenerationsCount", sub.totalGenerationsCount)
-                    put("monthlyRenewalTimestamp", sub.monthlyRenewalTimestamp)
-                    put("lastActiveTimestamp", System.currentTimeMillis())
-                    put("status", if (sub.userEmail.equals("real.artistry@gmail.com", ignoreCase = true)) "UNLIMITED_SUPERUSER" else "ACTIVE")
-                }
-                updatedArray.put(newObj)
-            }
-            prefs.edit().putString(KEY_ALL_SUBSCRIBERS_JSON, updatedArray.toString()).apply()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    fun getAllSubscribersTelemetry(): List<com.supernatural.bwriter.model.PaidMemberTelemetry> {
-        val list = mutableListOf<com.supernatural.bwriter.model.PaidMemberTelemetry>()
-        val currentProfile = getUserProfile()
-        try {
-            val raw = prefs.getString(KEY_ALL_SUBSCRIBERS_JSON, "[]") ?: "[]"
-            val array = org.json.JSONArray(raw)
-            for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                val userEmail = obj.optString("userEmail")
-                val isCurrent = userEmail.equals(currentProfile.email, ignoreCase = true)
-                list.add(
-                    com.supernatural.bwriter.model.PaidMemberTelemetry(
-                        userEmail = userEmail,
-                        displayName = if (isCurrent) currentProfile.displayName else obj.optString("displayName", "Author"),
-                        planId = obj.optString("planId"),
-                        planTitle = obj.optString("planTitle", "Novelist Plan"),
-                        creditsRemaining = obj.optInt("creditsRemaining"),
-                        totalTokensUsed = obj.optLong("totalTokensUsed"),
-                        totalGenerationsCount = obj.optInt("totalGenerationsCount"),
-                        monthlyRenewalTimestamp = obj.optLong("monthlyRenewalTimestamp"),
-                        lastActiveTimestamp = obj.optLong("lastActiveTimestamp"),
-                        status = obj.optString("status", "ACTIVE")
-                    )
-                )
-            }
-
-            // Always ensure current user / real.artistry@gmail.com is present with full metrics
-            if (list.none { it.userEmail.equals(currentProfile.email, ignoreCase = true) }) {
-                val superuserSub = getUserSubscription(currentProfile.email)
-                val isEditor = currentProfile.email.equals("real.artistry@gmail.com", ignoreCase = true)
-                list.add(
-                    0,
-                    com.supernatural.bwriter.model.PaidMemberTelemetry(
-                        userEmail = currentProfile.email,
-                        displayName = currentProfile.displayName,
-                        planId = if (isEditor) com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED.id else superuserSub.plan.id,
-                        planTitle = if (isEditor) com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED.title else superuserSub.plan.title,
-                        creditsRemaining = superuserSub.creditsRemaining,
-                        totalTokensUsed = superuserSub.totalTokensUsed,
-                        totalGenerationsCount = superuserSub.totalGenerationsCount,
-                        monthlyRenewalTimestamp = superuserSub.monthlyRenewalTimestamp,
-                        lastActiveTimestamp = System.currentTimeMillis(),
-                        status = if (isEditor) "UNLIMITED_SUPERUSER" else "ACTIVE"
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return list
-    }
-
-    fun adminGrantBonusCredits(targetEmail: String, bonusCredits: Int) {
-        if (targetEmail.equals(getUserProfile().email, ignoreCase = true)) {
-            val current = getUserSubscription(targetEmail)
-            saveUserSubscription(current.copy(creditsRemaining = current.creditsRemaining + bonusCredits))
-        }
     }
 }
