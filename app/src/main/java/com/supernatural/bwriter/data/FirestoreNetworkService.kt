@@ -199,7 +199,7 @@ class FirestoreNetworkService(private val context: Context) {
                 else -> COL_PENDING
             }
             val fileId = existing?.id ?: "drv_book_${manuscript.id}_${System.currentTimeMillis().toString().takeLast(6)}"
-            val driveUrl = "https://drive.google.com/file/d/$fileId/view"
+            val driveUrl = ""
 
             val indexEntry = GlobalBookIndexEntry(
                 fileId = fileId,
