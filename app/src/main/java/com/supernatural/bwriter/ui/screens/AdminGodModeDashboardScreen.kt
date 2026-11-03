@@ -328,8 +328,6 @@ fun AdminGodModeDashboardScreen(
   "totalLeaves": ${entry.totalLeaves},
   "lastSynced": ${entry.lastSyncedTimestamp},
   "isPublicInCommunity": ${entry.isPublicInCommunity},
-  "sharedWithSuperuser": ${entry.sharedWithEditorInChief},
-  "driveUrl": "${entry.driveFileUrl}"
 }
                     """.trimIndent()
 
