@@ -109,6 +109,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     // Google Drive & Serverless Governance State
     val driveSyncStatus by viewModel.driveSyncStatus.collectAsState()
     val globalBookIndex by viewModel.globalBookIndex.collectAsState()
+    val pendingBooks by viewModel.pendingBooks.collectAsState()
     val suspendedUsers by viewModel.suspendedUsers.collectAsState()
     val mailboxMessages by viewModel.mailboxMessages.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
@@ -537,6 +538,15 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onRevokeManuscript = { fileId ->
                     viewModel.revokeManuscriptDriveAccess(fileId)
                     Toast.makeText(context, "Manuscript access revoked", Toast.LENGTH_SHORT).show()
+                },
+                pendingBooks = pendingBooks,
+                onApproveBook = { fileId ->
+                    viewModel.approveRegistryBook(fileId)
+                    Toast.makeText(context, "Book approved — now in the registry", Toast.LENGTH_SHORT).show()
+                },
+                onRejectBook = { fileId ->
+                    viewModel.rejectRegistryBook(fileId)
+                    Toast.makeText(context, "Book not approved", Toast.LENGTH_SHORT).show()
                 },
                 onSendServerlessMail = { mail ->
                     viewModel.sendServerlessMailDirective(mail)

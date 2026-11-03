@@ -35,6 +35,31 @@ service cloud.firestore {
       }
     }
 
+    // Registry approval queue: a synced book waits here until the Editor in
+    // Chief approves it into the public registry. Only its author and the
+    // Editor in Chief may see a pending entry; the Editor in Chief moves it
+    // into /registry on approval or deletes it on rejection.
+    match /registryPending/{fileId} {
+      allow read: if isSuper()
+        || (signedIn() && resource.data.authorEmail == request.auth.token.email);
+      allow create: if signedIn()
+        && request.resource.data.authorEmail == request.auth.token.email;
+      allow update: if isSuper()
+        || (signedIn() && resource.data.authorEmail == request.auth.token.email
+            && request.resource.data.authorEmail == request.auth.token.email);
+      allow delete: if isSuper()
+        || (signedIn() && resource.data.authorEmail == request.auth.token.email);
+
+      // The pending book's full text: only its author and the Editor in
+      // Chief, until approval moves it under /registry.
+      match /content/{docId} {
+        allow read: if isSuper()
+          || (signedIn() && resource.data.authorEmail == request.auth.token.email);
+        allow write: if isSuper()
+          || (signedIn() && request.resource.data.authorEmail == request.auth.token.email);
+      }
+    }
+
     // Suspension records: readable by signed-in users (the app checks its own
     // record at sign-in); only the Editor in Chief writes.
     match /suspended/{email} {

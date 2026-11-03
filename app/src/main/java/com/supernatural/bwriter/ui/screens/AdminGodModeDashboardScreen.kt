@@ -113,6 +113,9 @@ fun AdminGodModeDashboardScreen(
     onSuspendUser: (targetEmail: String, reason: String) -> Unit,
     onUnsuspendUser: (targetEmail: String) -> Unit,
     onRevokeManuscript: (fileId: String) -> Unit,
+    pendingBooks: List<GlobalBookIndexEntry> = emptyList(),
+    onApproveBook: (fileId: String) -> Unit = {},
+    onRejectBook: (fileId: String) -> Unit = {},
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onGrantBonusCredits: (targetEmail: String, bonusCredits: Int) -> Unit = { _, _ -> },
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
@@ -251,7 +254,10 @@ fun AdminGodModeDashboardScreen(
                     entries = globalIndex,
                     currentUser = currentUser,
                     onInspect = { inspectingEntry = it },
-                    onRevoke = onRevokeManuscript
+                    onRevoke = onRevokeManuscript,
+                    pendingBooks = pendingBooks,
+                    onApproveBook = onApproveBook,
+                    onRejectBook = onRejectBook
                 )
                 1 -> PaidSubscribersAndTokensTab(
                     subscribers = paidSubscribers,
@@ -561,7 +567,10 @@ fun MasterBookIndexTab(
     entries: List<GlobalBookIndexEntry>,
     currentUser: UserProfile,
     onInspect: (GlobalBookIndexEntry) -> Unit,
-    onRevoke: (String) -> Unit
+    onRevoke: (String) -> Unit,
+    pendingBooks: List<GlobalBookIndexEntry> = emptyList(),
+    onApproveBook: (String) -> Unit = {},
+    onRejectBook: (String) -> Unit = {}
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
 
@@ -592,6 +601,68 @@ fun MasterBookIndexTab(
         }
 
         Spacer(modifier = Modifier.height(10.dp))
+
+        // Approval queue: books synced by authors wait here until the
+        // Editor in Chief approves them into the registry above.
+        if (pendingBooks.isNotEmpty()) {
+            Text(
+                text = "Awaiting Approval (${pendingBooks.size})",
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Serif,
+                fontSize = 14.sp,
+                color = BookGoldLight
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            pendingBooks.forEach { entry ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .testTag("admin_pending_card_${entry.fileId}"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                    border = BorderStroke(1.dp, BookGoldDark)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = entry.title,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Text(
+                            text = "${entry.authorName} · ${entry.authorEmail}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = "${entry.wordCount} words · ${entry.workType}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { onApproveBook(entry.fileId) },
+                                colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("btn_approve_${entry.fileId}")
+                            ) {
+                                Text("Approve", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                            OutlinedButton(
+                                onClick = { onRejectBook(entry.fileId) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("btn_reject_${entry.fileId}")
+                            ) {
+                                Text("Reject", fontSize = 12.5.sp)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+        }
 
         if (entries.isEmpty()) {
             Box(

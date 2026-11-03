@@ -42,6 +42,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     companion object {
         private const val COL_REGISTRY = "registry"
+        private const val COL_PENDING = "registryPending"
         private const val COL_SUSPENDED = "suspended"
         private const val COL_MAIL = "mail"
         private const val COL_CLOUD_BOOKS = "cloudBooks"
@@ -173,7 +174,20 @@ class FirestoreNetworkService(private val context: Context) {
             val totalWords = sections.sumOf { it.wordCount.takeIf { c -> c > 0 } ?: it.content.split(Regex("\\s+")).count { w -> w.isNotBlank() } }
             val estimatedLeaves = (totalWords / 250).coerceAtLeast(1)
 
-            val existing = findRegistryDoc(manuscript.id, currentUser.email)
+            // A book lives in exactly one place: the approval queue until
+            // the Editor in Chief approves it, then the public registry.
+            // His own books go straight to the registry. A re-sync updates
+            // the copy wherever it currently lives.
+            val isEditorInChief = currentUser.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+            val pendingExisting = findDocInCollection(COL_PENDING, manuscript.id, currentUser.email)
+            val registryExisting = if (pendingExisting == null) findRegistryDoc(manuscript.id, currentUser.email) else null
+            val existing = pendingExisting ?: registryExisting
+            val targetCollection = when {
+                pendingExisting != null -> COL_PENDING
+                registryExisting != null -> COL_REGISTRY
+                isEditorInChief -> COL_REGISTRY
+                else -> COL_PENDING
+            }
             val fileId = existing?.id ?: "drv_book_${manuscript.id}_${System.currentTimeMillis().toString().takeLast(6)}"
             val driveUrl = "https://drive.google.com/file/d/$fileId/view"
 
@@ -193,12 +207,12 @@ class FirestoreNetworkService(private val context: Context) {
                 driveFileUrl = driveUrl,
                 sharedWithEditorInChief = true
             )
-            db.collection(COL_REGISTRY).document(fileId).set(registryToMap(indexEntry)).await()
+            db.collection(targetCollection).document(fileId).set(registryToMap(indexEntry)).await()
 
-            // 2b. The whole book, stored under its registry entry so other
-            // signed-in users can actually read it (the registry listing
-            // alone is only a title card).
-            db.collection(COL_REGISTRY).document(fileId)
+            // 2b. The whole book, stored under its entry so other signed-in
+            // users can actually read it once it is in the registry (the
+            // listing alone is only a title card).
+            db.collection(targetCollection).document(fileId)
                 .collection("content").document("fullText")
                 .set(
                     mapOf(
@@ -362,6 +376,89 @@ class FirestoreNetworkService(private val context: Context) {
             }
             Result.success(Unit)
         } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Registry approval queue
+    // ------------------------------------------------------------------
+
+    /** Books waiting for the Editor in Chief's approval. */
+    suspend fun fetchPendingBooks(): Result<List<GlobalBookIndexEntry>> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_PENDING).get().await()
+            val entries = snap.documents.mapNotNull { docToRegistry(it.data) }
+            Result.success(entries.sortedByDescending { it.lastSyncedTimestamp })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch pending books failed", e)
+            Result.failure(e)
+        }
+    }
+
+    /** Move a pending book into the public registry. */
+    suspend fun approvePendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+                return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can approve books."))
+            }
+            val pendingRef = db.collection(COL_PENDING).document(fileId)
+            val entry = docToRegistry(pendingRef.get().await().data)
+                ?: return@withContext Result.failure(IllegalStateException("Pending book not found."))
+            val contentSnap = pendingRef.collection("content").document("fullText").get().await()
+
+            db.collection(COL_REGISTRY).document(fileId).set(registryToMap(entry)).await()
+            if (contentSnap.exists()) {
+                db.collection(COL_REGISTRY).document(fileId)
+                    .collection("content").document("fullText")
+                    .set(contentSnap.data ?: emptyMap<String, Any>()).await()
+            }
+            pendingRef.collection("content").document("fullText").delete().await()
+            pendingRef.delete().await()
+
+            sendServerlessMail(
+                ServerlessMailMessage(
+                    recipientEmail = entry.authorEmail,
+                    senderEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                    senderName = "Editor in Chief",
+                    subject = "Manuscript Approved: ${entry.title}",
+                    body = "Your manuscript '${entry.title}' (File ID: $fileId) has been approved by the Editor in Chief and is now in the global registry.",
+                    messageType = "GOVERNANCE_ALERT"
+                )
+            )
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Approve pending book failed", e)
+            Result.failure(e)
+        }
+    }
+
+    /** Remove a pending book without approving it. The author's own cloud copy is untouched. */
+    suspend fun rejectPendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+                return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can reject books."))
+            }
+            val pendingRef = db.collection(COL_PENDING).document(fileId)
+            val entry = docToRegistry(pendingRef.get().await().data)
+            pendingRef.collection("content").document("fullText").delete().await()
+            pendingRef.delete().await()
+
+            if (entry != null) {
+                sendServerlessMail(
+                    ServerlessMailMessage(
+                        recipientEmail = entry.authorEmail,
+                        senderEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                        senderName = "Editor in Chief",
+                        subject = "Manuscript Not Approved: ${entry.title}",
+                        body = "Your manuscript '${entry.title}' (File ID: $fileId) was not approved for the global registry by the Editor in Chief. Your own cloud copy is unchanged.",
+                        messageType = "GOVERNANCE_ALERT"
+                    )
+                )
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Reject pending book failed", e)
             Result.failure(e)
         }
     }
@@ -607,7 +704,11 @@ class FirestoreNetworkService(private val context: Context) {
     // ------------------------------------------------------------------
 
     private suspend fun findRegistryDoc(manuscriptId: Long, authorEmail: String): com.google.firebase.firestore.DocumentSnapshot? {
-        val snap = db.collection(COL_REGISTRY)
+        return findDocInCollection(COL_REGISTRY, manuscriptId, authorEmail)
+    }
+
+    private suspend fun findDocInCollection(collection: String, manuscriptId: Long, authorEmail: String): com.google.firebase.firestore.DocumentSnapshot? {
+        val snap = db.collection(collection)
             .whereEqualTo("manuscriptId", manuscriptId)
             .whereEqualTo("authorEmail", authorEmail)
             .get().await()

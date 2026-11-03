@@ -714,6 +714,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _globalBookIndex = MutableStateFlow<List<GlobalBookIndexEntry>>(emptyList())
     val globalBookIndex: StateFlow<List<GlobalBookIndexEntry>> = _globalBookIndex.asStateFlow()
 
+    private val _pendingBooks = MutableStateFlow<List<GlobalBookIndexEntry>>(emptyList())
+    val pendingBooks: StateFlow<List<GlobalBookIndexEntry>> = _pendingBooks.asStateFlow()
+
     private val _suspendedUsers = MutableStateFlow<List<SuspendedUserEntry>>(emptyList())
     val suspendedUsers: StateFlow<List<SuspendedUserEntry>> = _suspendedUsers.asStateFlow()
 
@@ -830,9 +833,11 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _driveSyncStatus.value = _driveSyncStatus.value.copy(unreadMailCount = msgs.count { !it.isRead })
             }
 
-            // If Editor in Chief, refresh suspended users list
+            // If Editor in Chief, refresh suspended users list and the
+            // registry approval queue
             if (_currentUser.value.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 _suspendedUsers.value = googleDriveSyncService.getSuspendedUsersFromStorage()
+                _pendingBooks.value = googleDriveSyncService.fetchPendingBooks().getOrNull() ?: emptyList()
             }
 
             // Always synchronize subscribers telemetry with latest profile displayName
@@ -932,6 +937,26 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     fun revokeManuscriptDriveAccess(fileId: String) {
         viewModelScope.launch {
             googleDriveSyncService.revokeManuscriptAccess(
+                adminEmail = _currentUser.value.email,
+                fileId = fileId
+            )
+            refreshDriveNetwork()
+        }
+    }
+
+    fun approveRegistryBook(fileId: String) {
+        viewModelScope.launch {
+            googleDriveSyncService.approvePendingBook(
+                adminEmail = _currentUser.value.email,
+                fileId = fileId
+            )
+            refreshDriveNetwork()
+        }
+    }
+
+    fun rejectRegistryBook(fileId: String) {
+        viewModelScope.launch {
+            googleDriveSyncService.rejectPendingBook(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
