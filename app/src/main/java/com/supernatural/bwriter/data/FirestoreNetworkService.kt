@@ -474,8 +474,6 @@ class FirestoreNetworkService(private val context: Context) {
     // ------------------------------------------------------------------
 
     suspend fun sendServerlessMail(message: ServerlessMailMessage): Result<Unit> = withContext(Dispatchers.IO) {
-        // The Editor in Chief's real address never reaches users: his mail
-        // goes out under the studio address, which only works inside the app.
         val message = if (message.senderEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
             message.copy(senderEmail = DEFAULT_STUDIO_AUTHOR_EMAIL)
         } else {
