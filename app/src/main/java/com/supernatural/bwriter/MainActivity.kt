@@ -160,7 +160,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             userProfile = currentUser,
             suspension = activeSuspension!!,
             onRetrySync = {
-                viewModel.refreshDriveNetwork()
+                viewModel.refreshNetwork()
                 Toast.makeText(context, "Verifying Shared Drive status...", Toast.LENGTH_SHORT).show()
             },
             onSwitchUser = {
@@ -242,15 +242,15 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     showNewWorkDialog = true
                 },
                 onOpenCommunity = {
-                    viewModel.refreshDriveNetwork()
+                    viewModel.refreshNetwork()
                     navController.navigate("community_directory")
                 },
                 onOpenMailbox = {
-                    viewModel.refreshDriveNetwork()
+                    viewModel.refreshNetwork()
                     navController.navigate("mailbox_inbox")
                 },
                 onOpenAdminDashboard = {
-                    viewModel.refreshDriveNetwork()
+                    viewModel.refreshNetwork()
                     navController.navigate("admin_god_mode")
                 },
                 onSyncManuscript = { manuscript ->
@@ -481,7 +481,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 books = globalBookIndex,
                 currentUser = currentUser,
                 onBack = { navController.popBackStack() },
-                onRefresh = { viewModel.refreshDriveNetwork() },
+                onRefresh = { viewModel.refreshNetwork() },
                 onOpenReader = { entry ->
                     viewModel.openCommunityBook(entry) { localId ->
                         if (localId > 0) {
@@ -511,7 +511,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 currentUser = currentUser,
                 messages = mailboxMessages,
                 onBack = { navController.popBackStack() },
-                onRefresh = { viewModel.refreshDriveNetwork() },
+                onRefresh = { viewModel.refreshNetwork() },
                 onMarkAsRead = { msgId -> viewModel.markMailMessageAsRead(msgId) }
             )
         }
@@ -523,7 +523,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 globalIndex = globalBookIndex,
                 suspendedUsers = suspendedUsers,
                 onBack = { navController.popBackStack() },
-                onRefresh = { viewModel.refreshDriveNetwork() },
+                onRefresh = { viewModel.refreshNetwork() },
                 onSuspendUser = { email, reason ->
                     viewModel.suspendUserAccount(email, reason)
                     Toast.makeText(context, "User $email suspended (Kill-Switch deployed)", Toast.LENGTH_SHORT).show()

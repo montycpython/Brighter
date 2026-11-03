@@ -68,7 +68,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         repository = BwriterRepository(db)
         viewModelScope.launch {
             repository.seedInitialWorksIfEmpty()
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -79,7 +79,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         userPreferences.saveUserProfile(updated)
         userPreferences.addOrUpdateSavedAccount(updated)
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
-        refreshDriveNetwork()
+        refreshNetwork()
     }
 
     fun updateProfile(
@@ -102,7 +102,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         userPreferences.saveUserProfile(updated)
         userPreferences.addOrUpdateSavedAccount(updated)
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
-        refreshDriveNetwork()
+        refreshNetwork()
     }
 
     fun signInWithGoogleAccount(
@@ -137,7 +137,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _userAiSubscription.value = userPreferences.getUserSubscription(updated.email)
         restoreManuscriptsFromGoogleDrive()
-        refreshDriveNetwork()
+        refreshNetwork()
     }
 
     /** Standing comes from the address alone: the Editor in Chief is an
@@ -156,7 +156,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _userAiSubscription.value = userPreferences.getUserSubscription(corrected.email)
         restoreManuscriptsFromGoogleDrive()
-        refreshDriveNetwork()
+        refreshNetwork()
     }
 
     fun signOutGoogleAccount() {
@@ -607,7 +607,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     )
                 )
             }
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -627,7 +627,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     )
                 )
             }
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -647,7 +647,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     )
                 )
             }
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -766,7 +766,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
 
-            refreshDriveNetwork()
+            refreshNetwork()
             onRestored(total)
         }
     }
@@ -809,7 +809,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun refreshDriveNetwork() {
+    fun refreshNetwork() {
         viewModelScope.launch {
             checkAccountSuspension()
 
@@ -834,8 +834,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
             }
 
-            // Always synchronize subscribers telemetry with latest profile displayName
-        }
+                    }
     }
 
     fun syncManuscriptToGoogleDrive(
@@ -877,7 +876,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                         lastSyncTime = entry?.lastSyncedTimestamp,
                         lastSyncFileId = entry?.fileId
                     )
-                    refreshDriveNetwork()
+                    refreshNetwork()
                 } else {
                     val errorMsg = result.exceptionOrNull()?.message ?: "Unknown sync error"
                     _driveSyncStatus.value = _driveSyncStatus.value.copy(
@@ -899,7 +898,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     fun markMailMessageAsRead(messageId: String) {
         viewModelScope.launch {
             networkService.markMailAsRead(_currentUser.value.email, messageId)
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -913,7 +912,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 targetEmail = targetEmail,
                 reason = reason
             )
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -923,7 +922,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 adminEmail = _currentUser.value.email,
                 targetEmail = targetEmail
             )
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -933,7 +932,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -943,7 +942,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -953,7 +952,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 
@@ -964,7 +963,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     fun sendServerlessMailDirective(message: ServerlessMailMessage) {
         viewModelScope.launch {
             networkService.sendServerlessMail(message)
-            refreshDriveNetwork()
+            refreshNetwork()
         }
     }
 }
