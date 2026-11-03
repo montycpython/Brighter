@@ -896,6 +896,12 @@ fun SectionEditorScreen(
                                 styleCheckFindings = findings
                                 showStyleCheck = true
                             },
+                            onApplyOxfordComma = {
+                                val fixed = CmosFormatter.fixOxfordCommas(contentValue.text)
+                                contentValue = TextFieldValue(fixed)
+                                onSaveContent(section, fixed)
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Serial (Oxford) commas applied.") }
+                            },
                             onCopy = {
                                 val clip = ClipData.newPlainText("Section Text", contentValue.text)
                                 clipboardManager.setPrimaryClip(clip)
@@ -2452,6 +2458,7 @@ fun CompactCmosToolbar(
     onApplyHeadlineCase: () -> Unit,
     onFullPolish: () -> Unit,
     onRunStyleCheck: () -> Unit,
+    onApplyOxfordComma: () -> Unit,
     onCopy: () -> Unit,
     onPaste: () -> Unit
 ) {
@@ -2570,6 +2577,14 @@ fun CompactCmosToolbar(
                     Spacer(modifier = Modifier.width(3.dp))
                     Text("Polish", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }
+            }
+
+            // Oxford Comma
+            ToolbarChip(
+                onClick = onApplyOxfordComma,
+                testTag = "btn_toolbar_oxford"
+            ) {
+                Text(text = "Oxford", fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
             }
 
             // Style Check
