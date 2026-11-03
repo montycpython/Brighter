@@ -14,12 +14,16 @@ service cloud.firestore {
       return signedIn() && request.auth.token.email == 'real.artistry@gmail.com';
     }
 
-    // Global registry: any signed-in user may read and submit;
-    // only the Editor in Chief may edit or remove entries.
+    // Global registry: any signed-in user may read; only the Editor in
+    // Chief creates entries (approval moves them here from the queue).
+    // An author may update or remove their own entry.
     match /registry/{fileId} {
       allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if isSuper()
+      allow create: if isSuper();
+      allow update: if isSuper()
+        || (signedIn() && resource.data.authorEmail == request.auth.token.email
+            && request.resource.data.authorEmail == request.auth.token.email);
+      allow delete: if isSuper()
         || (signedIn() && resource.data.authorEmail == request.auth.token.email);
 
       // The book's full text, stored under its registry entry. Readable by
@@ -68,11 +72,14 @@ service cloud.firestore {
     }
 
     // In-app mail: a user reads mail addressed to them; the Editor in Chief
-    // reads all. Any signed-in user may send. Recipients may mark read.
+    // reads all. A user sends only under their own address; the studio
+    // address is reserved to the Editor in Chief. Recipients may mark read.
     match /mail/{messageId} {
       allow read: if isSuper()
         || (signedIn() && resource.data.recipientEmail == request.auth.token.email);
-      allow create: if signedIn();
+      allow create: if signedIn()
+        && (request.resource.data.senderEmail == request.auth.token.email
+            || (isSuper() && request.resource.data.senderEmail == 'author.studio@bwriter.io'));
       allow update: if isSuper()
         || (signedIn() && resource.data.recipientEmail == request.auth.token.email);
       allow delete: if isSuper();
