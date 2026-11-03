@@ -232,7 +232,7 @@ fun CommunityDirectoryScreen(
                 ) {
                     items(filteredBooks, key = { it.fileId }) { book ->
                         val isMyBook = book.authorEmail.equals(currentUser.email, ignoreCase = true)
-                        val isSuperuserBook = book.authorName.equals("Author", ignoreCase = true) || book.authorEmail.equals(com.supernatural.bwriter.data.FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+                        val isEditorInChiefBook = book.authorEmail.equals(com.supernatural.bwriter.data.FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
                         Card(
                             modifier = Modifier
@@ -269,14 +269,14 @@ fun CommunityDirectoryScreen(
 
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
-                                        color = if (isSuperuserBook) BookGoldDark.copy(alpha = 0.25f) else Color(0xFF242432),
-                                        border = BorderStroke(0.5.dp, if (isSuperuserBook) BookGold else Color(0xFF444455))
+                                        color = if (isEditorInChiefBook) BookGoldDark.copy(alpha = 0.25f) else Color(0xFF242432),
+                                        border = BorderStroke(0.5.dp, if (isEditorInChiefBook) BookGold else Color(0xFF444455))
                                     ) {
                                         Text(
-                                            text = if (isSuperuserBook) "Superuser Master" else book.workType.replace("_", " "),
+                                            text = if (isEditorInChiefBook) "Editor in Chief" else book.workType.replace("_", " "),
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isSuperuserBook) BookGoldLight else Color(0xFFCCCCCC),
+                                            color = if (isEditorInChiefBook) BookGoldLight else Color(0xFFCCCCCC),
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
