@@ -104,7 +104,6 @@ fun ManuscriptListScreen(
     onOpenReader: (Long) -> Unit,
     onOpenExport: (Long) -> Unit,
     onOpenRulebook: () -> Unit,
-    onSwitchRole: (WorkRole) -> Unit,
     onOpenAuthScreen: () -> Unit,
     onDeleteManuscript: (Long) -> Unit,
     onCreateNewWorkClick: () -> Unit,

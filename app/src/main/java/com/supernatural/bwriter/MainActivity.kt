@@ -222,9 +222,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onOpenRulebook = {
                     navController.navigate("cmos_rulebook")
                 },
-                onSwitchRole = { newRole ->
-                    viewModel.updateRole(newRole)
-                },
                 onOpenAuthScreen = {
                     navController.navigate("auth")
                 },
@@ -391,9 +388,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     },
                     onRejectRevision = { sec ->
                         viewModel.rejectSectionRevision(sec)
-                    },
-                    onSwitchRole = { newRole ->
-                        viewModel.updateRole(newRole)
                     }
                 )
             }

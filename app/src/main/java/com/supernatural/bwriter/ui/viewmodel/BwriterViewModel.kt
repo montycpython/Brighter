@@ -72,16 +72,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun updateRole(newRole: WorkRole) {
-        // Standing is derived from the address, never self-assigned.
-        val updated = _currentUser.value.copy(role = standingRoleFor(_currentUser.value.email))
-        _currentUser.value = updated
-        userPreferences.saveUserProfile(updated)
-        userPreferences.addOrUpdateSavedAccount(updated)
-        _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
-        refreshNetwork()
-    }
-
     fun updateProfile(
         name: String,
         penName: String,

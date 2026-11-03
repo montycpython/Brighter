@@ -169,7 +169,6 @@ fun SectionEditorScreen(
     onProposeRevision: (SectionEntity, String) -> Unit = { _, _ -> },
     onAcceptRevision: (SectionEntity) -> Unit = {},
     onRejectRevision: (SectionEntity) -> Unit = {},
-    onSwitchRole: (WorkRole) -> Unit = {}
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -545,30 +544,11 @@ fun SectionEditorScreen(
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "You are viewing a manuscript authored by ${manuscript?.effectiveAuthorByline ?: "Author"}. Under publishing rules, you must be in Editor or Contributor mode to edit books you did not author.",
+                                        text = "You are viewing a manuscript authored by ${manuscript?.effectiveAuthorByline ?: "Author"}. Only its author can edit it, unless the author invites you to edit.",
                                         fontSize = 11.5.sp,
                                         color = Color(0xFF5D4037),
                                         lineHeight = 15.sp
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(
-                                            onClick = { onSwitchRole(WorkRole.EDITOR) },
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE65100)),
-                                            border = BorderStroke(1.dp, Color(0xFFE65100)),
-                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("Switch to Editor", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                        OutlinedButton(
-                                            onClick = { onSwitchRole(WorkRole.CONTRIBUTOR) },
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE65100)),
-                                            border = BorderStroke(1.dp, Color(0xFFE65100)),
-                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("Switch to Contributor", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
                                 }
                             }
                         } else if (isCollaboratorMode) {
