@@ -103,7 +103,7 @@ fun MailboxInboxScreen(
                                 color = Color(0xFFF3EFE6)
                             )
                             Text(
-                                text = "Shared Drive Inbox • ${currentUser.email}",
+                                text = "Inbox • ${currentUser.email}",
                                 fontSize = 10.5.sp,
                                 color = BookGoldLight
                             )
@@ -146,12 +146,6 @@ fun MailboxInboxScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Mailbox Location: /Mailboxes/${currentUser.email}/messages.json",
-                        fontSize = 11.sp,
-                        color = Color(0xFFB0A89C),
-                        fontFamily = FontFamily.Monospace
-                    )
                     if (unreadCount > 0) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
