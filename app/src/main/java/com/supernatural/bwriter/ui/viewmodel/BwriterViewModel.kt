@@ -836,6 +836,11 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         isPublicInCommunity: Boolean,
         onDone: (Result<GlobalBookIndexEntry>) -> Unit
     ) {
+        val authorEmail = manuscript.authorEmail
+        if (authorEmail.isNotBlank() && !authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
+            onDone(Result.failure(IllegalStateException("Only the author can sync this book.")))
+            return
+        }
         _driveSyncStatus.value = _driveSyncStatus.value.copy(isSyncing = true, syncError = null)
         viewModelScope.launch {
             try {
