@@ -19,26 +19,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supernatural.bwriter.auth.GoogleAuthHelper
 import com.supernatural.bwriter.auth.FirebaseAuthBridge
-import com.supernatural.bwriter.data.FirestoreNetworkService
 import com.supernatural.bwriter.model.UserProfile
 import com.supernatural.bwriter.model.WorkRole
 import com.supernatural.bwriter.ui.components.RoleBadge
@@ -99,7 +92,7 @@ fun AuthScreen(
         penName.isNotBlank() -> penName.trim()
         authorName.isNotBlank() -> authorName.trim()
         selectedEmail.contains("@") -> selectedEmail.substringBefore("@").replace(".", " ").capitalizeWords()
-        else -> "Author"
+        else -> ""
     }
 
     val scrollState = rememberScrollState()
@@ -233,11 +226,6 @@ fun AuthScreen(
                                         text = account.email,
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "Role: ${account.role.title}",
-                                        fontSize = 11.sp,
-                                        color = BookGoldLight
                                     )
                                 }
 
@@ -377,7 +365,7 @@ fun AuthScreen(
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Copyright Line: © $currentYear ${if (penName.isNotBlank()) penName else authorName.ifBlank { "Author" }}. All rights reserved.",
+                        text = "Copyright Line: © $currentYear ${if (penName.isNotBlank()) penName else authorName}. All rights reserved.",
                         fontSize = 11.sp,
                         color = Color(0xFFB0A898),
                         fontFamily = FontFamily.Serif
