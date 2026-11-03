@@ -1,3 +1,4 @@
+import com.android.build.api.variant.VariantOutput
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
 plugins {
@@ -17,8 +18,8 @@ android {
     applicationId = "com.supernatural.bwriter"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -137,4 +138,16 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+}
+
+// Name the built APKs for the app they are: bwriter-<version>-<build type>.apk
+androidComponents {
+  onVariants { variant ->
+    variant.outputs
+      .filter { it.outputType == VariantOutput.OutputType.APK }
+      .forEach { output ->
+        val vName = output.versionName.orNull ?: "1.1"
+        output.outputFileName.set("bwriter-$vName-${variant.buildType}.apk")
+      }
+  }
 }
