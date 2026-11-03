@@ -1075,14 +1075,14 @@ fun DriveHealthTab(
             .verticalScroll(rememberScrollState())
     ) {
         Text(
-            text = "Master Shared Drive Structure",
+            text = "Back Room Structure",
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Serif,
             fontSize = 14.sp,
             color = Color(0xFFF3EFE6)
         )
         Text(
-            text = "Serverless Google Drive Registry & Architecture Status",
+            text = "Firestore collections, as last refreshed",
             fontSize = 11.sp,
             color = Color(0xFFB0A89C)
         )
@@ -1090,10 +1090,10 @@ fun DriveHealthTab(
         Spacer(modifier = Modifier.height(14.dp))
 
         val driveNodes = listOf(
-            Triple("Global_Book_Index.json", "${globalIndex.size} manuscripts registered", true),
-            Triple("suspended_users.json", "${suspendedUsers.size} accounts blocked", true),
-            Triple("Mailboxes/ Directory", "Decentralized inbox queue", true),
-            Triple("Auto-Share Hook (${FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL})", "Writer/Reader permissions active", true)
+            Triple("Registry", "${globalIndex.size} manuscripts registered", true),
+            Triple("Awaiting Approval", "${pendingBooks.size} books awaiting approval", true),
+            Triple("Suspensions", "${suspendedUsers.size} accounts blocked", true),
+            Triple("Mail", "${mailboxMessages.size} messages", true)
         )
 
         driveNodes.forEach { (nodeName, detail, ok) ->
@@ -1113,7 +1113,7 @@ fun DriveHealthTab(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            if (nodeName.endsWith(".json")) Icons.Default.Storage else Icons.Default.FolderShared,
+                            Icons.Default.Storage,
                             contentDescription = null,
                             tint = BookGoldLight,
                             modifier = Modifier.size(20.dp)
@@ -1125,7 +1125,6 @@ fun DriveHealthTab(
                         }
                     }
 
-                    Icon(Icons.Default.CloudDone, contentDescription = "Online", tint = Color(0xFF81C784), modifier = Modifier.size(18.dp))
                 }
             }
         }
