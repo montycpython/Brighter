@@ -47,6 +47,20 @@ object StudioStanding {
     var isEditorInChief: Boolean = false
 }
 
+/**
+ * One synced version's stamp: the author's address and public key, the
+ * book's birth id, and the hash of this version chained to the hash of
+ * the version before it, signed with the author's key.
+ */
+data class BookStamp(
+    val authorAddress: String = "",
+    val authorPubKey: String = "",
+    val birthId: String = "",
+    val stampHash: String = "",
+    val prevStampHash: String = "",
+    val stampSignature: String = ""
+)
+
 class FirestoreNetworkService(private val context: Context) {
 
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
@@ -157,7 +171,8 @@ class FirestoreNetworkService(private val context: Context) {
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>,
         currentUser: UserProfile,
-        isPublicInCommunity: Boolean
+        isPublicInCommunity: Boolean,
+        stamp: BookStamp
     ): Result<GlobalBookIndexEntry> = withContext(Dispatchers.IO) {
         try {
             val suspension = checkUserSuspension(currentUser.email)
@@ -202,7 +217,7 @@ class FirestoreNetworkService(private val context: Context) {
                 isEditorInChief -> COL_REGISTRY
                 else -> COL_PENDING
             }
-            val fileId = existing?.id ?: "book_${manuscript.id}_${System.currentTimeMillis().toString().takeLast(6)}"
+            val fileId = existing?.id ?: ("book_" + sha256Hex(stamp.authorAddress + "|" + stamp.birthId).take(48))
 
             val indexEntry = GlobalBookIndexEntry(
                 fileId = fileId,
@@ -218,6 +233,12 @@ class FirestoreNetworkService(private val context: Context) {
                 isPublicInCommunity = isPublicInCommunity,
                 editorInChief = StudioStanding.isEditorInChief,
                 version = manuscript.edition.ifBlank { "1.0" },
+                authorAddress = stamp.authorAddress,
+                authorPubKey = stamp.authorPubKey,
+                birthId = stamp.birthId,
+                stampHash = stamp.stampHash,
+                prevStampHash = stamp.prevStampHash,
+                stampSignature = stamp.stampSignature,
             )
             db.collection(targetCollection).document(fileId).set(registryToMap(indexEntry)).await()
 
@@ -232,6 +253,12 @@ class FirestoreNetworkService(private val context: Context) {
                         "authorEmail" to currentUser.email,
                         "authorEmailLower" to normEmail(currentUser.email),
                         "isPublicInCommunity" to isPublicInCommunity,
+                        "authorAddress" to stamp.authorAddress,
+                        "authorPubKey" to stamp.authorPubKey,
+                        "birthId" to stamp.birthId,
+                        "stampHash" to stamp.stampHash,
+                        "prevStampHash" to stamp.prevStampHash,
+                        "stampSignature" to stamp.stampSignature,
                         "updatedAt" to System.currentTimeMillis()
                     )
                 ).await()
@@ -361,6 +388,32 @@ class FirestoreNetworkService(private val context: Context) {
             Log.e("FirestoreNetwork", "Failed to parse payload JSON", e)
             null
         }
+    }
+
+    /**
+     * Check a version's stamp: the hash must rebuild from the identity,
+     * the previous stamp, and the payload, and the signature must verify
+     * against the author's public key.
+     */
+    fun verifyStamp(
+        authorPubKey: String,
+        authorAddress: String,
+        birthId: String,
+        prevStampHash: String,
+        payloadJson: String,
+        stampHash: String,
+        stampSignature: String
+    ): Boolean {
+        if (stampHash.isBlank() || stampSignature.isBlank()) return false
+        val recomputed = sha256Hex(authorAddress + "|" + birthId + "|" + prevStampHash + "|" + payloadJson)
+        if (recomputed != stampHash) return false
+        return AuthorKeys.verify(authorPubKey, stampHash, stampSignature)
+    }
+
+    private fun sha256Hex(input: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(input.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
     }
 
     suspend fun revokeManuscriptAccess(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
@@ -597,7 +650,9 @@ class FirestoreNetworkService(private val context: Context) {
             put("workType", manuscript.workType.name)
             put("manuscriptStatus", manuscript.manuscriptStatus)
             put("acknowledgmentsJson", manuscript.acknowledgmentsJson)
-            put("syncedTimestamp", System.currentTimeMillis())
+            put("authorAddress", manuscript.authorAddress)
+            put("authorPubKey", AuthorKeys.publicKeyHex(context))
+            put("birthId", manuscript.birthId)
             put("isPublicInCommunity", isPublicInCommunity)
 
             val sectionsArray = JSONArray()
@@ -657,6 +712,11 @@ class FirestoreNetworkService(private val context: Context) {
                 edition = mObj.optString("edition", "First Edition"),
                 year = mObj.optString("year", "2026"),
                 isbn = mObj.optString("isbn", "978-0-226-10403-4"),
+                birthId = mObj.optString("birthId", ""),
+                stampHash = mObj.optString("stampHash", ""),
+                prevStampHash = mObj.optString("prevStampHash", ""),
+                stampSignature = mObj.optString("stampSignature", ""),
+                authorAddress = mObj.optString("authorAddress", ""),
                 copyrightText = mObj.optString("copyrightText", ""),
                 dedication = mObj.optString("dedication", ""),
                 epigraphText = mObj.optString("epigraphText", ""),
@@ -760,6 +820,12 @@ class FirestoreNetworkService(private val context: Context) {
         "isPublicInCommunity" to e.isPublicInCommunity,
         "editorInChief" to e.editorInChief,
         "version" to e.version,
+        "authorAddress" to e.authorAddress,
+        "authorPubKey" to e.authorPubKey,
+        "birthId" to e.birthId,
+        "stampHash" to e.stampHash,
+        "prevStampHash" to e.prevStampHash,
+        "stampSignature" to e.stampSignature,
         "hasFullText" to true
     )
 
@@ -780,6 +846,12 @@ class FirestoreNetworkService(private val context: Context) {
                 isPublicInCommunity = data["isPublicInCommunity"] as? Boolean ?: true,
                 editorInChief = data["editorInChief"] as? Boolean ?: false,
                 version = data["version"] as? String ?: "1.0",
+                authorAddress = data["authorAddress"] as? String ?: "",
+                authorPubKey = data["authorPubKey"] as? String ?: "",
+                birthId = data["birthId"] as? String ?: "",
+                stampHash = data["stampHash"] as? String ?: "",
+                prevStampHash = data["prevStampHash"] as? String ?: "",
+                stampSignature = data["stampSignature"] as? String ?: "",
             )
         } catch (e: Exception) {
             null

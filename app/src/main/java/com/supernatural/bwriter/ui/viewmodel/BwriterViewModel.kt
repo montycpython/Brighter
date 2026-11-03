@@ -5,6 +5,8 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.supernatural.bwriter.cmos.CmosLeafEngine
+import com.supernatural.bwriter.data.AuthorKeys
+import com.supernatural.bwriter.data.BookStamp
 import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
@@ -831,6 +833,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     }
     }
 
+    private fun sha256Hex(input: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(input.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
     fun syncManuscript(
         manuscript: ManuscriptEntity,
         isPublicInCommunity: Boolean,
@@ -845,17 +853,45 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 val sections = repository.getSectionsForManuscriptOnce(manuscript.id)
+                val appContext = getApplication<Application>().applicationContext
+                AuthorKeys.ensureKeyPair(appContext)
+                val authorAddress = AuthorKeys.address(appContext)
+                val authorPubKey = AuthorKeys.publicKeyHex(appContext)
+                val birthId = manuscript.birthId.ifBlank { java.util.UUID.randomUUID().toString() }
+                val stamped = manuscript.copy(birthId = birthId, authorAddress = authorAddress)
+                val payloadJson = networkService.buildPayloadJson(
+                    stamped, sections, _currentUser.value, isPublicInCommunity
+                )
+                val prevStampHash = manuscript.stampHash
+                val newStampHash = sha256Hex("$authorAddress|$birthId|$prevStampHash|$payloadJson")
+                val signature = AuthorKeys.sign(appContext, newStampHash)
+                val stamp = BookStamp(
+                    authorAddress = authorAddress,
+                    authorPubKey = authorPubKey,
+                    birthId = birthId,
+                    stampHash = newStampHash,
+                    prevStampHash = prevStampHash,
+                    stampSignature = signature
+                )
                 val result = networkService.syncManuscriptToBackRoom(
-                    manuscript = manuscript,
+                    manuscript = stamped,
                     sections = sections,
                     currentUser = _currentUser.value,
-                    isPublicInCommunity = isPublicInCommunity
+                    isPublicInCommunity = isPublicInCommunity,
+                    stamp = stamp
                 )
                 if (result.isSuccess) {
+                    repository.updateManuscript(
+                        stamped.copy(
+                            stampHash = newStampHash,
+                            prevStampHash = prevStampHash,
+                            stampSignature = signature
+                        )
+                    )
                     val entry = result.getOrNull()
                     // The same whole book, saved to the writer's own Google Drive.
                     val payload = networkService.buildPayloadJson(
-                        manuscript, sections, _currentUser.value, isPublicInCommunity
+                        stamped, sections, _currentUser.value, isPublicInCommunity
                     )
                     val driveResult = googleDriveClient.accessToken(interactive = true).fold(
                         onSuccess = { token -> googleDriveClient.saveBook(token, manuscript.id, manuscript.title, payload) },
