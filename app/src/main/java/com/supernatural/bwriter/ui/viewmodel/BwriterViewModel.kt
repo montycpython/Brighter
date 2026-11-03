@@ -956,10 +956,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun sendMailMessage(message: ServerlessMailMessage) {
-        sendServerlessMailDirective(message)
-    }
-
     fun sendServerlessMailDirective(message: ServerlessMailMessage) {
         viewModelScope.launch {
             networkService.sendServerlessMail(message)

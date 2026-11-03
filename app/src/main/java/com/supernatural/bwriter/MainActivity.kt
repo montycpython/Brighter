@@ -383,7 +383,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                         viewModel.updateSectionAssignment(sec, author, role, notes)
                     },
                     onSendServerlessMail = { mail ->
-                        viewModel.sendMailMessage(mail)
+                        viewModel.sendServerlessMailDirective(mail)
                     },
                     onProposeRevision = { sec, revContent ->
                         viewModel.proposeSectionRevision(sec, revContent)
