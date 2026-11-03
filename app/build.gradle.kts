@@ -139,24 +139,25 @@ dependencies {
   "ksp"(libs.moshi.kotlin.codegen)
 }
 
-// Name the built APK for the app it is: bwriter-<version>-<build type>.apk
-androidComponents {
-  onVariants { variant ->
-    variant.outputs.forEach { output ->
-      val vName = output.versionName.orNull ?: "1.1"
-      output.outputFileName.set("bwriter-$vName-${variant.buildType}.apk")
-    }
+// Name the output files for the app they are: each file is renamed right
+// after it is built — bwriter-<version>-debug.apk,
+// bwriter-<version>-release.apk, bwriter-<version>-release.aab.
+val appVersionName = android.defaultConfig.versionName ?: "1.1"
+
+fun renameBuiltFile(folder: String, builtName: String, newName: String) {
+  val dir = layout.buildDirectory.dir(folder).get().asFile
+  val built = File(dir, builtName)
+  if (built.exists()) {
+    built.renameTo(File(dir, newName))
   }
 }
 
-// Name the Play bundle the same way: bwriter-<version>-release.aab
-val appVersionName = android.defaultConfig.versionName ?: "1.1"
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+  doLast { renameBuiltFile("outputs/apk/debug", "app-debug.apk", "bwriter-$appVersionName-debug.apk") }
+}
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+  doLast { renameBuiltFile("outputs/apk/release", "app-release.apk", "bwriter-$appVersionName-release.apk") }
+}
 tasks.matching { it.name == "bundleRelease" }.configureEach {
-  doLast {
-    val dir = layout.buildDirectory.dir("outputs/bundle/release").get().asFile
-    val built = File(dir, "app-release.aab")
-    if (built.exists()) {
-      built.renameTo(File(dir, "bwriter-$appVersionName-release.aab"))
-    }
-  }
+  doLast { renameBuiltFile("outputs/bundle/release", "app-release.aab", "bwriter-$appVersionName-release.aab") }
 }
