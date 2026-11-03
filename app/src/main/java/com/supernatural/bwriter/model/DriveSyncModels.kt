@@ -13,8 +13,6 @@ data class GlobalBookIndexEntry(
     val lastSyncedTimestamp: Long = System.currentTimeMillis(),
     val isPublicInCommunity: Boolean = true, // If false, hidden to all except author and Editor in Chief
     val version: String = "1.0",
-    val driveFileUrl: String = "",
-    val sharedWithEditorInChief: Boolean = true
 )
 
 data class SuspendedUserEntry(
@@ -60,7 +58,6 @@ data class BookVersionSnapshot(
     val wordCount: Int,
     val totalLeaves: Int,
     val timestamp: Long = System.currentTimeMillis(),
-    val driveFileId: String = "",
-    val driveUrl: String = ""
+    val driveFileId: String = ""
 )
 

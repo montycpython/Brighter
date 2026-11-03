@@ -199,7 +199,6 @@ class FirestoreNetworkService(private val context: Context) {
                 else -> COL_PENDING
             }
             val fileId = existing?.id ?: "book_${manuscript.id}_${System.currentTimeMillis().toString().takeLast(6)}"
-            val driveUrl = ""
 
             val indexEntry = GlobalBookIndexEntry(
                 fileId = fileId,
@@ -214,8 +213,6 @@ class FirestoreNetworkService(private val context: Context) {
                 lastSyncedTimestamp = System.currentTimeMillis(),
                 isPublicInCommunity = isPublicInCommunity,
                 version = manuscript.edition.ifBlank { "1.0" },
-                driveFileUrl = driveUrl,
-                sharedWithEditorInChief = true
             )
             db.collection(targetCollection).document(fileId).set(registryToMap(indexEntry)).await()
 
@@ -246,7 +243,6 @@ class FirestoreNetworkService(private val context: Context) {
                 totalLeaves = estimatedLeaves,
                 timestamp = System.currentTimeMillis(),
                 driveFileId = fileId,
-                driveUrl = driveUrl
             )
             db.collection(COL_VERSIONS).add(snapshotToMap(snapshot)).await()
 
@@ -739,8 +735,6 @@ class FirestoreNetworkService(private val context: Context) {
         "lastSyncedTimestamp" to e.lastSyncedTimestamp,
         "isPublicInCommunity" to e.isPublicInCommunity,
         "version" to e.version,
-        "driveFileUrl" to e.driveFileUrl,
-        "sharedWithEditorInChief" to e.sharedWithEditorInChief,
         "hasFullText" to true
     )
 
@@ -760,8 +754,6 @@ class FirestoreNetworkService(private val context: Context) {
                 lastSyncedTimestamp = (data["lastSyncedTimestamp"] as? Number)?.toLong() ?: 0L,
                 isPublicInCommunity = data["isPublicInCommunity"] as? Boolean ?: true,
                 version = data["version"] as? String ?: "1.0",
-                driveFileUrl = data["driveFileUrl"] as? String ?: "",
-                sharedWithEditorInChief = data["sharedWithEditorInChief"] as? Boolean ?: true
             )
         } catch (e: Exception) {
             null
@@ -843,7 +835,6 @@ class FirestoreNetworkService(private val context: Context) {
         "totalLeaves" to s.totalLeaves,
         "timestamp" to s.timestamp,
         "driveFileId" to s.driveFileId,
-        "driveUrl" to s.driveUrl
     )
 
     private fun docToSnapshot(data: Map<String, Any>?): BookVersionSnapshot? {
@@ -861,7 +852,6 @@ class FirestoreNetworkService(private val context: Context) {
                 totalLeaves = (data["totalLeaves"] as? Number)?.toInt() ?: 0,
                 timestamp = (data["timestamp"] as? Number)?.toLong() ?: 0L,
                 driveFileId = data["driveFileId"] as? String ?: "",
-                driveUrl = data["driveUrl"] as? String ?: ""
             )
         } catch (e: Exception) {
             null
