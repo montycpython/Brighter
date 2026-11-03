@@ -232,7 +232,7 @@ fun CommunityDirectoryScreen(
                 ) {
                     items(filteredBooks, key = { it.fileId }) { book ->
                         val isMyBook = book.authorEmail.equals(currentUser.email, ignoreCase = true)
-                        val isSuperuserBook = book.authorName.equals("Author", ignoreCase = true) || book.authorEmail.equals(com.supernatural.bwriter.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+                        val isSuperuserBook = book.authorName.equals("Author", ignoreCase = true) || book.authorEmail.equals(com.supernatural.bwriter.data.FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
                         Card(
                             modifier = Modifier

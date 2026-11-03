@@ -8,7 +8,6 @@ import com.supernatural.bwriter.cmos.CmosLeafEngine
 import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
-import com.supernatural.bwriter.data.GoogleDriveSyncService
 import com.supernatural.bwriter.data.FirestoreNetworkService
 import com.supernatural.bwriter.data.GoogleDriveClient
 import com.supernatural.bwriter.export.CmosPdfExporter
@@ -118,7 +117,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val effectiveName = if (name.isNotBlank()) name.trim() else (if (effectiveEmail.contains("@")) effectiveEmail.substringBefore("@").replace(".", " ").capitalizeWords() else "Author")
         val effectivePenName = penName.trim()
 
-        val isEditorInChief = GoogleDriveSyncService.isSuperuserEmail(effectiveEmail)
+        val isEditorInChief = FirestoreNetworkService.isSuperuserEmail(effectiveEmail)
         val effectiveRole = standingRoleFor(effectiveEmail)
 
         val updated = UserProfile(
@@ -144,7 +143,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     /** Standing comes from the address alone: the Editor in Chief is an
      * editor; everyone else is an author until invited to edit a book. */
     private fun standingRoleFor(email: String): WorkRole {
-        return if (GoogleDriveSyncService.isSuperuserEmail(email)) WorkRole.EDITOR else WorkRole.AUTHOR
+        return if (FirestoreNetworkService.isSuperuserEmail(email)) WorkRole.EDITOR else WorkRole.AUTHOR
     }
 
     fun switchGoogleAccount(account: UserProfile) {
@@ -189,7 +188,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _selectedWorkTypeFilter,
         _currentUser
     ) { list, filter, user ->
-        val isEditorInChief = user.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+        val isEditorInChief = user.email.equals(FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
         val userBooks = if (isEditorInChief) {
             list
         } else {
@@ -317,7 +316,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun loadVersionHistory(manuscriptId: Long) {
         viewModelScope.launch {
-            _versionHistory.value = googleDriveSyncService.getVersionHistory(manuscriptId)
+            _versionHistory.value = networkService.getVersionHistory(manuscriptId)
         }
     }
 
@@ -381,7 +380,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         onRequiresUpgrade: () -> Unit = { openPaywall() }
     ) {
         val currentSub = _userAiSubscription.value
-        val isEditorInChief = _currentUser.value.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+        val isEditorInChief = _currentUser.value.email.equals(FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
         if (!isEditorInChief && currentSub.creditsRemaining <= 0) {
             onRequiresUpgrade()
@@ -595,9 +594,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             val manuscript = repository.getManuscriptByIdOnce(section.manuscriptId)
             if (manuscript != null && !manuscript.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
                 val editorPenName = if (_currentUser.value.penName.isNotBlank()) _currentUser.value.penName else _currentUser.value.name
-                googleDriveSyncService.sendServerlessMail(
+                networkService.sendServerlessMail(
                     ServerlessMailMessage(
-                        recipientEmail = manuscript.authorEmail.ifBlank { GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL },
+                        recipientEmail = manuscript.authorEmail.ifBlank { FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL },
                         senderEmail = _currentUser.value.email,
                         senderName = editorPenName,
                         subject = "Revision Proposed for '${section.title}'",
@@ -616,7 +615,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.acceptRevision(section)
             if (section.revisionAuthorEmail.isNotBlank() && !section.revisionAuthorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
-                googleDriveSyncService.sendServerlessMail(
+                networkService.sendServerlessMail(
                     ServerlessMailMessage(
                         recipientEmail = section.revisionAuthorEmail,
                         senderEmail = _currentUser.value.email,
@@ -636,7 +635,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.rejectRevision(section)
             if (section.revisionAuthorEmail.isNotBlank() && !section.revisionAuthorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
-                googleDriveSyncService.sendServerlessMail(
+                networkService.sendServerlessMail(
                     ServerlessMailMessage(
                         recipientEmail = section.revisionAuthorEmail,
                         senderEmail = _currentUser.value.email,
@@ -699,7 +698,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     // ==========================================
     // Google Drive & Serverless Governance Ecosystem
     // ==========================================
-    val googleDriveSyncService = FirestoreNetworkService(application)
+    val networkService = FirestoreNetworkService(application)
 
     private val googleDriveClient = GoogleDriveClient(application)
 
@@ -723,7 +722,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun checkAccountSuspension() {
         viewModelScope.launch {
-            val suspension = googleDriveSyncService.checkUserSuspension(_currentUser.value.email)
+            val suspension = networkService.checkUserSuspension(_currentUser.value.email)
             _activeSuspension.value = suspension
             _driveSyncStatus.value = _driveSyncStatus.value.copy(
                 isSuspended = suspension != null,
@@ -737,7 +736,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun restoreManuscriptsFromGoogleDrive(interactive: Boolean = false, onRestored: (Int) -> Unit = {}) {
         viewModelScope.launch {
-            val restored = googleDriveSyncService.restoreUserManuscriptsFromDrive(_currentUser.value.email)
+            val restored = networkService.restoreUserManuscriptsFromDrive(_currentUser.value.email)
             val knownKeys = manuscripts.value.map { bookKey(it.title, it.authorEmail) }.toMutableSet()
             var total = 0
             for (pair in restored) {
@@ -757,7 +756,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             if (tokenResult.isSuccess) {
                 val payloads = googleDriveClient.downloadAllPayloads(tokenResult.getOrThrow())
                 for (payload in payloads) {
-                    val parsed = googleDriveSyncService.parsePayloadJson(payload, _currentUser.value.email) ?: continue
+                    val parsed = networkService.parsePayloadJson(payload, _currentUser.value.email) ?: continue
                     if (!knownKeys.add(bookKey(parsed.first.title, parsed.first.authorEmail))) continue
                     val mId = repository.createManuscript(parsed.first, populateTemplate = false)
                     for (sec in parsed.second) {
@@ -796,7 +795,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 onReady(savedId)
                 return@launch
             }
-            val fetched = googleDriveSyncService.fetchRegistryBook(entry.fileId)
+            val fetched = networkService.fetchRegistryBook(entry.fileId)
             if (fetched == null) {
                 onReady(-1L)
                 return@launch
@@ -815,13 +814,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             checkAccountSuspension()
 
             // Fetch index
-            val indexResult = googleDriveSyncService.fetchGlobalBookIndex(_currentUser.value)
+            val indexResult = networkService.fetchGlobalBookIndex(_currentUser.value)
             if (indexResult.isSuccess) {
                 _globalBookIndex.value = indexResult.getOrNull() ?: emptyList()
             }
 
             // Fetch mail
-            val mailResult = googleDriveSyncService.fetchMailboxMessages(_currentUser.value.email)
+            val mailResult = networkService.fetchMailboxMessages(_currentUser.value.email)
             if (mailResult.isSuccess) {
                 val msgs = mailResult.getOrNull() ?: emptyList()
                 _mailboxMessages.value = msgs
@@ -830,9 +829,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
             // If Editor in Chief, refresh suspended users list and the
             // registry approval queue
-            if (_currentUser.value.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
-                _suspendedUsers.value = googleDriveSyncService.getSuspendedUsersFromStorage()
-                _pendingBooks.value = googleDriveSyncService.fetchPendingBooks().getOrNull() ?: emptyList()
+            if (_currentUser.value.email.equals(FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+                _suspendedUsers.value = networkService.getSuspendedUsersFromStorage()
+                _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
             }
 
             // Always synchronize subscribers telemetry with latest profile displayName
@@ -848,7 +847,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 val sections = repository.getSectionsForManuscriptOnce(manuscript.id)
-                val result = googleDriveSyncService.syncManuscriptToDrive(
+                val result = networkService.syncManuscriptToDrive(
                     manuscript = manuscript,
                     sections = sections,
                     currentUser = _currentUser.value,
@@ -857,7 +856,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 if (result.isSuccess) {
                     val entry = result.getOrNull()
                     // The same whole book, saved to the writer's own Google Drive.
-                    val payload = googleDriveSyncService.buildPayloadJson(
+                    val payload = networkService.buildPayloadJson(
                         manuscript, sections, _currentUser.value, isPublicInCommunity
                     )
                     val driveResult = googleDriveClient.accessToken(interactive = true).fold(
@@ -899,7 +898,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun markMailMessageAsRead(messageId: String) {
         viewModelScope.launch {
-            googleDriveSyncService.markMailAsRead(_currentUser.value.email, messageId)
+            networkService.markMailAsRead(_currentUser.value.email, messageId)
             refreshDriveNetwork()
         }
     }
@@ -909,7 +908,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     // ==========================================
     fun suspendUserAccount(targetEmail: String, reason: String) {
         viewModelScope.launch {
-            googleDriveSyncService.suspendUser(
+            networkService.suspendUser(
                 adminEmail = _currentUser.value.email,
                 targetEmail = targetEmail,
                 reason = reason
@@ -920,7 +919,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun unsuspendUserAccount(targetEmail: String) {
         viewModelScope.launch {
-            googleDriveSyncService.unsuspendUser(
+            networkService.unsuspendUser(
                 adminEmail = _currentUser.value.email,
                 targetEmail = targetEmail
             )
@@ -930,7 +929,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun revokeManuscriptDriveAccess(fileId: String) {
         viewModelScope.launch {
-            googleDriveSyncService.revokeManuscriptAccess(
+            networkService.revokeManuscriptAccess(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
@@ -940,7 +939,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun approveRegistryBook(fileId: String) {
         viewModelScope.launch {
-            googleDriveSyncService.approvePendingBook(
+            networkService.approvePendingBook(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
@@ -950,7 +949,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun rejectRegistryBook(fileId: String) {
         viewModelScope.launch {
-            googleDriveSyncService.rejectPendingBook(
+            networkService.rejectPendingBook(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
@@ -964,7 +963,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun sendServerlessMailDirective(message: ServerlessMailMessage) {
         viewModelScope.launch {
-            googleDriveSyncService.sendServerlessMail(message)
+            networkService.sendServerlessMail(message)
             refreshDriveNetwork()
         }
     }

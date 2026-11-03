@@ -61,7 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supernatural.bwriter.auth.GoogleAuthHelper
 import com.supernatural.bwriter.auth.FirebaseAuthBridge
-import com.supernatural.bwriter.data.GoogleDriveSyncService
+import com.supernatural.bwriter.data.FirestoreNetworkService
 import com.supernatural.bwriter.model.UserProfile
 import com.supernatural.bwriter.model.WorkRole
 import com.supernatural.bwriter.ui.components.RoleBadge
@@ -87,7 +87,7 @@ fun AuthScreen(
     // screen opens with no standing: nobody is Editor in Chief here
     // until they actually sign in.
     var sessionEmail by remember { mutableStateOf<String?>(null) }
-    val sessionIsEditorInChief = GoogleDriveSyncService.isSuperuserEmail(sessionEmail ?: "")
+    val sessionIsEditorInChief = FirestoreNetworkService.isSuperuserEmail(sessionEmail ?: "")
     val selectedRole = if (sessionIsEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
     var isAuthenticatingGoogle by remember { mutableStateOf(false) }
     var googleAuthError by remember { mutableStateOf<String?>(null) }
@@ -287,7 +287,7 @@ fun AuthScreen(
                                     selectedEmail = googleUser.email
                                     sessionEmail = googleUser.email
                                     FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
-                                    val standingRole = if (GoogleDriveSyncService.isSuperuserEmail(googleUser.email)) WorkRole.EDITOR else WorkRole.AUTHOR
+                                    val standingRole = if (FirestoreNetworkService.isSuperuserEmail(googleUser.email)) WorkRole.EDITOR else WorkRole.AUTHOR
                                     onGoogleSignIn(googleUser.email, authorName, penName, standingRole)
                                     onContinue()
                                 }.onFailure { err ->

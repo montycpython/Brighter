@@ -178,7 +178,7 @@ fun SectionEditorScreen(
     val isAuthorOfBook = manuscript?.authorEmail.equals(currentUser.email, ignoreCase = true) ||
                          (currentUser.penName.isNotBlank() && manuscript?.authorPenName.equals(currentUser.penName, ignoreCase = true)) ||
                          (currentUser.name.isNotBlank() && currentUser.name != "Author" && manuscript?.authorName.equals(currentUser.name, ignoreCase = true)) ||
-                         currentUser.email.equals(com.supernatural.bwriter.data.GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+                         currentUser.email.equals(com.supernatural.bwriter.data.FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
     val isNonAuthorMode = !isAuthorOfBook
     val isAuthorRoleBlocked = isNonAuthorMode && currentUser.role == WorkRole.AUTHOR

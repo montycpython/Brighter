@@ -65,7 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.supernatural.bwriter.data.GoogleDriveSyncService
+import com.supernatural.bwriter.data.FirestoreNetworkService
 import com.supernatural.bwriter.model.UserProfile
 import com.supernatural.bwriter.model.WorkRole
 import com.supernatural.bwriter.ui.components.RoleBadge
@@ -90,7 +90,7 @@ fun AuthorProfileDialog(
     var penName by remember { mutableStateOf(currentUser.penName) }
     var email by remember { mutableStateOf(currentUser.email) }
     // Standing is derived from the address, never picked.
-    val selectedRole = if (GoogleDriveSyncService.isSuperuserEmail(currentUser.email)) WorkRole.EDITOR else WorkRole.AUTHOR
+    val selectedRole = if (FirestoreNetworkService.isSuperuserEmail(currentUser.email)) WorkRole.EDITOR else WorkRole.AUTHOR
     var organization by remember { mutableStateOf(currentUser.organization) }
     var cmosEdition by remember { mutableStateOf(currentUser.preferredCmosEdition) }
 
@@ -185,7 +185,7 @@ fun AuthorProfileDialog(
                                 color = BookGoldLight,
                                 letterSpacing = 1.sp
                             )
-                            RoleBadge(role = selectedRole, isEditorInChief = GoogleDriveSyncService.isSuperuserEmail(currentUser.email))
+                            RoleBadge(role = selectedRole, isEditorInChief = FirestoreNetworkService.isSuperuserEmail(currentUser.email))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -371,7 +371,7 @@ fun AuthorProfileDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    RoleBadge(role = selectedRole, isEditorInChief = GoogleDriveSyncService.isSuperuserEmail(currentUser.email))
+                    RoleBadge(role = selectedRole, isEditorInChief = FirestoreNetworkService.isSuperuserEmail(currentUser.email))
                     Text(
                         text = "Editor standing is granted by invitation.",
                         fontSize = 12.sp,

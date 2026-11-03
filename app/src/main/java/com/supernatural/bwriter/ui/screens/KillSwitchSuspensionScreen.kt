@@ -39,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.supernatural.bwriter.data.GoogleDriveSyncService
 import com.supernatural.bwriter.model.SuspendedUserEntry
 import com.supernatural.bwriter.model.UserProfile
 import com.supernatural.bwriter.ui.theme.BookGold

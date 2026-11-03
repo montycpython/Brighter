@@ -86,7 +86,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.supernatural.bwriter.data.GoogleDriveSyncService
+import com.supernatural.bwriter.data.FirestoreNetworkService
 import com.supernatural.bwriter.model.GlobalBookIndexEntry
 import com.supernatural.bwriter.model.ServerlessMailMessage
 import com.supernatural.bwriter.model.SuspendedUserEntry
@@ -155,7 +155,7 @@ fun AdminGodModeDashboardScreen(
                                 color = Color(0xFFF3EFE6)
                             )
                             Text(
-                                text = "God-Mode Governance • ${GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL}",
+                                text = "God-Mode Governance • ${FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL}",
                                 fontSize = 10.5.sp,
                                 color = BookGoldLight
                             )
@@ -1027,7 +1027,7 @@ fun MailboxDispatcherTab(
                     onSendMessage(
                         ServerlessMailMessage(
                             recipientEmail = selectedRecipient,
-                            senderEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                            senderEmail = FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL,
                             senderName = "Editor in Chief",
                             subject = subject.trim(),
                             body = body.trim(),
@@ -1093,7 +1093,7 @@ fun DriveHealthTab(
             Triple("Global_Book_Index.json", "${globalIndex.size} manuscripts registered", true),
             Triple("suspended_users.json", "${suspendedUsers.size} accounts blocked", true),
             Triple("Mailboxes/ Directory", "Decentralized inbox queue", true),
-            Triple("Auto-Share Hook (${GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL})", "Writer/Reader permissions active", true)
+            Triple("Auto-Share Hook (${FirestoreNetworkService.EDITOR_IN_CHIEF_EMAIL})", "Writer/Reader permissions active", true)
         )
 
         driveNodes.forEach { (nodeName, detail, ok) ->

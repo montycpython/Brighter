@@ -33,14 +33,24 @@ import org.json.JSONObject
  *  - cloudBooks/{email_id}        A writer's own full manuscript payloads (restore source)
  *  - versionSnapshots/{autoId}    Per-manuscript version history
  *
- * Mirrors the public API of the earlier on-device GoogleDriveSyncService so the
- * ViewModel and UI did not need to change shape when the back room became real.
+ * This is the only network service. (An earlier on-device class pretended
+ * to be Google Drive; it was removed. Real Drive lives in GoogleDriveClient.)
  */
 class FirestoreNetworkService(private val context: Context) {
 
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
     companion object {
+        const val EDITOR_IN_CHIEF_EMAIL = "real.artistry@gmail.com"
+        const val DEFAULT_STUDIO_AUTHOR_EMAIL = "author.studio@bwriter.io"
+
+        fun isSuperuserEmail(email: String): Boolean {
+            val clean = email.trim().lowercase()
+            return clean == EDITOR_IN_CHIEF_EMAIL.lowercase() ||
+                   clean == DEFAULT_STUDIO_AUTHOR_EMAIL.lowercase() ||
+                   clean.startsWith("author.studio@")
+        }
+
         private const val COL_REGISTRY = "registry"
         private const val COL_PENDING = "registryPending"
         private const val COL_SUSPENDED = "suspended"
@@ -85,7 +95,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun suspendUser(adminEmail: String, targetEmail: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can suspend users."))
             }
             val entry = SuspendedUserEntry(
@@ -99,7 +109,7 @@ class FirestoreNetworkService(private val context: Context) {
             sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = targetEmail.trim(),
-                    senderEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                    senderEmail = EDITOR_IN_CHIEF_EMAIL,
                     senderName = "Editor in Chief",
                     subject = "Account Suspended: Governance Notice",
                     body = "Your account has been suspended by the Editor in Chief.\n\nReason: $reason\n\nAll editing and network capabilities are locked until further review.",
@@ -114,7 +124,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun unsuspendUser(adminEmail: String, targetEmail: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can unsuspend users."))
             }
             db.collection(COL_SUSPENDED).document(normEmail(targetEmail)).delete().await()
@@ -122,7 +132,7 @@ class FirestoreNetworkService(private val context: Context) {
             sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = targetEmail.trim(),
-                    senderEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                    senderEmail = EDITOR_IN_CHIEF_EMAIL,
                     senderName = "Editor in Chief",
                     subject = "Account Restored",
                     body = "Your account access has been fully restored by the Editor in Chief. You may now sync and edit your manuscripts normally.",
@@ -178,7 +188,7 @@ class FirestoreNetworkService(private val context: Context) {
             // the Editor in Chief approves it, then the public registry.
             // His own books go straight to the registry. A re-sync updates
             // the copy wherever it currently lives.
-            val isEditorInChief = currentUser.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+            val isEditorInChief = currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
             val pendingExisting = findDocInCollection(COL_PENDING, manuscript.id, currentUser.email)
             val registryExisting = if (pendingExisting == null) findRegistryDoc(manuscript.id, currentUser.email) else null
             val existing = pendingExisting ?: registryExisting
@@ -241,10 +251,10 @@ class FirestoreNetworkService(private val context: Context) {
             db.collection(COL_VERSIONS).add(snapshotToMap(snapshot)).await()
 
             // 4. Notify the Editor in Chief
-            if (!currentUser.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 sendServerlessMail(
                     ServerlessMailMessage(
-                        recipientEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                        recipientEmail = EDITOR_IN_CHIEF_EMAIL,
                         senderEmail = currentUser.email,
                         senderName = currentUser.displayName,
                         subject = "Manuscript Synced: ${manuscript.title}",
@@ -286,7 +296,7 @@ class FirestoreNetworkService(private val context: Context) {
         try {
             val snap = db.collection(COL_REGISTRY).get().await()
             val allEntries = snap.documents.mapNotNull { docToRegistry(it.data) }
-            val isEditorInChief = currentUser.email.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
+            val isEditorInChief = currentUser.email.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)
 
             val synchronizedEntries = allEntries.map { entry ->
                 if (entry.authorEmail.equals(currentUser.email, ignoreCase = true) && !isEditorInChief) {
@@ -354,7 +364,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun revokeManuscriptAccess(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can revoke drive access."))
             }
             val docRef = db.collection(COL_REGISTRY).document(fileId)
@@ -366,7 +376,7 @@ class FirestoreNetworkService(private val context: Context) {
                 sendServerlessMail(
                     ServerlessMailMessage(
                         recipientEmail = removed.authorEmail,
-                        senderEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                        senderEmail = EDITOR_IN_CHIEF_EMAIL,
                         senderName = "Editor in Chief",
                         subject = "Manuscript Access Revoked: ${removed.title}",
                         body = "The shared access for '${removed.title}' (File ID: $fileId) has been revoked from the global registry by the Editor in Chief.",
@@ -399,7 +409,7 @@ class FirestoreNetworkService(private val context: Context) {
     /** Move a pending book into the public registry. */
     suspend fun approvePendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can approve books."))
             }
             val pendingRef = db.collection(COL_PENDING).document(fileId)
@@ -419,7 +429,7 @@ class FirestoreNetworkService(private val context: Context) {
             sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = entry.authorEmail,
-                    senderEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                    senderEmail = EDITOR_IN_CHIEF_EMAIL,
                     senderName = "Editor in Chief",
                     subject = "Manuscript Approved: ${entry.title}",
                     body = "Your manuscript '${entry.title}' (File ID: $fileId) has been approved by the Editor in Chief and is now in the global registry.",
@@ -436,7 +446,7 @@ class FirestoreNetworkService(private val context: Context) {
     /** Remove a pending book without approving it. The author's own cloud copy is untouched. */
     suspend fun rejectPendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!adminEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+            if (!adminEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can reject books."))
             }
             val pendingRef = db.collection(COL_PENDING).document(fileId)
@@ -448,7 +458,7 @@ class FirestoreNetworkService(private val context: Context) {
                 sendServerlessMail(
                     ServerlessMailMessage(
                         recipientEmail = entry.authorEmail,
-                        senderEmail = GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL,
+                        senderEmail = EDITOR_IN_CHIEF_EMAIL,
                         senderName = "Editor in Chief",
                         subject = "Manuscript Not Approved: ${entry.title}",
                         body = "Your manuscript '${entry.title}' (File ID: $fileId) was not approved for the global registry by the Editor in Chief. Your own cloud copy is unchanged.",
@@ -488,11 +498,11 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchMailboxMessages(userEmail: String): Result<List<ServerlessMailMessage>> = withContext(Dispatchers.IO) {
         try {
             val mine = fetchMailboxFor(userEmail)
-            val combined = if (GoogleDriveSyncService.isSuperuserEmail(userEmail)) {
-                val aliasEmail = if (userEmail.equals(GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
-                    GoogleDriveSyncService.DEFAULT_STUDIO_AUTHOR_EMAIL
+            val combined = if (isSuperuserEmail(userEmail)) {
+                val aliasEmail = if (userEmail.equals(EDITOR_IN_CHIEF_EMAIL, ignoreCase = true)) {
+                    DEFAULT_STUDIO_AUTHOR_EMAIL
                 } else {
-                    GoogleDriveSyncService.EDITOR_IN_CHIEF_EMAIL
+                    EDITOR_IN_CHIEF_EMAIL
                 }
                 (mine + fetchMailboxFor(aliasEmail)).distinctBy { it.id }.sortedByDescending { it.timestamp }
             } else {
