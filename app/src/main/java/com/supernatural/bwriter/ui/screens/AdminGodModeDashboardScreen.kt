@@ -110,6 +110,7 @@ fun AdminGodModeDashboardScreen(
     onUnsuspendUser: (targetEmail: String) -> Unit,
     onRevokeManuscript: (fileId: String) -> Unit,
     pendingBooks: List<GlobalBookIndexEntry> = emptyList(),
+    mailboxMessages: List<ServerlessMailMessage> = emptyList(),
     onApproveBook: (fileId: String) -> Unit = {},
     onRejectBook: (fileId: String) -> Unit = {},
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
@@ -267,7 +268,9 @@ fun AdminGodModeDashboardScreen(
                 )
                 3 -> DriveHealthTab(
                     globalIndex = globalIndex,
-                    suspendedUsers = suspendedUsers
+                    pendingBooks = pendingBooks,
+                    suspendedUsers = suspendedUsers,
+                    mailboxMessages = mailboxMessages
                 )
             }
         }
@@ -1064,7 +1067,9 @@ fun MailboxDispatcherTab(
 @Composable
 fun DriveHealthTab(
     globalIndex: List<GlobalBookIndexEntry>,
-    suspendedUsers: List<SuspendedUserEntry>
+    pendingBooks: List<GlobalBookIndexEntry>,
+    suspendedUsers: List<SuspendedUserEntry>,
+    mailboxMessages: List<ServerlessMailMessage>
 ) {
     Column(
         modifier = Modifier

@@ -529,6 +529,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     Toast.makeText(context, "Manuscript access revoked", Toast.LENGTH_SHORT).show()
                 },
                 pendingBooks = pendingBooks,
+                mailboxMessages = mailboxMessages,
                 onApproveBook = { fileId ->
                     viewModel.approveRegistryBook(fileId)
                     Toast.makeText(context, "Book approved — now in the registry", Toast.LENGTH_SHORT).show()
