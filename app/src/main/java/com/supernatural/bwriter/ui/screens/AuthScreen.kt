@@ -271,10 +271,14 @@ fun AuthScreen(
                                     }
                                     selectedEmail = googleUser.email
                                     sessionEmail = googleUser.email
-                                    FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
-                                    val standingRole = WorkRole.AUTHOR
-                                    onGoogleSignIn(googleUser.email, authorName, penName, standingRole)
-                                    onContinue()
+                                    val bridgeResult = FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
+                                    if (bridgeResult.isSuccess) {
+                                        val standingRole = WorkRole.AUTHOR
+                                        onGoogleSignIn(googleUser.email, authorName, penName, standingRole)
+                                        onContinue()
+                                    } else {
+                                        googleAuthError = bridgeResult.exceptionOrNull()?.localizedMessage ?: "Sign-in could not be completed. Please try again."
+                                    }
                                 }.onFailure { err ->
                                     if (err !is androidx.credentials.exceptions.GetCredentialCancellationException) {
                                         googleAuthError = err.localizedMessage ?: "Google Identity sign-in failed. Please try again."

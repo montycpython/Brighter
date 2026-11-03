@@ -150,6 +150,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun signOutGoogleAccount() {
+        com.supernatural.bwriter.auth.FirebaseAuthBridge.signOut()
         com.supernatural.bwriter.data.StudioStanding.isEditorInChief = false
         userPreferences.signOut()
         _isLoggedIn.value = false
