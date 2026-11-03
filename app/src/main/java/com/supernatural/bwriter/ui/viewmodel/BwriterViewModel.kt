@@ -721,11 +721,11 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             for (pair in restored) {
                 val manuscript = pair.first
                 val sections = pair.second
+                if (!knownKeys.add(bookKey(manuscript.title, manuscript.authorEmail))) continue
                 val mId = repository.createManuscript(manuscript, populateTemplate = false)
                 for (sec in sections) {
                     repository.insertSection(sec.copy(manuscriptId = mId))
                 }
-                knownKeys.add(bookKey(manuscript.title, manuscript.authorEmail))
                 total++
             }
 
