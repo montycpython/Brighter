@@ -489,6 +489,19 @@ class FirestoreNetworkService(private val context: Context) {
                 && contentSnap.exists()
                 && contentSnap.getString("stampHash") == entry.stampHash
                 && contentSnap.getString("authorAddress") == entry.authorAddress
+                && contentSnap.getString("authorPubKey") == entry.authorPubKey
+                && contentSnap.getString("birthId") == entry.birthId
+                && contentSnap.getString("prevStampHash") == entry.prevStampHash
+                && contentSnap.getString("stampSignature") == entry.stampSignature
+                && verifyStamp(
+                    authorPubKey = entry.authorPubKey,
+                    authorAddress = entry.authorAddress,
+                    birthId = entry.birthId,
+                    prevStampHash = entry.prevStampHash,
+                    payloadJson = contentSnap.getString("payload") ?: "",
+                    stampHash = entry.stampHash,
+                    stampSignature = entry.stampSignature
+                )
             if (!stampVerified) {
                 return@withContext Result.failure(IllegalStateException("Author stamp verification failed."))
             }
