@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderShared
 import com.supernatural.bwriter.data.EditorAssignment
+import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.model.WorkRole
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Lock
@@ -116,6 +117,7 @@ fun AdminGodModeDashboardScreen(
     onRejectBook: (fileId: String) -> Unit = {},
     pendingEditorAssignments: List<EditorAssignment> = emptyList(),
     registryAuthors: List<Pair<String, String>> = emptyList(),
+    siteUsers: List<SiteUser> = emptyList(),
     onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
     onAppointEditor: (fileId: String, bookAuthorEmail: String, editorEmail: String, editorAddress: String) -> Unit = { _, _, _, _ -> },
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
@@ -257,6 +259,7 @@ fun AdminGodModeDashboardScreen(
                     onRejectBook = onRejectBook,
                     pendingEditorAssignments = pendingEditorAssignments,
                     registryAuthors = registryAuthors,
+                    siteUsers = siteUsers,
                     onDecideEditorAssignment = onDecideEditorAssignment,
                     onAppointEditor = onAppointEditor
                 )
@@ -497,6 +500,7 @@ fun MasterBookIndexTab(
     onRejectBook: (String) -> Unit = {},
     pendingEditorAssignments: List<EditorAssignment> = emptyList(),
     registryAuthors: List<Pair<String, String>> = emptyList(),
+    siteUsers: List<SiteUser> = emptyList(),
     onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
     onAppointEditor: (String, String, String, String) -> Unit = { _, _, _, _ -> }
 ) {
@@ -730,6 +734,44 @@ fun MasterBookIndexTab(
             modifier = Modifier.testTag("btn_appoint_editor")
         ) {
             Text("Appoint", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Users",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (siteUsers.isEmpty()) {
+            Text(
+                text = "No users recorded yet.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+        } else {
+            siteUsers.forEach { user ->
+                Column(modifier = Modifier.padding(vertical = 3.dp)) {
+                    Text(
+                        text = user.displayName.ifBlank { user.email },
+                        fontSize = 12.sp,
+                        color = Color(0xFFF3EFE6)
+                    )
+                    Text(
+                        text = if (user.lastSeenAtMillis > 0L) {
+                            "${user.email} · Last seen: ${dateFormat.format(Date(user.lastSeenAtMillis))}"
+                        } else {
+                            user.email
+                        },
+                        fontSize = 11.5.sp,
+                        color = Color(0xFFB0A89C)
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(14.dp))

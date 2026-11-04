@@ -113,6 +113,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val mailboxMessages by viewModel.mailboxMessages.collectAsState()
     val pendingEditorAssignments by viewModel.pendingEditorAssignments.collectAsState()
     val registryAuthors by viewModel.registryAuthors.collectAsState()
+    val siteUsers by viewModel.siteUsers.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -529,6 +530,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 },
                 pendingEditorAssignments = pendingEditorAssignments,
                 registryAuthors = registryAuthors,
+                siteUsers = siteUsers,
                 onDecideEditorAssignment = { assignment, approve ->
                     viewModel.decideEditorAssignment(assignment, approve)
                     Toast.makeText(context, if (approve) "Editor approved" else "Editor declined", Toast.LENGTH_SHORT).show()

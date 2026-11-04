@@ -10,6 +10,7 @@ import com.supernatural.bwriter.data.BookStamp
 import com.supernatural.bwriter.data.CreditChain
 import com.supernatural.bwriter.data.CreditSchedule
 import com.supernatural.bwriter.data.EditorAssignment
+import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
@@ -681,6 +682,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _registryAuthors = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val registryAuthors: StateFlow<List<Pair<String, String>>> = _registryAuthors.asStateFlow()
 
+    private val _siteUsers = MutableStateFlow<List<SiteUser>>(emptyList())
+    val siteUsers: StateFlow<List<SiteUser>> = _siteUsers.asStateFlow()
+
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
@@ -782,6 +786,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _userAiSubscription.value = userPreferences.getUserSubscription(corrected.email)
             }
 
+            if (_currentUser.value.email.isNotBlank()) {
+                networkService.recordUserPresence(_currentUser.value.displayName, _currentUser.value.email)
+            }
+
             checkAccountSuspension()
 
             refreshCredit()
@@ -802,10 +810,14 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _suspendedUsers.value = networkService.getSuspendedUsers()
                 _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
                 _pendingEditorAssignments.value = networkService.fetchPendingEditorAssignments()
-                _registryAuthors.value = _globalBookIndex.value
+                _siteUsers.value = networkService.fetchSiteUsers()
+                val indexAuthors = _globalBookIndex.value
                     .map { it.authorName to it.authorEmail.trim().lowercase() }
                     .filter { it.second.isNotBlank() }
-                    .distinctBy { it.second }
+                val directoryAuthors = _siteUsers.value
+                    .filter { it.email.isNotBlank() && it.displayName.isNotBlank() }
+                    .map { it.displayName to it.email }
+                _registryAuthors.value = (directoryAuthors + indexAuthors).distinctBy { it.second }
             }
 
                     }

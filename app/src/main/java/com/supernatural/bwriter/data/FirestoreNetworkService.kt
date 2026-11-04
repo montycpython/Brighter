@@ -36,6 +36,12 @@ data class BookStamp(
     val stampSignature: String = ""
 )
 
+data class SiteUser(
+    val displayName: String = "",
+    val email: String = "",
+    val lastSeenAtMillis: Long = 0L
+)
+
 class FirestoreNetworkService(private val context: Context) {
 
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
@@ -53,6 +59,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_CREDIT_ISSUANCES = "creditIssuances"
         private const val COL_CREDIT_CLAIMS = "creditClaims"
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
+        private const val COL_USERS = "users"
     }
 
     @Volatile
@@ -683,6 +690,52 @@ class FirestoreNetworkService(private val context: Context) {
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Set editor assignment status failed", e)
         }
+    }
+
+    suspend fun recordUserPresence(displayName: String, email: String) = withContext(Dispatchers.IO) {
+        try {
+            val normalized = normEmail(email)
+            if (normalized.isBlank()) return@withContext
+            val ref = db.collection(COL_USERS).document(normalized)
+            val existing = ref.get().await()
+            val now = System.currentTimeMillis()
+            val firstSeen = if (existing.exists()) {
+                (existing.get("firstSeenAt") as? Number)?.toLong() ?: now
+            } else {
+                now
+            }
+            ref.set(
+                mapOf(
+                    "displayName" to displayName,
+                    "email" to normalized,
+                    "firstSeenAt" to firstSeen,
+                    "lastSeenAt" to now
+                )
+            ).await()
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Record user presence failed", e)
+        }
+    }
+
+    suspend fun fetchSiteUsers(): List<SiteUser> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_USERS).get().await()
+            snap.documents.mapNotNull { docToSiteUser(it.data) }
+                .sortedByDescending { it.lastSeenAtMillis }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch site users failed", e)
+            emptyList()
+        }
+    }
+
+    private fun docToSiteUser(data: Map<String, Any>?): SiteUser? {
+        if (data == null) return null
+        val email = data["email"] as? String ?: return null
+        return SiteUser(
+            displayName = data["displayName"] as? String ?: "",
+            email = email,
+            lastSeenAtMillis = (data["lastSeenAt"] as? Number)?.toLong() ?: 0L
+        )
     }
 
     private fun docToAssignment(data: Map<String, Any>?): EditorAssignment? {
