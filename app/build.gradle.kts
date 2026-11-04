@@ -17,8 +17,8 @@ android {
     applicationId = "com.supernatural.bwriter"
     minSdk = 24
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.1.0"
+    versionCode = 1
+    versionName = "0.1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -134,7 +134,7 @@ dependencies {
 // Name the output files for the app they are: each file is renamed right
 // after it is built — bwriter-<version>-debug.apk,
 // bwriter-<version>-release.apk, bwriter-<version>-release.aab.
-val appVersionName = android.defaultConfig.versionName ?: "1.1.0"
+val appVersionName = android.defaultConfig.versionName ?: "0.1.1"
 
 fun renameBuiltFile(folder: String, builtName: String, newName: String) {
   val dir = layout.buildDirectory.dir(folder).get().asFile

@@ -131,7 +131,7 @@ fun SyncToGoogleDriveDialog(
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    text = manuscript.edition.ifBlank { "v1.1.0" },
+                                    text = manuscript.edition.ifBlank { "v0.1.1" },
                                     color = BookGoldLight,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp,
