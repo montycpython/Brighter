@@ -583,7 +583,7 @@ class FirestoreNetworkService(private val context: Context) {
                     .whereEqualTo("authorEmailLower", normEmail(assignment.editorEmail)).get().await()
                     .documents.mapNotNull { docToRegistry(it.data) }
                     .firstOrNull { it.authorAddress.isNotBlank() }
-                if (editorEntry != null) {
+                if (editorEntry != null && !existingForBook.any { it.kind == "EDITOR" && it.authorEmail == normEmail(assignment.editorEmail) }) {
                     writeIssuance(assignment.editorEmail, editorEntry.authorAddress, amount, "EDITOR", entry)
                 }
             }

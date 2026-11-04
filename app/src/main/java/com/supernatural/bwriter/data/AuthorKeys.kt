@@ -75,6 +75,20 @@ object AuthorKeys {
         }
     }
 
+    fun isUsable(context: Context): Boolean {
+        return try {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val hasMaterial = prefs.getString(KEY_PUB, null) != null || prefs.getString(KEY_PRIV_CT, null) != null
+            if (!hasMaterial) {
+                true
+            } else {
+                loadPrivateKey(context) != null
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun publicKeyHex(context: Context): String {
         return try {
             ensureKeyPair(context)
@@ -138,6 +152,7 @@ object AuthorKeys {
      */
     fun exportEncrypted(context: Context, passphrase: String): String {
         return try {
+            if (passphrase.length < 8) return ""
             if (!ensureKeyPair(context)) return ""
             val priv = loadPrivateKey(context) ?: return ""
             val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
@@ -179,6 +194,19 @@ object AuthorKeys {
             val curveSpec = ECNamedCurveTable.getParameterSpec("secp256k1")
             val point = curveSpec.g.multiply(BigInteger(1, scalar))
             val pubBytes = point.getEncoded(true)
+            val expected = root.optString("address")
+            val verified = if (expected.isNotBlank()) {
+                addressFromPubKeyHex(pubBytes.toHex()) == expected
+            } else {
+                val privKey = KeyFactory.getInstance("EC", provider)
+                    .generatePrivate(ECPrivateKeySpec(BigInteger(1, scalar), jcaParams())) as ECPrivateKey
+                val probe = "bwriter-key-restore-check"
+                val probeSig = Signature.getInstance("SHA256withECDSA", provider)
+                probeSig.initSign(privKey)
+                probeSig.update(probe.toByteArray(Charsets.UTF_8))
+                verify(pubBytes.toHex(), probe, probeSig.sign().toHex())
+            }
+            if (!verified) return false
             val storeCipher = Cipher.getInstance("AES/GCM/NoPadding")
             storeCipher.init(Cipher.ENCRYPT_MODE, aesKey())
             val stored = storeCipher.doFinal(scalar)
@@ -187,13 +215,7 @@ object AuthorKeys {
                 .putString(KEY_PRIV_IV, storeCipher.iv.toHex())
                 .putString(KEY_PRIV_CT, stored.toHex())
                 .apply()
-            val expected = root.optString("address")
-            if (expected.isNotBlank()) {
-                address(context) == expected
-            } else {
-                val probe = "bwriter-key-restore-check"
-                verify(publicKeyHex(context), probe, sign(context, probe))
-            }
+            true
         } catch (e: Exception) {
             false
         }

@@ -285,6 +285,7 @@ fun SyncToGoogleDriveDialog(
                     value = keyPassphrase,
                     onValueChange = { keyPassphrase = it },
                     label = { Text("Key passphrase") },
+                    supportingText = { Text("8+ characters") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
@@ -306,7 +307,7 @@ fun SyncToGoogleDriveDialog(
                                 )
                             }
                         },
-                        enabled = !keyBusy && keyPassphrase.isNotBlank(),
+                        enabled = !keyBusy && keyPassphrase.length >= 8,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Back Up Key", fontSize = 11.5.sp)
@@ -323,7 +324,7 @@ fun SyncToGoogleDriveDialog(
                                 )
                             }
                         },
-                        enabled = !keyBusy && keyPassphrase.isNotBlank(),
+                        enabled = !keyBusy && keyPassphrase.length >= 8,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Restore Key", fontSize = 11.5.sp)

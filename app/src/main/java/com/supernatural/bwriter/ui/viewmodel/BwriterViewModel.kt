@@ -870,6 +870,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val sections = repository.getSectionsForManuscriptOnce(manuscript.id)
                 val appContext = getApplication<Application>().applicationContext
                 AuthorKeys.ensureKeyPair(appContext)
+                if (!AuthorKeys.isUsable(appContext)) {
+                    throw IllegalStateException("Author key unavailable on this device.")
+                }
                 val authorAddress = AuthorKeys.address(appContext)
                 val authorPubKey = AuthorKeys.publicKeyHex(appContext)
                 val birthId = manuscript.birthId.ifBlank { java.util.UUID.randomUUID().toString() }
