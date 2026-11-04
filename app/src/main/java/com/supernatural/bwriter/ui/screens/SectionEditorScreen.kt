@@ -982,7 +982,8 @@ fun SectionEditorScreen(
                                     IllustrationPreview(
                                         uriString = headerIllustrationUri,
                                         caption = headerIllustrationCaption,
-                                        maxHeight = 120
+                                        maxHeight = 120,
+                                        ownBook = true
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     OutlinedTextField(
@@ -1071,7 +1072,8 @@ fun SectionEditorScreen(
                                     IllustrationPreview(
                                         uriString = tailIllustrationUri,
                                         caption = tailIllustrationCaption,
-                                        maxHeight = 80
+                                        maxHeight = 80,
+                                        ownBook = true
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     OutlinedTextField(
