@@ -28,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.supernatural.bwriter.data.IllustrationUris
 import com.supernatural.bwriter.model.ManuscriptEntity
 import com.supernatural.bwriter.model.ServerlessMailMessage
 import com.supernatural.bwriter.model.WorkRole
@@ -408,6 +409,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 LeafReaderScreen(
                     manuscript = currentM,
                     leaves = calculatedLeaves,
+                    ownBook = IllustrationUris.isOwnBook(currentM.authorEmail, currentUser.email),
                     onBack = { navController.popBackStack() },
                     onOpenExport = {
                         navController.navigate("pdf_export/$manuscriptId")

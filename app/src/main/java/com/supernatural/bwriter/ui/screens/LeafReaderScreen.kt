@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.supernatural.bwriter.R
 import com.supernatural.bwriter.cmos.CmosLeafEngine
+import com.supernatural.bwriter.data.IllustrationUris
 import com.supernatural.bwriter.model.CalculatedLeaf
 import com.supernatural.bwriter.model.LeafDisplayType
 import com.supernatural.bwriter.model.LeafSide
@@ -78,6 +79,7 @@ import com.supernatural.bwriter.ui.theme.ParchmentPaper
 fun LeafReaderScreen(
     manuscript: ManuscriptEntity,
     leaves: List<CalculatedLeaf>,
+    ownBook: Boolean,
     onBack: () -> Unit,
     onOpenExport: () -> Unit
 ) {
@@ -216,6 +218,7 @@ fun LeafReaderScreen(
                             SingleLeafView(
                                 leaf = versoLeaf,
                                 manuscript = manuscript,
+                                ownBook = ownBook,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -250,6 +253,7 @@ fun LeafReaderScreen(
                             SingleLeafView(
                                 leaf = rectoLeaf,
                                 manuscript = manuscript,
+                                ownBook = ownBook,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -266,6 +270,7 @@ fun LeafReaderScreen(
 fun SingleLeafView(
     leaf: CalculatedLeaf,
     manuscript: ManuscriptEntity,
+    ownBook: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -554,7 +559,8 @@ fun SingleLeafView(
                     IllustrationPreview(
                         uriString = leaf.headerIllustrationUri,
                         caption = leaf.headerIllustrationCaption,
-                        maxHeight = 90
+                        maxHeight = 90,
+                        ownBook = ownBook
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -570,7 +576,8 @@ fun SingleLeafView(
                     IllustrationPreview(
                         uriString = leaf.tailIllustrationUri,
                         caption = leaf.tailIllustrationCaption,
-                        maxHeight = 55
+                        maxHeight = 55,
+                        ownBook = ownBook
                     )
                 }
             }
@@ -618,7 +625,8 @@ fun ProseParagraphsView(text: String) {
 fun IllustrationPreview(
     uriString: String,
     caption: String,
-    maxHeight: Int
+    maxHeight: Int,
+    ownBook: Boolean
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -646,14 +654,16 @@ fun IllustrationPreview(
                 )
             }
             else -> {
-                AsyncImage(
-                    model = uriString,
-                    contentDescription = caption.ifBlank { "Chapter Illustration" },
-                    modifier = Modifier
-                        .height(maxHeight.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    contentScale = ContentScale.Fit
-                )
+                if (IllustrationUris.isLoadable(uriString, ownBook)) {
+                    AsyncImage(
+                        model = uriString,
+                        contentDescription = caption.ifBlank { "Chapter Illustration" },
+                        modifier = Modifier
+                            .height(maxHeight.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                }
             }
         }
 

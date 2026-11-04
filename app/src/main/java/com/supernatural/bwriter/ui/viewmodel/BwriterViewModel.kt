@@ -14,6 +14,7 @@ import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
 import com.supernatural.bwriter.data.FirestoreNetworkService
 import com.supernatural.bwriter.data.GoogleDriveClient
+import com.supernatural.bwriter.data.IllustrationUris
 import com.supernatural.bwriter.export.CmosPdfExporter
 import com.supernatural.bwriter.model.DriveSyncStatus
 import com.supernatural.bwriter.model.GlobalBookIndexEntry
@@ -680,7 +681,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _isExporting.value = true
         viewModelScope.launch {
             try {
-                val result = com.supernatural.bwriter.export.CmosPdfExporter.exportToPdf(context, m, s)
+                val result = com.supernatural.bwriter.export.CmosPdfExporter.exportToPdf(
+                    context, m, s,
+                    ownBook = IllustrationUris.isOwnBook(m.authorEmail, _currentUser.value.email)
+                )
                 _exportResult.value = result
                 onComplete(result)
             } finally {

@@ -16,6 +16,7 @@ import android.text.TextPaint
 import com.supernatural.bwriter.R
 import com.supernatural.bwriter.cmos.CmosFormatter
 import com.supernatural.bwriter.cmos.CmosLeafEngine
+import com.supernatural.bwriter.data.IllustrationUris
 import com.supernatural.bwriter.model.BookTrimSize
 import com.supernatural.bwriter.model.CalculatedLeaf
 import com.supernatural.bwriter.model.LeafDisplayType
@@ -46,14 +47,16 @@ object CmosPdfExporter {
         context: Context,
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>,
-        targetTrimSize: BookTrimSize? = null
-    ): ExportResult = exportManuscriptToPdf(context, manuscript, sections, targetTrimSize)
+        targetTrimSize: BookTrimSize? = null,
+        ownBook: Boolean = true
+    ): ExportResult = exportManuscriptToPdf(context, manuscript, sections, targetTrimSize, ownBook)
 
     fun exportManuscriptToPdf(
         context: Context,
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>,
-        targetTrimSize: BookTrimSize? = null
+        targetTrimSize: BookTrimSize? = null,
+        ownBook: Boolean = true
     ): ExportResult {
         val trimSize = targetTrimSize ?: BookTrimSize.fromTargetString(manuscript.targetPageSize)
         val pdfDocument = PdfDocument()
@@ -275,6 +278,7 @@ object CmosPdfExporter {
                 pdfDocument = pdfDocument,
                 sec = sec,
                 manuscript = manuscript,
+                ownBook = ownBook,
                 matterType = MatterType.FRONT_MATTER,
                 pageWidthPt = pageWidthPt,
                 pageHeightPt = pageHeightPt,
@@ -324,6 +328,7 @@ object CmosPdfExporter {
                 pdfDocument = pdfDocument,
                 sec = sec,
                 manuscript = manuscript,
+                ownBook = ownBook,
                 matterType = MatterType.TEXT_BODY,
                 pageWidthPt = pageWidthPt,
                 pageHeightPt = pageHeightPt,
@@ -363,6 +368,7 @@ object CmosPdfExporter {
                 pdfDocument = pdfDocument,
                 sec = sec,
                 manuscript = manuscript,
+                ownBook = ownBook,
                 matterType = MatterType.BACK_MATTER,
                 pageWidthPt = pageWidthPt,
                 pageHeightPt = pageHeightPt,
@@ -416,6 +422,7 @@ object CmosPdfExporter {
         pdfDocument: PdfDocument,
         sec: SectionEntity,
         manuscript: ManuscriptEntity,
+        ownBook: Boolean,
         matterType: MatterType,
         pageWidthPt: Int,
         pageHeightPt: Int,
@@ -517,6 +524,7 @@ object CmosPdfExporter {
                         context = context,
                         canvas = canvas,
                         uriString = sec.headerIllustrationUri,
+                        ownBook = ownBook,
                         caption = sec.headerIllustrationCaption,
                         leftMargin = leftMargin,
                         top = currentY,
@@ -659,6 +667,7 @@ object CmosPdfExporter {
                         context = context,
                         canvas = canvas,
                         uriString = sec.tailIllustrationUri,
+                        ownBook = ownBook,
                         caption = sec.tailIllustrationCaption,
                         leftMargin = leftMargin,
                         top = tailTop,
@@ -986,6 +995,7 @@ object CmosPdfExporter {
         context: Context,
         canvas: Canvas,
         uriString: String,
+        ownBook: Boolean,
         caption: String,
         leftMargin: Float,
         top: Float,
@@ -993,7 +1003,7 @@ object CmosPdfExporter {
         maxAllowedHeight: Float,
         captionPaint: TextPaint
     ): Float {
-        val bitmap = loadBitmap(context, uriString)
+        val bitmap = loadBitmap(context, uriString, ownBook)
         var totalDrawnHeight = 0f
 
         if (bitmap != null) {
@@ -1029,7 +1039,8 @@ object CmosPdfExporter {
         return totalDrawnHeight
     }
 
-    private fun loadBitmap(context: Context, uriString: String): Bitmap? {
+    private fun loadBitmap(context: Context, uriString: String, ownBook: Boolean): Bitmap? {
+        if (!IllustrationUris.isLoadable(uriString, ownBook)) return null
         return try {
             when {
                 uriString.startsWith("drawable:") -> {
