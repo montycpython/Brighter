@@ -88,17 +88,20 @@ object AuthorKeys {
     /** The author's address: hex of RIPEMD160(SHA-256(compressed public key)). */
     fun address(context: Context): String {
         return try {
-            val pubHex = publicKeyHex(context)
-            if (pubHex.isBlank()) return ""
-            val sha = MessageDigest.getInstance("SHA-256").digest(pubHex.hexToBytes())
-            val ripe = RIPEMD160Digest()
-            ripe.update(sha, 0, sha.size)
-            val out = ByteArray(ripe.digestSize)
-            ripe.doFinal(out, 0)
-            out.toHex()
+            addressFromPubKeyHex(publicKeyHex(context))
         } catch (e: Exception) {
             ""
         }
+    }
+
+    fun addressFromPubKeyHex(publicKeyHex: String): String {
+        if (publicKeyHex.isBlank()) return ""
+        val sha = MessageDigest.getInstance("SHA-256").digest(publicKeyHex.hexToBytes())
+        val ripe = RIPEMD160Digest()
+        ripe.update(sha, 0, sha.size)
+        val out = ByteArray(ripe.digestSize)
+        ripe.doFinal(out, 0)
+        return out.toHex()
     }
 
     /** SHA256withECDSA over the message's UTF-8 bytes; the signature as hex. */

@@ -474,6 +474,16 @@ class FirestoreNetworkService(private val context: Context) {
                 ?: return@withContext Result.failure(IllegalStateException("Pending book not found."))
             val contentSnap = pendingRef.collection("content").document("fullText").get().await()
 
+            val stampVerified = entry.authorAddress.isNotBlank()
+                && entry.authorAddress == AuthorKeys.addressFromPubKeyHex(entry.authorPubKey)
+                && AuthorKeys.verify(entry.authorPubKey, entry.stampHash, entry.stampSignature)
+                && contentSnap.exists()
+                && contentSnap.getString("stampHash") == entry.stampHash
+                && contentSnap.getString("authorAddress") == entry.authorAddress
+            if (!stampVerified) {
+                return@withContext Result.failure(IllegalStateException("Author stamp verification failed."))
+            }
+
             db.collection(COL_REGISTRY).document(fileId).set(registryToMap(entry)).await()
             if (contentSnap.exists()) {
                 db.collection(COL_REGISTRY).document(fileId)
