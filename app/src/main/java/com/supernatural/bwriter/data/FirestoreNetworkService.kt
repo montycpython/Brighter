@@ -579,8 +579,12 @@ class FirestoreNetworkService(private val context: Context) {
                 writeIssuance(entry.authorEmail, entry.authorAddress, amount, "AUTHOR", entry)
             }
             fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
-                if (assignment.editorAddress.isNotBlank()) {
-                    writeIssuance(assignment.editorEmail, assignment.editorAddress, amount, "EDITOR", entry)
+                val editorEntry = db.collection(COL_REGISTRY)
+                    .whereEqualTo("authorEmailLower", normEmail(assignment.editorEmail)).get().await()
+                    .documents.mapNotNull { docToRegistry(it.data) }
+                    .firstOrNull { it.authorAddress.isNotBlank() }
+                if (editorEntry != null) {
+                    writeIssuance(assignment.editorEmail, editorEntry.authorAddress, amount, "EDITOR", entry)
                 }
             }
         } catch (e: Exception) {
