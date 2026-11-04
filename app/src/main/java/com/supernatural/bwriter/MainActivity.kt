@@ -111,6 +111,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val pendingBooks by viewModel.pendingBooks.collectAsState()
     val suspendedUsers by viewModel.suspendedUsers.collectAsState()
     val mailboxMessages by viewModel.mailboxMessages.collectAsState()
+    val pendingEditorAssignments by viewModel.pendingEditorAssignments.collectAsState()
+    val registryAuthors by viewModel.registryAuthors.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -525,6 +527,16 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     viewModel.rejectRegistryBook(fileId)
                     Toast.makeText(context, "Book not approved", Toast.LENGTH_SHORT).show()
                 },
+                pendingEditorAssignments = pendingEditorAssignments,
+                registryAuthors = registryAuthors,
+                onDecideEditorAssignment = { assignment, approve ->
+                    viewModel.decideEditorAssignment(assignment, approve)
+                    Toast.makeText(context, if (approve) "Editor approved" else "Editor declined", Toast.LENGTH_SHORT).show()
+                },
+                onAppointEditor = { fileId, bookAuthorEmail, editorEmail, editorAddress ->
+                    viewModel.appointEditor(fileId, bookAuthorEmail, editorEmail, editorAddress)
+                    Toast.makeText(context, "Editor appointed: $editorEmail", Toast.LENGTH_SHORT).show()
+                },
                 onSendServerlessMail = { mail ->
                     viewModel.sendServerlessMailDirective(mail)
                     Toast.makeText(context, "Sending mail to ${mail.recipientEmail}", Toast.LENGTH_SHORT).show()
@@ -607,3 +619,4 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         )
     }
 }
+

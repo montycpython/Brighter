@@ -656,6 +656,17 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchApprovedEditorAssignments(fileId: String): List<EditorAssignment> =
         fetchEditorAssignmentsForBook(fileId).filter { it.status == "APPROVED" }
 
+    suspend fun fetchPendingEditorAssignments(): List<EditorAssignment> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_EDITOR_ASSIGNMENTS)
+                .whereEqualTo("status", "PENDING").get().await()
+            snap.documents.mapNotNull { docToAssignment(it.data) }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch pending editor assignments failed", e)
+            emptyList()
+        }
+    }
+
     suspend fun createEditorAssignment(assignment: EditorAssignment) = withContext(Dispatchers.IO) {
         try {
             val id = CreditChain.sha256Hex(assignment.fileId + "|" + normEmail(assignment.editorEmail))
@@ -1113,3 +1124,4 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 }
+

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderShared
+import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.model.WorkRole
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Lock
@@ -113,6 +114,10 @@ fun AdminGodModeDashboardScreen(
     mailboxMessages: List<ServerlessMailMessage> = emptyList(),
     onApproveBook: (fileId: String) -> Unit = {},
     onRejectBook: (fileId: String) -> Unit = {},
+    pendingEditorAssignments: List<EditorAssignment> = emptyList(),
+    registryAuthors: List<Pair<String, String>> = emptyList(),
+    onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
+    onAppointEditor: (fileId: String, bookAuthorEmail: String, editorEmail: String, editorAddress: String) -> Unit = { _, _, _, _ -> },
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -249,7 +254,11 @@ fun AdminGodModeDashboardScreen(
                     onRevoke = onRevokeManuscript,
                     pendingBooks = pendingBooks,
                     onApproveBook = onApproveBook,
-                    onRejectBook = onRejectBook
+                    onRejectBook = onRejectBook,
+                    pendingEditorAssignments = pendingEditorAssignments,
+                    registryAuthors = registryAuthors,
+                    onDecideEditorAssignment = onDecideEditorAssignment,
+                    onAppointEditor = onAppointEditor
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -485,9 +494,15 @@ fun MasterBookIndexTab(
     onRevoke: (String) -> Unit,
     pendingBooks: List<GlobalBookIndexEntry> = emptyList(),
     onApproveBook: (String) -> Unit = {},
-    onRejectBook: (String) -> Unit = {}
+    onRejectBook: (String) -> Unit = {},
+    pendingEditorAssignments: List<EditorAssignment> = emptyList(),
+    registryAuthors: List<Pair<String, String>> = emptyList(),
+    onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
+    onAppointEditor: (String, String, String, String) -> Unit = { _, _, _, _ -> }
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+    var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
+    var selectedBookFileId by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -576,6 +591,148 @@ fun MasterBookIndexTab(
             }
             Spacer(modifier = Modifier.height(14.dp))
         }
+
+        Text(
+            text = "Editor Assignments",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (pendingEditorAssignments.isEmpty()) {
+            Text(
+                text = "No editor requests awaiting a decision.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+        } else {
+            pendingEditorAssignments.forEach { assignment ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .testTag("admin_assignment_card_${assignment.id}"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                    border = BorderStroke(1.dp, BookGoldDark)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = entries.firstOrNull { it.fileId == assignment.fileId }?.title ?: assignment.fileId,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Text(
+                            text = "Author: ${assignment.bookAuthorEmail}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = "Editor: ${assignment.editorEmail}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { onDecideEditorAssignment(assignment, true) },
+                                colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("btn_assignment_approve_${assignment.id}")
+                            ) {
+                                Text("Approve", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                            OutlinedButton(
+                                onClick = { onDecideEditorAssignment(assignment, false) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("btn_assignment_decline_${assignment.id}")
+                            ) {
+                                Text("Decline", fontSize = 12.5.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Appoint Editor",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        registryAuthors.forEach { (authorName, authorEmail) ->
+            val authorSelected = selectedEditorEmail == authorEmail
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp)
+                    .clickable { selectedEditorEmail = authorEmail }
+                    .testTag("admin_author_row_$authorEmail"),
+                colors = CardDefaults.cardColors(containerColor = if (authorSelected) Color(0xFF2A2118) else Color(0xFF14141C)),
+                border = BorderStroke(1.dp, if (authorSelected) BookGold else BookGoldDark)
+            ) {
+                Text(
+                    text = "$authorName \u00b7 $authorEmail",
+                    fontSize = 12.sp,
+                    color = Color(0xFFF3EFE6),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        entries.forEach { entry ->
+            val bookSelected = selectedBookFileId == entry.fileId
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp)
+                    .clickable { selectedBookFileId = entry.fileId }
+                    .testTag("admin_book_row_${entry.fileId}"),
+                colors = CardDefaults.cardColors(containerColor = if (bookSelected) Color(0xFF2A2118) else Color(0xFF14141C)),
+                border = BorderStroke(1.dp, if (bookSelected) BookGold else BookGoldDark)
+            ) {
+                Text(
+                    text = "${entry.title} \u00b7 ${entry.authorName}",
+                    fontSize = 12.sp,
+                    color = Color(0xFFF3EFE6),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = {
+                val book = entries.firstOrNull { it.fileId == selectedBookFileId }
+                val editorEmail = selectedEditorEmail
+                if (book != null && editorEmail != null) {
+                    val editorAddress = entries.firstOrNull {
+                        it.authorEmail.trim().lowercase() == editorEmail
+                    }?.authorAddress ?: ""
+                    onAppointEditor(book.fileId, book.authorEmail, editorEmail, editorAddress)
+                }
+            },
+            enabled = selectedBookFileId != null && selectedEditorEmail != null,
+            colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.testTag("btn_appoint_editor")
+        ) {
+            Text("Appoint", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         if (entries.isEmpty()) {
             Box(
@@ -1120,3 +1277,4 @@ fun DriveHealthTab(
         }
     }
 }
+

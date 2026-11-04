@@ -9,6 +9,7 @@ import com.supernatural.bwriter.data.AuthorKeys
 import com.supernatural.bwriter.data.BookStamp
 import com.supernatural.bwriter.data.CreditChain
 import com.supernatural.bwriter.data.CreditSchedule
+import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
@@ -674,6 +675,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _suspendedUsers = MutableStateFlow<List<SuspendedUserEntry>>(emptyList())
     val suspendedUsers: StateFlow<List<SuspendedUserEntry>> = _suspendedUsers.asStateFlow()
 
+    private val _pendingEditorAssignments = MutableStateFlow<List<EditorAssignment>>(emptyList())
+    val pendingEditorAssignments: StateFlow<List<EditorAssignment>> = _pendingEditorAssignments.asStateFlow()
+
+    private val _registryAuthors = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    val registryAuthors: StateFlow<List<Pair<String, String>>> = _registryAuthors.asStateFlow()
+
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
@@ -794,6 +801,11 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) {
                 _suspendedUsers.value = networkService.getSuspendedUsers()
                 _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
+                _pendingEditorAssignments.value = networkService.fetchPendingEditorAssignments()
+                _registryAuthors.value = _globalBookIndex.value
+                    .map { it.authorName to it.authorEmail.trim().lowercase() }
+                    .filter { it.second.isNotBlank() }
+                    .distinctBy { it.second }
             }
 
                     }
@@ -1048,6 +1060,53 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun appointEditor(fileId: String, bookAuthorEmail: String, editorEmail: String, editorAddress: String) {
+        viewModelScope.launch {
+            val book = _globalBookIndex.value.firstOrNull { it.fileId == fileId }
+            networkService.createEditorAssignment(
+                EditorAssignment(
+                    fileId = fileId,
+                    bookAuthorEmail = bookAuthorEmail,
+                    editorEmail = editorEmail,
+                    editorAddress = editorAddress,
+                    requestedBy = _currentUser.value.email,
+                    status = "APPROVED"
+                )
+            )
+            networkService.sendServerlessMail(
+                ServerlessMailMessage(
+                    recipientEmail = editorEmail,
+                    senderEmail = _currentUser.value.email,
+                    senderName = _currentUser.value.displayName,
+                    subject = "Editor Appointment: ${book?.title ?: fileId}",
+                    body = "You have been appointed editor of '${book?.title ?: fileId}' by the Editor in Chief."
+                )
+            )
+            refreshNetwork()
+        }
+    }
+
+    fun decideEditorAssignment(assignment: EditorAssignment, approve: Boolean) {
+        viewModelScope.launch {
+            networkService.setEditorAssignmentStatus(assignment.id, if (approve) "APPROVED" else "DECLINED")
+            val book = _globalBookIndex.value.firstOrNull { it.fileId == assignment.fileId }
+            networkService.sendServerlessMail(
+                ServerlessMailMessage(
+                    recipientEmail = assignment.editorEmail,
+                    senderEmail = _currentUser.value.email,
+                    senderName = _currentUser.value.displayName,
+                    subject = "Editor Request ${if (approve) "Approved" else "Declined"}: ${book?.title ?: assignment.fileId}",
+                    body = if (approve) {
+                        "Your request to edit '${book?.title ?: assignment.fileId}' has been approved by the Editor in Chief."
+                    } else {
+                        "Your request to edit '${book?.title ?: assignment.fileId}' has been declined by the Editor in Chief."
+                    }
+                )
+            )
+            refreshNetwork()
+        }
+    }
+
     fun sendServerlessMailDirective(message: ServerlessMailMessage) {
         viewModelScope.launch {
             networkService.sendServerlessMail(message)
@@ -1055,3 +1114,4 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 }
+
