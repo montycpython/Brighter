@@ -5,4 +5,5 @@
     <include domain="file" path="." />
     <exclude domain="sharedpref" path="bwriter_user_prefs.xml" />
     <exclude domain="sharedpref" path="author_keys.xml" />
+    <exclude domain="sharedpref" path="bwriter_ads.xml" />
 </full-backup-content>
