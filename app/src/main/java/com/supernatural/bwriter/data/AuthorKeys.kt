@@ -10,6 +10,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.json.JSONObject
 import org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util
 import java.math.BigInteger
+import java.security.AlgorithmParameters
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -250,8 +251,11 @@ object AuthorKeys {
         return curve.createPoint(pub.w.affineX, pub.w.affineY).getEncoded(true)
     }
 
-    private fun jcaParams(): ECParameterSpec =
-        EC5Util.convertSpec(ECNamedCurveTable.getParameterSpec("secp256k1"))
+    private fun jcaParams(): ECParameterSpec {
+        val ap = AlgorithmParameters.getInstance("EC")
+        ap.init(ECGenParameterSpec("secp256k1"))
+        return ap.getParameterSpec(ECParameterSpec::class.java)
+    }
 
     private fun BigInteger.toFixed32(): ByteArray {
         val raw = toByteArray()
