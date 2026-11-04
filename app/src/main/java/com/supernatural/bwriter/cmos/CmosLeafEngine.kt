@@ -11,12 +11,6 @@ import com.supernatural.bwriter.model.SectionType
 
 object CmosLeafEngine {
 
-    /**
-     * Computes the complete sequence of physical book leaves honoring Chicago Manual of Style
-     * recto/verso conventions, roman front-matter pagination, paragraph/dialogue line preservation,
-     * and chapter opener leaf positioning with illustration clearances, adjusted dynamically for the
-     * specified Book Trim Size.
-     */
     fun calculateLeaves(
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>
@@ -31,10 +25,6 @@ object CmosLeafEngine {
         val bodySections = sections.filter { it.matterType == MatterType.TEXT_BODY }
         val backSections = sections.filter { it.matterType == MatterType.BACK_MATTER }
 
-        // ==========================================
-        // 1. FRONT MATTER (Leaves in Roman Numerals)
-        // ==========================================
-        // Leaf 1: Half-Title (Recto, p. i)
         leaves.add(
             CalculatedLeaf(
                 leafIndex = leaves.size + 1,
@@ -53,7 +43,6 @@ object CmosLeafEngine {
         )
         frontMatterPage++
 
-        // Leaf 2: Blank Verso (Verso, p. ii)
         leaves.add(
             CalculatedLeaf(
                 leafIndex = leaves.size + 1,
@@ -72,7 +61,6 @@ object CmosLeafEngine {
         )
         frontMatterPage++
 
-        // Leaf 3: Title Page (Recto, p. iii)
         leaves.add(
             CalculatedLeaf(
                 leafIndex = leaves.size + 1,
@@ -91,7 +79,6 @@ object CmosLeafEngine {
         )
         frontMatterPage++
 
-        // Leaf 4: Copyright Page & Colophon (Verso, p. iv)
         leaves.add(
             CalculatedLeaf(
                 leafIndex = leaves.size + 1,
@@ -110,7 +97,6 @@ object CmosLeafEngine {
         )
         frontMatterPage++
 
-        // Optional Dedication (Recto, p. v)
         if (manuscript.dedication.isNotBlank()) {
             leaves.add(
                 CalculatedLeaf(
@@ -130,7 +116,6 @@ object CmosLeafEngine {
             )
             frontMatterPage++
 
-            // Blank verso after dedication (Verso, p. vi)
             leaves.add(
                 CalculatedLeaf(
                     leafIndex = leaves.size + 1,
@@ -150,7 +135,6 @@ object CmosLeafEngine {
             frontMatterPage++
         }
 
-        // Optional Epigraph (Recto)
         if (manuscript.epigraphText.isNotBlank()) {
             val isRecto = (leaves.size + 1) % 2 != 0
             if (!isRecto) {
@@ -191,7 +175,6 @@ object CmosLeafEngine {
             )
             frontMatterPage++
 
-            // Blank Verso after epigraph
             leaves.add(
                 CalculatedLeaf(
                     leafIndex = leaves.size + 1,
@@ -211,11 +194,7 @@ object CmosLeafEngine {
             frontMatterPage++
         }
 
-        // ==========================================
-        // DYNAMIC TABLE OF CONTENTS (Multi-Leaf Pagination)
-        // ==========================================
         if (sections.isNotEmpty()) {
-            // Ensure TOC starts on Recto (odd leaf)
             if ((leaves.size + 1) % 2 == 0) {
                 leaves.add(
                     CalculatedLeaf(
@@ -236,7 +215,6 @@ object CmosLeafEngine {
                 frontMatterPage++
             }
 
-            // Estimate Body & Back section start pages (Arabic numbering starts at 1)
             val sectionStartPageMap = mutableMapOf<Long, String>()
             var tempBodyPage = 1
 
@@ -268,7 +246,6 @@ object CmosLeafEngine {
                 tempBodyPage += maxOf(1, pageSnippets.size)
             }
 
-            // Build raw TOC entry lines
             fun buildRawTocLines(frontStartPage: Int): List<String> {
                 val lines = mutableListOf<String>()
                 var curFront = frontStartPage
@@ -306,21 +283,16 @@ object CmosLeafEngine {
                 return lines
             }
 
-            // First pass to estimate TOC leaf count
             val initialRawLines = buildRawTocLines(frontMatterPage + 1)
             var paginatedTocPages = paginateTocLines(initialRawLines, trimSize)
             val tocPagesCount = paginatedTocPages.size
 
-            // Starting roman page for custom front-matter sections after TOC:
-            // If TOC has odd number of pages, an intentional blank verso will follow to keep next section on Recto
             val blankAfterToc = (tocPagesCount % 2 != 0)
             val customFrontStartPage = frontMatterPage + tocPagesCount + (if (blankAfterToc) 1 else 0)
 
-            // Exact raw lines with precise roman numerals
             val exactRawLines = buildRawTocLines(customFrontStartPage)
             paginatedTocPages = paginateTocLines(exactRawLines, trimSize)
 
-            // Emit all TOC leaves across multiple pages/leaves
             for ((pIdx, pageLines) in paginatedTocPages.withIndex()) {
                 val isOpener = (pIdx == 0)
                 val side = if ((leaves.size + 1) % 2 != 0) LeafSide.RECTO else LeafSide.VERSO
@@ -348,7 +320,6 @@ object CmosLeafEngine {
                 frontMatterPage++
             }
 
-            // If TOC finished on Recto (odd page), insert Blank Verso so next front section starts on Recto
             if (leaves.size % 2 != 0) {
                 leaves.add(
                     CalculatedLeaf(
@@ -370,7 +341,6 @@ object CmosLeafEngine {
             }
         }
 
-        // Custom Front Matter sections (Foreword, Preface, Acknowledgments, Introduction)
         val sectionStartPageMap = mutableMapOf<Long, String>()
         for (sec in frontSections) {
             if (leaves.size % 2 != 0 && sec.startOnRecto) {
@@ -440,10 +410,6 @@ object CmosLeafEngine {
             }
         }
 
-        // ==========================================
-        // 2. TEXT / MAIN BODY (Arabic Numerals 1, 2, 3...)
-        // ==========================================
-        // Ensure Main Text starts on a RECTO (odd) leaf
         if ((leaves.size + 1) % 2 == 0) {
             leaves.add(
                 CalculatedLeaf(
@@ -463,9 +429,7 @@ object CmosLeafEngine {
             )
         }
 
-        // Process Body Sections with accurate height-based pagination
         for (sec in bodySections) {
-            // CMOS mandate: Chapters & Part Openers start on Recto leaf
             if (sec.startOnRecto) {
                 val nextLeafNumber = leaves.size + 1
                 val isNextRecto = nextLeafNumber % 2 != 0
@@ -538,9 +502,6 @@ object CmosLeafEngine {
             }
         }
 
-        // ==========================================
-        // 3. BACK MATTER (Arabic Numerals Continuous)
-        // ==========================================
         for (sec in backSections) {
             if (sec.startOnRecto) {
                 val nextLeafNumber = leaves.size + 1
@@ -633,10 +594,6 @@ object CmosLeafEngine {
         return leaves
     }
 
-    /**
-     * Slices raw TOC entry lines into physical pages/leaves so that long tables of contents
-     * (e.g. 25+ chapters, prefaces, forewords) automatically flow onto subsequent leaves without truncation.
-     */
     fun paginateTocLines(
         lines: List<String>,
         trimSize: BookTrimSize
@@ -675,18 +632,12 @@ object CmosLeafEngine {
         return if (pages.isEmpty()) listOf(emptyList()) else pages
     }
 
-    /**
-     * Formats a single Table of Contents entry line with a clean tab delimiter.
-     */
     fun formatTocLine(title: String, page: String): String {
         val cleanTitle = title.trim()
         val cleanPage = page.trim()
         return "$cleanTitle\t$cleanPage"
     }
 
-    /**
-     * Robustly extracts title and page number from a TOC line.
-     */
     fun extractTocTitleAndPage(line: String): Pair<String, String> {
         val trimmed = line.trim()
         if (trimmed.isEmpty() || trimmed.equals("CONTENTS", ignoreCase = true)) {
@@ -696,7 +647,6 @@ object CmosLeafEngine {
             val parts = trimmed.split("\t")
             return Pair(parts[0].trim(), parts.getOrElse(1) { "" }.trim())
         }
-        // Match legacy or custom lines formatted with dot leaders or trailing numbers
         val regex = Regex("""^(.*?)(?:\s*[\.\s]{2,}\s*)([0-9ivxlcIVXLC]+)$""")
         val match = regex.find(trimmed)
         if (match != null) {
@@ -707,11 +657,6 @@ object CmosLeafEngine {
 
 
 
-    /**
-     * Accurately slices section content into physical page snippets, preserving all paragraph
-     * newlines, dialogue speaker turns, and ensuring text fills the printable height down to the
-     * 1-inch bottom margin without dropping text.
-     */
     fun paginateSectionProse(
         content: String,
         trimSize: BookTrimSize,
@@ -725,7 +670,6 @@ object CmosLeafEngine {
         val lineHeight = fontSize * trimSize.defaultLineHeightMultiplier + 3.2f
         val charsPerLine = (printableWidth / (fontSize * 0.48f)).toInt().coerceIn(45, 100)
 
-        // Opener page vertical occupancy
         val openerOccupied = trimSize.topMarginPt + 20f + 22f + 10f +
                 (if (hasSubtitle) 18f else 0f) +
                 (if (hasHeaderIllustration) 110f else 0f) + 54f // 54pt bottom margin
@@ -733,7 +677,6 @@ object CmosLeafEngine {
         val availableHeightOpener = (trimSize.heightPt - openerOccupied).coerceAtLeast(200f)
         val maxLinesOpener = (availableHeightOpener / lineHeight).toInt().coerceAtLeast(20)
 
-        // Continuation pages vertical occupancy
         val continuationOccupied = trimSize.topMarginPt + 10f + 54f // 54pt bottom margin
         val availableHeightContinuation = (trimSize.heightPt - continuationOccupied).coerceAtLeast(240f)
         val maxLinesContinuation = (availableHeightContinuation / lineHeight).toInt().coerceAtLeast(24)
@@ -747,7 +690,6 @@ object CmosLeafEngine {
 
         for (para in paragraphs) {
             if (para.isEmpty()) {
-                // Scene break / blank line
                 if (currentPageLines + 1 >= currentPageMaxLines && currentPageParagraphs.isNotEmpty()) {
                     pages.add(currentPageParagraphs.joinToString("\n"))
                     currentPageParagraphs.clear()
@@ -777,7 +719,6 @@ object CmosLeafEngine {
                     currentPageLines += neededLines
                     remainingPara = ""
                 } else {
-                    // Paragraph splits across pages: take the portion that fits cleanly on current page
                     val charsToTake = (availableLinesOnPage * charsPerLine).coerceAtMost(remainingPara.length)
                     var splitIdx = remainingPara.lastIndexOf(' ', charsToTake)
                     if (splitIdx < charsToTake / 2 || splitIdx <= 0) {

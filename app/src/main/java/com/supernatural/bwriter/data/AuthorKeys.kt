@@ -31,13 +31,6 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
-/**
- * The author's own secp256k1 keypair, generated once and kept on this
- * device. The private key is stored AES-GCM-encrypted, the AES key held
- * by the Android Keystore. The address — RIPEMD160 of SHA-256 of the
- * compressed public key — is the author's unique ID, and the key signs
- * the stamp of every synced version of a book.
- */
 object AuthorKeys {
 
     private const val PREFS = "author_keys"
@@ -99,7 +92,6 @@ object AuthorKeys {
         }
     }
 
-    /** The author's address: hex of RIPEMD160(SHA-256(compressed public key)). */
     fun address(context: Context): String {
         return try {
             addressFromPubKeyHex(publicKeyHex(context))
@@ -118,7 +110,6 @@ object AuthorKeys {
         return out.toHex()
     }
 
-    /** SHA256withECDSA over the message's UTF-8 bytes; the signature as hex. */
     fun sign(context: Context, message: String): String {
         return try {
             val key = loadPrivateKey(context) ?: return ""
@@ -144,12 +135,6 @@ object AuthorKeys {
         }
     }
 
-    /**
-     * The private key sealed under a passphrase, for a copy kept in the
-     * writer's own Drive: PBKDF2-HMAC-SHA256 (200,000 rounds) deriving
-     * the AES-256-GCM key. The sealed bytes are the raw 32-byte private
-     * scalar, the same form this object stores. Returns "" on failure.
-     */
     fun exportEncrypted(context: Context, passphrase: String): String {
         return try {
             if (passphrase.length < 8) return ""
@@ -175,12 +160,6 @@ object AuthorKeys {
         }
     }
 
-    /**
-     * Restore a keypair sealed by [exportEncrypted]. A wrong passphrase
-     * fails the GCM tag check and leaves the current keypair untouched.
-     * On success the restored keypair replaces the stored one, and the
-     * check is that the restored address matches the sealed address.
-     */
     fun importEncrypted(context: Context, json: String, passphrase: String): Boolean {
         return try {
             val root = JSONObject(json)

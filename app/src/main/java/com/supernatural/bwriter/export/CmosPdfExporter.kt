@@ -38,11 +38,6 @@ object CmosPdfExporter {
         val trimSize: BookTrimSize
     )
 
-    /**
-     * Exports the manuscript to a high-fidelity PDF adhering strictly to The Chicago Manual of Style.
-     * Fills each page completely down to the 1-inch bottom margin, ensures every paragraph is indented,
-     * preserves dialogue and all newlines, and dynamically paginates prose without losing words.
-     */
     fun exportToPdf(
         context: Context,
         manuscript: ManuscriptEntity,
@@ -71,7 +66,6 @@ object CmosPdfExporter {
 
         val baseFontSize = trimSize.defaultBodyFontSizePt
 
-        // Typography Paints
         val textPaint = TextPaint().apply {
             color = Color.rgb(20, 20, 25)
             textSize = baseFontSize
@@ -122,20 +116,14 @@ object CmosPdfExporter {
         val bodySections = sections.filter { it.matterType == MatterType.TEXT_BODY }
         val backSections = sections.filter { it.matterType == MatterType.BACK_MATTER }
 
-        // Helper to start and prepare a new PDF page
         fun createNewPage(isRecto: Boolean): Pair<PdfDocument.Page, Canvas> {
             val pageInfo = PdfDocument.PageInfo.Builder(pageWidthPt, pageHeightPt, globalPageNumber).create()
             val page = pdfDocument.startPage(pageInfo)
             val canvas = page.canvas
-            // High-grade book paper cream tint
             canvas.drawColor(Color.rgb(253, 252, 248))
             return Pair(page, canvas)
         }
 
-        // ==========================================
-        // 1. FRONT MATTER
-        // ==========================================
-        // Leaf 1: Half-Title (Recto, p. i)
         run {
             val (page, canvas) = createNewPage(isRecto = true)
             drawHalfTitle(canvas, manuscript.title, gutterMargin, (pageWidthPt - gutterMargin - outerMargin).toInt(), pageHeightPt, boldPaint)
@@ -144,7 +132,6 @@ object CmosPdfExporter {
             frontMatterRomanPage++
         }
 
-        // Leaf 2: Blank Verso (Verso, p. ii)
         run {
             val (page, _) = createNewPage(isRecto = false)
             pdfDocument.finishPage(page)
@@ -152,7 +139,6 @@ object CmosPdfExporter {
             frontMatterRomanPage++
         }
 
-        // Leaf 3: Title Page (Recto, p. iii)
         run {
             val (page, canvas) = createNewPage(isRecto = true)
             drawTitlePage(canvas, manuscript, gutterMargin, (pageWidthPt - gutterMargin - outerMargin).toInt(), pageWidthPt, pageHeightPt, boldPaint, italicPaint, textPaint)
@@ -161,7 +147,6 @@ object CmosPdfExporter {
             frontMatterRomanPage++
         }
 
-        // Leaf 4: Copyright Page & Colophon (Verso, p. iv)
         run {
             val (page, canvas) = createNewPage(isRecto = false)
             val copyrightText = manuscript.effectiveCopyrightText + (if (manuscript.isbn.isNotBlank()) "\nISBN: " + manuscript.isbn else "")
@@ -171,7 +156,6 @@ object CmosPdfExporter {
             frontMatterRomanPage++
         }
 
-        // Optional Dedication (Recto, p. v)
         if (manuscript.dedication.isNotBlank()) {
             val (page, canvas) = createNewPage(isRecto = true)
             drawDedicationPage(canvas, manuscript.dedication, gutterMargin, (pageWidthPt - gutterMargin - outerMargin).toInt(), pageHeightPt, italicPaint)
@@ -179,14 +163,12 @@ object CmosPdfExporter {
             globalPageNumber++
             frontMatterRomanPage++
 
-            // Blank verso after dedication (Verso, p. vi)
             val (blankPage, _) = createNewPage(isRecto = false)
             pdfDocument.finishPage(blankPage)
             globalPageNumber++
             frontMatterRomanPage++
         }
 
-        // Optional Epigraph (Recto)
         if (manuscript.epigraphText.isNotBlank()) {
             val isNextRecto = globalPageNumber % 2 != 0
             if (!isNextRecto) {
@@ -203,21 +185,16 @@ object CmosPdfExporter {
             globalPageNumber++
             frontMatterRomanPage++
 
-            // Blank verso after epigraph
             val (blankPage2, _) = createNewPage(isRecto = false)
             pdfDocument.finishPage(blankPage2)
             globalPageNumber++
             frontMatterRomanPage++
         }
 
-        // ==========================================
-        // Dynamic Table of Contents in Front Matter
-        // ==========================================
         val calculatedLeaves = CmosLeafEngine.calculateLeaves(manuscript, sections)
         val tocLeaves = calculatedLeaves.filter { it.displayType == LeafDisplayType.TABLE_OF_CONTENTS }
 
         if (tocLeaves.isNotEmpty()) {
-            // Ensure TOC starts on Recto (odd global page)
             if (globalPageNumber % 2 == 0) {
                 val (blankPage, _) = createNewPage(isRecto = false)
                 pdfDocument.finishPage(blankPage)
@@ -255,7 +232,6 @@ object CmosPdfExporter {
                 frontMatterRomanPage++
             }
 
-            // If TOC finished on Recto (odd page), insert Blank Verso so next front section starts on Recto
             if (globalPageNumber % 2 == 0) {
                 val (blankAfterToc, _) = createNewPage(isRecto = false)
                 pdfDocument.finishPage(blankAfterToc)
@@ -264,7 +240,6 @@ object CmosPdfExporter {
             }
         }
 
-        // Custom Front Matter Sections
         for (sec in frontSections) {
             if (sec.startOnRecto && (globalPageNumber % 2 == 0)) {
                 val (blankPage, _) = createNewPage(isRecto = false)
@@ -302,10 +277,6 @@ object CmosPdfExporter {
             )
         }
 
-        // ==========================================
-        // 2. TEXT / MAIN BODY (Arabic 1, 2, 3...)
-        // ==========================================
-        // Ensure Main Text starts on a RECTO (odd) leaf
         if (globalPageNumber % 2 == 0) {
             val (blankPage, _) = createNewPage(isRecto = false)
             pdfDocument.finishPage(blankPage)
@@ -313,9 +284,7 @@ object CmosPdfExporter {
             frontMatterRomanPage++
         }
 
-        // Render each chapter/body section
         for (sec in bodySections) {
-            // CMOS mandate: Chapters start on Recto leaf
             if (sec.startOnRecto && (globalPageNumber % 2 == 0)) {
                 val (blankPage, _) = createNewPage(isRecto = false)
                 pdfDocument.finishPage(blankPage)
@@ -352,9 +321,6 @@ object CmosPdfExporter {
             )
         }
 
-        // ==========================================
-        // 3. BACK MATTER
-        // ==========================================
         for (sec in backSections) {
             if (sec.startOnRecto && (globalPageNumber % 2 == 0)) {
                 val (blankPage, _) = createNewPage(isRecto = false)
@@ -412,11 +378,6 @@ object CmosPdfExporter {
         )
     }
 
-    /**
-     * Renders a section across as many pages as needed.
-     * Measures layout heights accurately so each page fills completely down to the 1-inch bottom margin,
-     * indents EVERY paragraph (including the very first line of the chapter), and never drops words.
-     */
     private fun renderFullSectionPages(
         context: Context,
         pdfDocument: PdfDocument,
@@ -445,11 +406,9 @@ object CmosPdfExporter {
         val isOpenerSection = true
         var isFirstPageOfSection = true
 
-        // Queue of paragraphs to layout
         var paraIndex = 0
         var partialParaText: String? = null
 
-        // Max text baseline limit (stops above the bottom margin, leaving space for drop folio)
         val maxTextBottom = pageHeightPt - bottomMargin
 
         while (paraIndex < paragraphs.size || partialParaText != null || isFirstPageOfSection) {
@@ -468,20 +427,14 @@ object CmosPdfExporter {
             var currentY: Float
 
             if (isFirstPageOfSection) {
-                // ==========================================
-                // CHAPTER OPENER PAGE
-                // ==========================================
-                // Drop folio at bottom center (cleanly separated from text)
                 if (matterType == MatterType.TEXT_BODY && currentPageDisplay.isNotBlank()) {
                     val folioWidth = folioPaint.measureText(currentPageDisplay)
                     val centerX = (pageWidthPt - folioWidth) / 2f
                     canvas.drawText(currentPageDisplay, centerX, pageHeightPt - (bottomMargin * 0.45f), folioPaint)
                 }
 
-                // Opener Top Header
                 currentY = topMargin + 20f
 
-                // Chapter Title
                 val titlePaint = TextPaint(boldPaint).apply {
                     textSize = 15.5f
                     letterSpacing = 0.03f
@@ -495,7 +448,6 @@ object CmosPdfExporter {
                 canvas.restore()
                 currentY += titleLayout.height + 6f
 
-                // Divider Line
                 val dividerPaint = Paint().apply {
                     color = Color.rgb(180, 160, 120)
                     strokeWidth = 0.75f
@@ -505,7 +457,6 @@ object CmosPdfExporter {
                 canvas.drawLine(centerX - halfW, currentY + 2f, centerX + halfW, currentY + 2f, dividerPaint)
                 currentY += 10f
 
-                // Subtitle (if present)
                 if (sec.subtitle.isNotBlank()) {
                     val subPaint = TextPaint(italicPaint).apply { textSize = 10.5f }
                     val subLayout = StaticLayout.Builder.obtain(sec.subtitle, 0, sec.subtitle.length, subPaint, printableWidth)
@@ -518,7 +469,6 @@ object CmosPdfExporter {
                     currentY += subLayout.height + 10f
                 }
 
-                // Chapter Head Illustration (if present)
                 if (sec.headerIllustrationUri.isNotBlank()) {
                     val drawnHeight = drawIllustration(
                         context = context,
@@ -537,9 +487,6 @@ object CmosPdfExporter {
 
                 isFirstPageOfSection = false
             } else {
-                // ==========================================
-                // CONTINUATION PAGE (Page 2, 3, etc.)
-                // ==========================================
                 val yHeader = topMargin - 12f
 
                 if (isRecto) {
@@ -567,7 +514,6 @@ object CmosPdfExporter {
                 currentY = topMargin + 10f
             }
 
-            // Fill the page with prose down to maxTextBottom
             val firstLineIndent = "    " // 4 spaces standard Chicago first-line indent
             val lineSpacingExtra = 3.2f
 
@@ -586,17 +532,14 @@ object CmosPdfExporter {
                     paraIndex++
 
                     if (rawPara.isBlank()) {
-                        // Scene break / blank line spacer
                         if (currentY + (textPaint.textSize * 0.8f) <= maxTextBottom) {
                             currentY += textPaint.textSize * 0.8f
                         } else {
-                            // Move to next page
                             pageHasRoom = false
                         }
                         continue
                     }
 
-                    // ALWAYS indent first line of paragraph per user requirement and CMOS standard
                     currentTextToDraw = "$firstLineIndent$rawPara"
                     isContinuationOfPara = false
                 }
@@ -610,7 +553,6 @@ object CmosPdfExporter {
                 val availableHeight = maxTextBottom - currentY
 
                 if (layout.height <= availableHeight) {
-                    // Paragraph fits completely on current page
                     canvas.save()
                     canvas.translate(leftMargin, currentY)
                     layout.draw(canvas)
@@ -618,7 +560,6 @@ object CmosPdfExporter {
 
                     currentY += layout.height + 2f
                 } else {
-                    // Paragraph exceeds remaining page space: find how many lines fit
                     var linesThatFit = 0
                     for (i in 0 until layout.lineCount) {
                         if (layout.getLineBottom(i) <= availableHeight) {
@@ -629,7 +570,6 @@ object CmosPdfExporter {
                     }
 
                     if (linesThatFit > 0) {
-                        // Draw the lines that fit
                         val endCharOffset = layout.getLineEnd(linesThatFit - 1)
                         val textForCurrentPage = spanned.subSequence(0, endCharOffset)
                         val textForNextPage = currentTextToDraw.substring(endCharOffset).trimStart()
@@ -650,7 +590,6 @@ object CmosPdfExporter {
                             partialParaText = textForNextPage
                         }
                     } else {
-                        // Not even 1 line fits; push entire text to next page
                         partialParaText = currentTextToDraw
                     }
 
@@ -658,7 +597,6 @@ object CmosPdfExporter {
                 }
             }
 
-            // If this is the last page and there is a Tailpiece ornament
             if (paraIndex >= paragraphs.size && partialParaText == null && sec.tailIllustrationUri.isNotBlank()) {
                 val tailTop = currentY + 12f
                 val tailMaxHeight = (maxTextBottom - tailTop).coerceAtLeast(0f)
@@ -681,7 +619,6 @@ object CmosPdfExporter {
             pdfDocument.finishPage(page)
             advancePageNumber()
 
-            // If nothing left to render and section complete, break
             if (paraIndex >= paragraphs.size && partialParaText == null) {
                 break
             }
@@ -855,7 +792,6 @@ object CmosPdfExporter {
             canvas.drawLine(centerX - 20f, currentY, centerX + 20f, currentY, goldRulePaint)
             currentY += 28f
         } else {
-            // Continuation page (Leaf 2, 3, etc.) - draw running headers with folios
             val yHeader = topMargin.toFloat() - 12f
 
             if (isRecto) {
@@ -933,14 +869,11 @@ object CmosPdfExporter {
                 if (titleMeasure <= maxTitleWidth) {
                     val baselineY = currentY + entryPaint.textSize
 
-                    // Draw Title flush left
                     canvas.drawText(entryTitle, leftMargin.toFloat(), baselineY, entryPaint)
 
-                    // Draw Page Number flush right
                     val pageX = rightMargin.toFloat() - pageNumWidth
                     canvas.drawText(pageNum, pageX, baselineY, pagePaint)
 
-                    // Draw Dot Leaders spanning the gap from title to page number
                     val startDotX = leftMargin.toFloat() + titleMeasure + 6f
                     val endDotX = pageX - 6f
                     if (endDotX > startDotX) {
@@ -1023,7 +956,6 @@ object CmosPdfExporter {
             canvas.drawBitmap(bitmap, null, destRect, null)
             totalDrawnHeight += destH
 
-            // Draw Caption
             if (caption.isNotBlank()) {
                 val capPaint = TextPaint(captionPaint).apply { textSize = 8.5f }
                 val capLayout = StaticLayout.Builder.obtain(caption, 0, caption.length, capPaint, printableWidth)

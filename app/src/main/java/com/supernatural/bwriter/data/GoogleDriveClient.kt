@@ -15,17 +15,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/**
- * The writer's own Google Drive, over the Drive REST API.
- *
- * Each book is one JSON file in a "Bwriter" folder in the signed-in user's
- * Drive, carrying the same full payload the back room stores — every word,
- * not a title card. The file is tagged with the manuscript id in
- * appProperties, so re-saving a book updates its file instead of piling up
- * copies, even if the book was renamed.
- *
- * Access is the drive.file scope: the app sees only the files it created.
- */
 class GoogleDriveClient(context: Context) {
 
     private val appContext: Context = context.applicationContext
@@ -40,11 +29,6 @@ class GoogleDriveClient(context: Context) {
         private const val UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
     }
 
-    /**
-     * An access token for the Drive scope. When [interactive] is true and
-     * consent has not been granted yet, the consent screen is shown through
-     * DriveConsentBridge; when false, the call fails quietly instead.
-     */
     suspend fun accessToken(interactive: Boolean): Result<String> = withContext(Dispatchers.IO) {
         try {
             val client = Identity.getAuthorizationClient(appContext)
@@ -75,7 +59,6 @@ class GoogleDriveClient(context: Context) {
         }
     }
 
-    /** Save the whole book to the writer's Drive; returns the Drive file id. */
     suspend fun saveBook(
         token: String,
         manuscriptId: Long,
@@ -131,7 +114,6 @@ class GoogleDriveClient(context: Context) {
         }
     }
 
-    /** The payload of every book file in the writer's Bwriter folder. */
     suspend fun downloadAllPayloads(token: String): List<String> = withContext(Dispatchers.IO) {
         try {
             val folderId = findFolderId(token) ?: return@withContext emptyList()
@@ -164,7 +146,6 @@ class GoogleDriveClient(context: Context) {
         }
     }
 
-    /** Save the passphrase-sealed author key backup in the Bwriter folder, updating it in place. */
     suspend fun uploadKeyBackup(token: String, json: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val folderId = ensureFolder(token)
@@ -209,7 +190,6 @@ class GoogleDriveClient(context: Context) {
         }
     }
 
-    /** The sealed author key backup from the Bwriter folder, or null when there is none. */
     suspend fun downloadKeyBackup(token: String): String? = withContext(Dispatchers.IO) {
         try {
             val folderId = findFolderId(token) ?: return@withContext null

@@ -2,8 +2,6 @@ package com.supernatural.bwriter.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Bwriter - Chicago Manual of Style Editorial Palette
-// Deep Ink & Warm Parchment theme
 val InkBlack = Color(0xFF14151B)
 val InkNavy = Color(0xFF1E222D)
 val InkSlate = Color(0xFF2E3440)

@@ -50,9 +50,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val repository: BwriterRepository
     private val userPreferences = UserPreferences(application)
 
-    // ==========================================
-    // User & Google Identity (Persisted)
-    // ==========================================
     private val _currentUser = MutableStateFlow(userPreferences.getUserProfile())
     val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
 
@@ -136,8 +133,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         refreshNetwork()
     }
 
-    /** Standing is proven against the back room: the Editor in Chief is
-     * an editor; everyone else is an author until invited to edit a book. */
     private fun standingRoleFor(): WorkRole {
         return if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
     }
@@ -172,9 +167,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         return split(" ").joinToString(" ") { it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() } }
     }
 
-    // ==========================================
-    // Manuscript Library (Empty for new users, Master works for Superuser)
-    // ==========================================
     private val _selectedWorkTypeFilter = MutableStateFlow<WorkType?>(null)
     val selectedWorkTypeFilter: StateFlow<WorkType?> = _selectedWorkTypeFilter.asStateFlow()
 
@@ -204,9 +196,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
-    // ==========================================
-    // Active Manuscript
-    // ==========================================
     private val _selectedManuscriptId = MutableStateFlow<Long?>(null)
     val selectedManuscriptId: StateFlow<Long?> = _selectedManuscriptId.asStateFlow()
 
@@ -230,7 +219,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
-    // Calculated Recto-Verso Leaves for active manuscript
     val calculatedLeaves: StateFlow<List<CalculatedLeaf>> = combine(
         activeManuscript,
         activeSections
@@ -243,9 +231,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
-    // ==========================================
-    // Active Section Editing
-    // ==========================================
     private val _selectedSectionId = MutableStateFlow<Long?>(null)
     val selectedSectionId: StateFlow<Long?> = _selectedSectionId.asStateFlow()
 
@@ -269,9 +254,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
-    // ==========================================
-    // Character Profiling for Active Manuscript
-    // ==========================================
     val charactersForActiveManuscript: StateFlow<List<com.supernatural.bwriter.model.CharacterEntity>> = _selectedManuscriptId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repository.getCharactersForManuscript(id)
     }.stateIn(
@@ -296,9 +278,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // ==========================================
-    // Story Settings & Intertextuality
-    // ==========================================
     val settingsForActiveManuscript: StateFlow<List<com.supernatural.bwriter.model.StorySettingEntity>> = _selectedManuscriptId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repository.getSettingsForManuscript(id)
     }.stateIn(
@@ -307,9 +286,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
-    // ==========================================
-    // Book Version Snapshots & History Ledger
-    // ==========================================
     private val _versionHistory = MutableStateFlow<List<BookVersionSnapshot>>(emptyList())
     val versionHistory: StateFlow<List<BookVersionSnapshot>> = _versionHistory.asStateFlow()
 
@@ -335,9 +311,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // ==========================================
-    // AI Prose Generation & Subscription State
-    // ==========================================
     private val _isGeneratingAiProse = MutableStateFlow(false)
     val isGeneratingAiProse: StateFlow<Boolean> = _isGeneratingAiProse.asStateFlow()
 
@@ -396,7 +369,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     }
                     repository.updateSection(section.copy(content = updatedContent, aiDraftPrompt = prompt))
 
-                    // Record Token burn and credit deduction in Ledger
                     val promptTokens = aiResult.promptTokens
                     val compTokens = aiResult.completionTokens
                     val totalTokens = aiResult.totalTokens
@@ -572,9 +544,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // ==========================================
-    // Collaboration: Revisions & Tracked Changes
-    // ==========================================
     fun proposeSectionRevision(
         section: SectionEntity,
         newContent: String
@@ -585,7 +554,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 newContent = newContent,
                 editorUser = _currentUser.value
             )
-            // Auto-send a notification to the author's mailbox or Editor in Chief
             val manuscript = repository.getManuscriptByIdOnce(section.manuscriptId)
             if (manuscript != null && !manuscript.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
                 val editorPenName = if (_currentUser.value.penName.isNotBlank()) _currentUser.value.penName else _currentUser.value.name
@@ -666,9 +634,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // ==========================================
-    // PDF Export
-    // ==========================================
     private val _exportResult = MutableStateFlow<CmosPdfExporter.ExportResult?>(null)
     val exportResult: StateFlow<CmosPdfExporter.ExportResult?> = _exportResult.asStateFlow()
 
@@ -693,9 +658,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // ==========================================
-    // Google Drive & Serverless Governance Ecosystem
-    // ==========================================
     val networkService = FirestoreNetworkService(application)
 
     private val googleDriveClient = GoogleDriveClient(application)
@@ -748,8 +710,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 total++
             }
 
-            // The writer's own Google Drive: bring back every book saved
-            // there that this device does not already hold.
             val tokenResult = googleDriveClient.accessToken(interactive = interactive)
             if (tokenResult.isSuccess) {
                 val payloads = googleDriveClient.downloadAllPayloads(tokenResult.getOrThrow())
@@ -769,19 +729,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // Registry fileId -> local manuscript id, for books imported from the
-    // registry as reading copies on this device.
     private val registryCopyPrefs by lazy {
         getApplication<Application>().getSharedPreferences("bwriter_registry_copies", Context.MODE_PRIVATE)
     }
 
-    /**
-     * Resolve a registry entry to a local manuscript this device can open.
-     * The author's own book resolves to their own local copy. Another
-     * writer's book is fetched whole from the registry on first open and
-     * shelved as a reading copy; later opens reuse that copy.
-     * onReady receives the local id, or -1 if the text could not be fetched.
-     */
     fun openCommunityBook(entry: GlobalBookIndexEntry, onReady: (Long) -> Unit) {
         viewModelScope.launch {
             if (entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
@@ -828,13 +779,11 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
             refreshCredit()
 
-            // Fetch index
             val indexResult = networkService.fetchGlobalBookIndex(_currentUser.value)
             if (indexResult.isSuccess) {
                 _globalBookIndex.value = indexResult.getOrNull() ?: emptyList()
             }
 
-            // Fetch mail
             val mailResult = networkService.fetchMailboxMessages(_currentUser.value.email)
             if (mailResult.isSuccess) {
                 val msgs = mailResult.getOrNull() ?: emptyList()
@@ -842,8 +791,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _driveSyncStatus.value = _driveSyncStatus.value.copy(unreadMailCount = msgs.count { !it.isRead })
             }
 
-            // If Editor in Chief, refresh suspended users list and the
-            // registry approval queue
             if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) {
                 _suspendedUsers.value = networkService.getSuspendedUsers()
                 _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
@@ -915,7 +862,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     ) {
                         networkService.issueCredit(entry)
                     }
-                    // The same whole book, saved to the writer's own Google Drive.
                     val payload = networkService.buildPayloadJson(
                         fullyStamped, sections, _currentUser.value, isPublicInCommunity
                     )
@@ -956,7 +902,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Refresh the signed-in author's in-app credit: claimed balance and unclaimed issuances. */
     fun refreshCredit() {
         viewModelScope.launch {
             val email = _currentUser.value.email
@@ -972,7 +917,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Mine the oldest unclaimed issuance on this device; the work is the claim. */
     fun claimCredit() {
         if (_isMiningCredit.value) return
         _isMiningCredit.value = true
@@ -999,7 +943,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Seal the author key under a passphrase and keep the copy in the writer's own Drive. */
     fun backupAuthorKey(passphrase: String, onDone: (Result<Unit>) -> Unit) {
         viewModelScope.launch {
             try {
@@ -1022,7 +965,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Restore the author key from the Drive backup; a restored key replaces this device's keypair. */
     fun restoreAuthorKey(passphrase: String, onDone: (Result<Boolean>) -> Unit) {
         viewModelScope.launch {
             try {
@@ -1055,9 +997,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // ==========================================
-    // Editor in Chief / Superuser Actions
-    // ==========================================
     fun suspendUserAccount(targetEmail: String, reason: String) {
         viewModelScope.launch {
             networkService.suspendUser(

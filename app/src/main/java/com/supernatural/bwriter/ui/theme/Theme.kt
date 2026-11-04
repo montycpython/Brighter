@@ -60,7 +60,7 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun BwriterTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Keep editorial warm parchment aesthetic by default
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

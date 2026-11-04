@@ -83,7 +83,6 @@ fun KillSwitchSuspensionScreen(
                     .padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Warning Icon
                 Surface(
                     shape = CircleShape,
                     color = Color(0xFFE53935).copy(alpha = 0.15f),
@@ -122,7 +121,6 @@ fun KillSwitchSuspensionScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Detail Card
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -189,7 +187,6 @@ fun KillSwitchSuspensionScreen(
 
                 Spacer(modifier = Modifier.height(22.dp))
 
-                // Actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)

@@ -7,7 +7,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Editorial typography honoring book craftsmanship and Chicago Manual of Style
 val Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.Serif,

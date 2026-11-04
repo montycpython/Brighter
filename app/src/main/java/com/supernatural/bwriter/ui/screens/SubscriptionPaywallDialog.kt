@@ -87,7 +87,6 @@ fun SubscriptionPaywallDialog(
                     .fillMaxWidth()
                     .padding(18.dp)
             ) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -133,7 +132,6 @@ fun SubscriptionPaywallDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Current Wallet / Quota Card
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = Color(0xFF181824),
@@ -180,7 +178,6 @@ fun SubscriptionPaywallDialog(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Stats pill row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -225,7 +222,6 @@ fun SubscriptionPaywallDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Tabs: Plans vs Token Audit Ledger
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = Color(0xFF14141E),
@@ -246,7 +242,6 @@ fun SubscriptionPaywallDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (selectedTab == 0) {
-                    // Coming-soon preview of the paid structure
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -279,7 +274,6 @@ fun SubscriptionPaywallDialog(
                         )
                     }
                 } else {
-                    // Token Ledger / Audit Tab
                     if (recentTransactions.isEmpty()) {
                         Box(
                             modifier = Modifier

@@ -163,7 +163,6 @@ fun CommunityDirectoryScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
-            // Search Input
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -182,7 +181,6 @@ fun CommunityDirectoryScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Info banner explaining Registry click-to-read & collaboration
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = Color(0xFF14141C),
@@ -206,7 +204,6 @@ fun CommunityDirectoryScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Book List
             if (filteredBooks.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -323,7 +320,6 @@ fun CommunityDirectoryScreen(
 
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                // Quick Action Buttons: Read Book & Propose Revisions / Draft
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)

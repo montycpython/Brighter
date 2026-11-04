@@ -80,11 +80,10 @@ fun SettingIntertextualityDialog(
                 .fillMaxSize()
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF121216), // Dark background for high-contrast visibility
+            color = Color(0xFF121216),
             border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.6f))
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -335,7 +334,6 @@ fun SettingEditForm(
         )
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Location Name
         OutlinedTextField(
             value = locationName,
             onValueChange = { locationName = it },
@@ -352,7 +350,6 @@ fun SettingEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Era / Time Period
         OutlinedTextField(
             value = timePeriodOrEra,
             onValueChange = { timePeriodOrEra = it },
@@ -370,7 +367,6 @@ fun SettingEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Atmosphere & Sensory Details
         OutlinedTextField(
             value = atmosphereAndSensory,
             onValueChange = { atmosphereAndSensory = it },
@@ -387,7 +383,6 @@ fun SettingEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Spatial & Architectural Details
         OutlinedTextField(
             value = architecturalOrSpatialDetails,
             onValueChange = { architecturalOrSpatialDetails = it },
@@ -404,7 +399,6 @@ fun SettingEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Intertextual Touchstones
         OutlinedTextField(
             value = targetIntertextualTouchstones,
             onValueChange = { targetIntertextualTouchstones = it },
@@ -422,7 +416,6 @@ fun SettingEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Historical / Cultural Context
         OutlinedTextField(
             value = historicalOrCulturalContext,
             onValueChange = { historicalOrCulturalContext = it },

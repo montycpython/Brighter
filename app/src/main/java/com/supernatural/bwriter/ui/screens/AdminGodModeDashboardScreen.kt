@@ -120,7 +120,6 @@ fun AdminGodModeDashboardScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Master Book Index", "Author Roster & Governance", "Mailbox Dispatcher", "Drive Storage Health")
 
-    // Modals
     var showProfileDialog by remember { mutableStateOf(false) }
     var inspectingEntry by remember { mutableStateOf<GlobalBookIndexEntry?>(null) }
     var suspendingTargetUser by remember { mutableStateOf<String?>(null) }
@@ -214,7 +213,6 @@ fun AdminGodModeDashboardScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Tab Strip
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = Color(0xFF14141C),
@@ -243,7 +241,6 @@ fun AdminGodModeDashboardScreen(
                 }
             }
 
-            // Tab Content
             when (selectedTab) {
                 0 -> MasterBookIndexTab(
                     entries = globalIndex,
@@ -276,7 +273,6 @@ fun AdminGodModeDashboardScreen(
         }
     }
 
-    // Inspect JSON Dialog
     inspectingEntry?.let { entry ->
         Dialog(onDismissRequest = { inspectingEntry = null }) {
             Surface(
@@ -387,7 +383,6 @@ fun AdminGodModeDashboardScreen(
         }
     }
 
-    // Suspension Prompt Dialog
     suspendingTargetUser?.let { targetEmail ->
         Dialog(onDismissRequest = { suspendingTargetUser = null }) {
             Surface(
@@ -470,7 +465,6 @@ fun AdminGodModeDashboardScreen(
         }
     }
 
-    // Superuser / Author Profile Dialog
     if (showProfileDialog) {
         AuthorProfileDialog(
             currentUser = currentUser,
@@ -523,8 +517,6 @@ fun MasterBookIndexTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Approval queue: books synced by authors wait here until the
-        // Editor in Chief approves them into the registry above.
         if (pendingBooks.isNotEmpty()) {
             Text(
                 text = "Awaiting Approval (${pendingBooks.size})",
@@ -663,7 +655,6 @@ fun MasterBookIndexTab(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Metadata Row
                             val displayAuthor = if (entry.authorEmail.equals(currentUser.email, ignoreCase = true)) {
                                 currentUser.displayName
                             } else {
@@ -929,7 +920,6 @@ fun MailboxDispatcherTab(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Recipient selector
         Text("Recipient Channel:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = BookGoldLight)
         Spacer(modifier = Modifier.height(4.dp))
         Row(
@@ -960,7 +950,6 @@ fun MailboxDispatcherTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Message Category
         Text("Message Type:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = BookGoldLight)
         val categories = listOf(
             "EDITORIAL_REVISION" to "Editorial Revision",
@@ -988,7 +977,6 @@ fun MailboxDispatcherTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Subject Field
         OutlinedTextField(
             value = subject,
             onValueChange = { subject = it },
@@ -1005,7 +993,6 @@ fun MailboxDispatcherTab(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Body Field
         OutlinedTextField(
             value = body,
             onValueChange = { body = it },

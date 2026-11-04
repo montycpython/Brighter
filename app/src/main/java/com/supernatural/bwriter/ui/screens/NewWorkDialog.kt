@@ -95,7 +95,6 @@ fun NewWorkDialog(
                     .verticalScroll(rememberScrollState())
                     .padding(20.dp)
             ) {
-                // Header
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -119,7 +118,6 @@ fun NewWorkDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Work Type Selection
                 Text(
                     text = "Work Classification",
                     style = MaterialTheme.typography.titleSmall,
@@ -176,7 +174,6 @@ fun NewWorkDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Title
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -204,7 +201,6 @@ fun NewWorkDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Subtitle
                 OutlinedTextField(
                     value = subtitle,
                     onValueChange = { subtitle = it },
@@ -218,7 +214,6 @@ fun NewWorkDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Author Legal Name & Pen Name
                 OutlinedTextField(
                     value = authorName,
                     onValueChange = { authorName = it },
@@ -247,7 +242,6 @@ fun NewWorkDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Year & Publisher
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -270,7 +264,6 @@ fun NewWorkDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Dynamic Copyright Preview Box
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -319,7 +312,6 @@ fun NewWorkDialog(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Action Buttons
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()

@@ -137,7 +137,6 @@ fun UserAgreementScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 18.dp, vertical = 10.dp)
         ) {
-            // Scrollable agreement text
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -145,7 +144,6 @@ fun UserAgreementScreen(
             ) {
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Welcome Header
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFF14141C),
@@ -172,7 +170,6 @@ fun UserAgreementScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Section 1: Authorship & Intellectual Property
                 AgreementSectionCard(
                     icon = Icons.AutoMirrored.Filled.MenuBook,
                     title = "1. Intellectual Property & Manuscript Ownership",
@@ -185,7 +182,6 @@ fun UserAgreementScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Section 2: Privacy, Storage & Google Drive Sync
                 AgreementSectionCard(
                     icon = Icons.Default.CloudDone,
                     title = "2. Data Privacy & Storage",
@@ -199,10 +195,9 @@ fun UserAgreementScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Section 3: AI Prose Generation & Ethical Guidelines
                 AgreementSectionCard(
                     icon = Icons.Default.AutoAwesome,
-                    title = "3. Generative AI Prose Assistance (Gemini AI)",
+                    title = "3. Generative AI Prose Assistance",
                     content = """
                     • Assistive Drafting: Gemini AI prose generation is provided as a creative writing assistant. You are responsible for reviewing, verifying, and editing all AI-suggested text.
                     • CMOS Typographic Standards: AI generation is formatted to adhere to the Chicago Manual of Style (17th Edition) for dialogue punctuation, paragraph indents, and block quotes.
@@ -212,7 +207,6 @@ fun UserAgreementScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Section 4: Editorial Governance & Code of Conduct
                 AgreementSectionCard(
                     icon = Icons.Default.Gavel,
                     title = "4. Community Governance & Kill-Switch Policy",
@@ -225,7 +219,6 @@ fun UserAgreementScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Section 5: Advertising
                 AgreementSectionCard(
                     icon = Icons.Default.CloudDone,
                     title = "5. Advertising",
@@ -237,7 +230,6 @@ fun UserAgreementScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Section 6: In-App Credit
                 AgreementSectionCard(
                     icon = Icons.Default.CloudDone,
                     title = "6. In-App Credit",
@@ -253,7 +245,6 @@ fun UserAgreementScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Acceptance Checkboxes and Confirmation Button
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0xFF14141C),
@@ -263,7 +254,6 @@ fun UserAgreementScreen(
                     .padding(top = 8.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    // Checkbox 1
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -290,7 +280,6 @@ fun UserAgreementScreen(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Checkbox 2
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

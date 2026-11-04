@@ -22,36 +22,11 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Real network layer backed by Firebase Firestore.
- *
- * Collections:
- *  - registry/{fileId}            Global book index entries (the global sphere)
- *  - registry/{fileId}/content/fullText   The book's complete text, readable per the rules
- *  - suspended/{email}            Suspension records written by the Editor in Chief
- *  - mail/{messageId}             In-app mail, one document per message
- *  - cloudBooks/{email_id}        A writer's own full manuscript payloads (restore source)
- *  - versionSnapshots/{autoId}    Per-manuscript version history
- *
- * This is the only network service. (An earlier on-device class pretended
- * to be Google Drive; it was removed. Real Drive lives in GoogleDriveClient.)
- */
-/**
- * Standing of the signed-in account, proven against the back room:
- * the studio configuration document is released by the security rules
- * only to the Editor in Chief, so a successful read is the proof.
- * Nothing about that account is stored in the app itself.
- */
 object StudioStanding {
     @Volatile
     var isEditorInChief: Boolean = false
 }
 
-/**
- * One synced version's stamp: the author's address and public key, the
- * book's birth id, and the hash of this version chained to the hash of
- * the version before it, signed with the author's key.
- */
 data class BookStamp(
     val authorAddress: String = "",
     val authorPubKey: String = "",
@@ -97,9 +72,6 @@ class FirestoreNetworkService(private val context: Context) {
 
     private fun normEmail(email: String): String = email.trim().lowercase()
 
-    // ------------------------------------------------------------------
-    // Suspension
-    // ------------------------------------------------------------------
 
     suspend fun checkUserSuspension(email: String): SuspendedUserEntry? = withContext(Dispatchers.IO) {
         try {
@@ -166,9 +138,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Manuscript cloud sync + global registry
-    // ------------------------------------------------------------------
 
     suspend fun syncManuscriptToBackRoom(
         manuscript: ManuscriptEntity,
@@ -191,7 +160,6 @@ class FirestoreNetworkService(private val context: Context) {
 
             val manuscriptJson = buildManuscriptPayload(manuscript, sections, currentUser, resolvedAuthorName, isPublicInCommunity)
 
-            // 1. Full cloud copy of the writer's own book (restore source after reinstall)
             val cloudDocId = "${normEmail(currentUser.email)}_${manuscript.id}"
             db.collection(COL_CLOUD_BOOKS).document(cloudDocId).set(
                 mapOf(
@@ -202,14 +170,9 @@ class FirestoreNetworkService(private val context: Context) {
                 )
             ).await()
 
-            // 2. Global registry entry (one per author + manuscript)
             val totalWords = sections.sumOf { it.wordCount.takeIf { c -> c > 0 } ?: it.content.split(Regex("\\s+")).count { w -> w.isNotBlank() } }
             val estimatedLeaves = (totalWords / 250).coerceAtLeast(1)
 
-            // A book lives in exactly one place: the approval queue until
-            // the Editor in Chief approves it, then the public registry.
-            // The Editor in Chief's own books go straight to the registry. A re-sync updates
-            // the copy wherever it currently lives.
             val isEditorInChief = StudioStanding.isEditorInChief
             val pendingExisting = findDocInCollection(COL_PENDING, manuscript.id, currentUser.email)
             val registryExisting = if (pendingExisting == null) findRegistryDoc(manuscript.id, currentUser.email) else null
@@ -245,9 +208,6 @@ class FirestoreNetworkService(private val context: Context) {
             )
             db.collection(targetCollection).document(fileId).set(registryToMap(indexEntry)).await()
 
-            // 2b. The whole book, stored under its entry so other signed-in
-            // users can actually read it once it is in the registry (the
-            // listing alone is only a title card).
             db.collection(targetCollection).document(fileId)
                 .collection("content").document("fullText")
                 .set(
@@ -266,7 +226,6 @@ class FirestoreNetworkService(private val context: Context) {
                     )
                 ).await()
 
-            // 3. Version snapshot
             val snapshot = BookVersionSnapshot(
                 manuscriptId = manuscript.id,
                 title = manuscript.title,
@@ -281,7 +240,6 @@ class FirestoreNetworkService(private val context: Context) {
             )
             db.collection(COL_VERSIONS).add(snapshotToMap(snapshot)).await()
 
-            // 4. Notify the Editor in Chief
             if (!StudioStanding.isEditorInChief) {
                 sendServerlessMail(
                     ServerlessMailMessage(
@@ -359,10 +317,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /**
-     * Fetch a registry book's full text (manuscript + every section) so a
-     * reader who did not write it can open it.
-     */
     suspend fun fetchRegistryBook(fileId: String): Pair<ManuscriptEntity, List<SectionEntity>>? = withContext(Dispatchers.IO) {
         try {
             val doc = db.collection(COL_REGISTRY).document(fileId)
@@ -377,7 +331,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /** The full-book payload as JSON — shared shape with the Google Drive copy. */
     fun buildPayloadJson(
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>,
@@ -392,7 +345,6 @@ class FirestoreNetworkService(private val context: Context) {
         return buildManuscriptPayload(manuscript, sections, currentUser, resolvedAuthorName, isPublicInCommunity).toString()
     }
 
-    /** Parse a full-book payload (from the back room or from Google Drive). */
     fun parsePayloadJson(payload: String, fallbackEmail: String): Pair<ManuscriptEntity, List<SectionEntity>>? {
         return try {
             parseManuscriptPayload(JSONObject(payload), fallbackEmail)
@@ -402,11 +354,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /**
-     * Check a version's stamp: the hash must rebuild from the identity,
-     * the previous stamp, and the payload, and the signature must verify
-     * against the author's public key.
-     */
     fun verifyStamp(
         authorPubKey: String,
         authorAddress: String,
@@ -456,11 +403,7 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Registry approval queue
-    // ------------------------------------------------------------------
 
-    /** Books waiting for the Editor in Chief's approval. */
     suspend fun fetchPendingBooks(): Result<List<GlobalBookIndexEntry>> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_PENDING).get().await()
@@ -472,7 +415,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /** Move a pending book into the public registry. */
     suspend fun approvePendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!StudioStanding.isEditorInChief) {
@@ -533,7 +475,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /** Remove a pending book without approving it. The author's own cloud copy is untouched. */
     suspend fun rejectPendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!StudioStanding.isEditorInChief) {
@@ -563,11 +504,7 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    // ------------------------------------------------------------------
-    // In-app credit
-    // ------------------------------------------------------------------
 
-    /** Every credit issuance recorded for one author, oldest first. */
     suspend fun fetchIssuancesFor(email: String): List<CreditIssuance> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CREDIT_ISSUANCES)
@@ -580,12 +517,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /**
-     * Mint the credit an approval generates: the author, and every
-     * editor of record on the book at the same amount as the author.
-     * Runs only with Editor in Chief standing, once per book, and is
-     * best-effort: a credit failure never fails the approval.
-     */
     suspend fun issueCredit(entry: GlobalBookIndexEntry) {
         if (!StudioStanding.isEditorInChief) return
         try {
@@ -645,7 +576,6 @@ class FirestoreNetworkService(private val context: Context) {
         db.collection(COL_CREDIT_ISSUANCES).document(hash).set(issuanceToMap(issuance)).await()
     }
 
-    /** Hashes of the issuances this author has already claimed. */
     suspend fun fetchClaimedIssuanceIds(email: String): Set<String> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CREDIT_CLAIMS)
@@ -657,7 +587,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /** Record a mined claim: the proof-of-work that makes an issuance spendable. */
     suspend fun recordClaim(email: String, issuance: CreditIssuance, nonce: Long) = withContext(Dispatchers.IO) {
         try {
             val issuances = fetchIssuancesFor(email)
@@ -712,11 +641,7 @@ class FirestoreNetworkService(private val context: Context) {
         "signature" to i.signature
     )
 
-    // ------------------------------------------------------------------
-    // Editor assignments
-    // ------------------------------------------------------------------
 
-    /** Every editor assignment recorded for one book. */
     suspend fun fetchEditorAssignmentsForBook(fileId: String): List<EditorAssignment> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_EDITOR_ASSIGNMENTS)
@@ -728,7 +653,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /** The book's editors of record: assignments the Editor in Chief approved. */
     suspend fun fetchApprovedEditorAssignments(fileId: String): List<EditorAssignment> =
         fetchEditorAssignmentsForBook(fileId).filter { it.status == "APPROVED" }
 
@@ -774,9 +698,6 @@ class FirestoreNetworkService(private val context: Context) {
         "status" to a.status
     )
 
-    // ------------------------------------------------------------------
-    // Mail
-    // ------------------------------------------------------------------
 
     suspend fun sendServerlessMail(message: ServerlessMailMessage): Result<Unit> = withContext(Dispatchers.IO) {
         val message = if (StudioStanding.isEditorInChief) {
@@ -804,11 +725,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    /**
-     * Standing proof: the studio configuration document is released by
-     * the security rules only to the Editor in Chief. A successful read
-     * proves the standing; a refusal proves its absence.
-     */
     suspend fun verifyEditorInChief(): Boolean = withContext(Dispatchers.IO) {
         try {
             db.collection(COL_STUDIO_CONFIG).document("main").get().await()
@@ -848,9 +764,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Version history
-    // ------------------------------------------------------------------
 
     suspend fun getVersionHistory(manuscriptId: Long, requesterEmail: String): List<BookVersionSnapshot> = withContext(Dispatchers.IO) {
         try {
@@ -866,9 +779,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Payload build / parse (same JSON shape the on-device store used)
-    // ------------------------------------------------------------------
 
     private fun buildManuscriptPayload(
         manuscript: ManuscriptEntity,
@@ -1039,9 +949,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Firestore document mapping
-    // ------------------------------------------------------------------
 
     private suspend fun findRegistryDoc(manuscriptId: Long, authorEmail: String): com.google.firebase.firestore.DocumentSnapshot? {
         return findDocInCollection(COL_REGISTRY, manuscriptId, authorEmail)

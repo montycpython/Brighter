@@ -5,11 +5,6 @@ import androidx.activity.result.IntentSenderRequest
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
-/**
- * Hands a Google Drive consent screen from the data layer to the activity.
- * MainActivity registers the launcher; GoogleDriveClient suspends here
- * until the user answers the consent prompt.
- */
 object DriveConsentBridge {
 
     @Volatile

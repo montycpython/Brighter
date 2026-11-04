@@ -80,7 +80,6 @@ fun SyncToGoogleDriveDialog(
             border = BorderStroke(1.2.dp, BookGoldDark)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                // Header
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = CircleShape,
@@ -111,7 +110,6 @@ fun SyncToGoogleDriveDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Manuscript Target Card
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = Color(0xFF1B1B26),
@@ -157,7 +155,6 @@ fun SyncToGoogleDriveDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Privacy & Discovery Switch
                 Text(
                     text = "Global Book Index Visibility",
                     fontWeight = FontWeight.Bold,
@@ -166,7 +163,6 @@ fun SyncToGoogleDriveDialog(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Option 1: Public
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = if (isPublicInCommunity) Color(0xFF1F2922) else Color(0xFF161620),
@@ -202,7 +198,6 @@ fun SyncToGoogleDriveDialog(
                     }
                 }
 
-                // Option 2: Hidden / Private
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = if (!isPublicInCommunity) Color(0xFF2E2218) else Color(0xFF161620),
@@ -240,7 +235,6 @@ fun SyncToGoogleDriveDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Auto-share Hook notice
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = Color(0xFF0E0E14),
@@ -273,7 +267,6 @@ fun SyncToGoogleDriveDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Author Key Backup
                 Text(
                     text = "Author Key Backup",
                     fontWeight = FontWeight.Bold,
@@ -342,7 +335,6 @@ fun SyncToGoogleDriveDialog(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)

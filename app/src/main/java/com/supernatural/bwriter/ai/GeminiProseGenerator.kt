@@ -24,10 +24,6 @@ object GeminiProseGenerator {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    /**
-     * Builds a comprehensive CMOS editorial prompt combining questionnaire, characters,
-     * settings, literary devices, and intertextuality touchstones.
-     */
     fun buildComprehensivePrompt(
         manuscript: ManuscriptEntity?,
         section: SectionEntity,
@@ -126,9 +122,6 @@ object GeminiProseGenerator {
         return sb.toString().trim()
     }
 
-    /**
-     * Executes Gemini API call using gemini-2.5-flash with token telemetry and fallback to built-in literary synthesis.
-     */
     suspend fun generateChapterProse(prompt: String): Result<AiGenerationResult> = withContext(Dispatchers.IO) {
         val apiKey = try {
             BuildConfig.GEMINI_API_KEY
@@ -139,7 +132,6 @@ object GeminiProseGenerator {
         val estimatedPromptTokens = Math.max(1, prompt.length / 4)
 
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            // Offline/prototype fallback with literary synthesis & accurate token counting
             val synthesized = synthesizeProseFromPrompt(prompt)
             val completionTokens = Math.max(1, synthesized.length / 4)
             val totalTokens = estimatedPromptTokens + completionTokens
@@ -187,7 +179,6 @@ object GeminiProseGenerator {
             val responseBody = response.body?.string() ?: ""
 
             if (!response.isSuccessful) {
-                // Return synthesis if API key has quota or network issue
                 val synthesized = synthesizeProseFromPrompt(prompt)
                 val compTokens = Math.max(1, synthesized.length / 4)
                 return@withContext Result.success(
@@ -269,10 +260,6 @@ object GeminiProseGenerator {
         return clean.trim()
     }
 
-    /**
-     * Synthesizes rich, publication-standard prose based on the prompt elements
-     * when offline or testing without live network keys.
-     */
     private fun synthesizeProseFromPrompt(prompt: String): String {
         val isNovel = prompt.contains("Novel", ignoreCase = true)
         val hasSilas = prompt.contains("Silas", ignoreCase = true)

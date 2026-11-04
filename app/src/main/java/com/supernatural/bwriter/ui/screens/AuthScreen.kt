@@ -75,9 +75,6 @@ fun AuthScreen(
     var selectedEmail by remember { mutableStateOf(currentUser.email) }
     var authorName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
-    // Standing shows only for an account chosen in THIS session. The
-    // screen opens with no standing: nobody is Editor in Chief here
-    // until they actually sign in.
     var sessionEmail by remember { mutableStateOf<String?>(null) }
     val sessionIsEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
     val selectedRole = if (sessionIsEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
@@ -110,7 +107,6 @@ fun AuthScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Google Monogram & Header
             Box(
                 modifier = Modifier
                     .size(68.dp)
@@ -145,7 +141,6 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Google Account Chooser Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -156,8 +151,6 @@ fun AuthScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // Saved Accounts List: only accounts this user has
-                    // really signed in with on this device.
                     val displayAccounts = savedAccounts
                     if (displayAccounts.isNotEmpty()) {
                         Text(
@@ -255,9 +248,6 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Google Identity Sign-In: opens the system account
-                    // chooser, where the user picks which Google account
-                    // to enter with. It is the only way in.
                     Button(
                         onClick = {
                             isAuthenticatingGoogle = true
@@ -317,7 +307,6 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Live Byline Preview Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -379,7 +368,6 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Author Profile & Pen Name Configuration Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -400,7 +388,6 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Pen name input
                     OutlinedTextField(
                         value = penName,
                         onValueChange = { penName = it },
@@ -424,7 +411,6 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Author real / legal name input
                     OutlinedTextField(
                         value = authorName,
                         onValueChange = { authorName = it },

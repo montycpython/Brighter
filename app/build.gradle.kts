@@ -99,7 +99,6 @@ dependencies {
   implementation(libs.firebase.firestore)
   implementation(libs.kotlinx.coroutines.play.services)
 
-  // Google Identity / Credential Manager:
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.googleid)

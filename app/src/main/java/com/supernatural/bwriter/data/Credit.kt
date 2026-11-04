@@ -2,36 +2,21 @@ package com.supernatural.bwriter.data
 
 import java.security.MessageDigest
 
-/**
- * In-app credit: minted by a signed issuance at the moment a book is
- * approved, and claimed by the author's own device doing real
- * proof-of-work. The reward halves at intervals of the author's own
- * approval count, and the claim difficulty rises on the same schedule,
- * so the deeper an author goes, the less each book earns and the
- * harder each claim is to mine.
- */
 object CreditSchedule {
     const val BASE_AMOUNT = 100
     const val HALVING_INTERVAL = 4
     const val BASE_DIFFICULTY_BITS = 20
 
-    /** Credit minted for an approval, given how many approvals came before it. */
     fun amountForApproval(priorAuthorApprovals: Int): Int {
         val era = priorAuthorApprovals / HALVING_INTERVAL
         if (era >= 31) return 1
         return maxOf(1, BASE_AMOUNT shr era)
     }
 
-    /** Leading zero bits a claim hash must carry, on the same era schedule. */
     fun difficultyBits(priorAuthorApprovals: Int): Int =
         BASE_DIFFICULTY_BITS + (priorAuthorApprovals / HALVING_INTERVAL)
 }
 
-/**
- * One signed minting record. The Editor in Chief's key signs the
- * issuance hash at approval; the chain of prevIssuanceHash links makes
- * each author's credit history verifiable end to end.
- */
 data class CreditIssuance(
     val id: String = "",
     val authorEmail: String = "",
@@ -46,12 +31,6 @@ data class CreditIssuance(
     val signature: String = ""
 )
 
-/**
- * An editor of record on a book: appointed by the Editor in Chief, or
- * requested by a user and decided by the Editor in Chief. Approved
- * assignments earn their editor the same credit as the book's author
- * when the book is approved.
- */
 data class EditorAssignment(
     val id: String = "",
     val fileId: String = "",
@@ -76,14 +55,12 @@ object CreditChain {
         issuedAtMillis: Long
     ): String = sha256Hex("$prevHash|$authorAddress|$amount|$fileId|$issuedAtMillis")
 
-    /** A claim holds when SHA-256 of "issuanceHash|nonce" carries at least [difficultyBits] leading zero bits. */
     fun verifyClaim(issuanceHash: String, nonce: Long, difficultyBits: Int): Boolean {
         val hash = MessageDigest.getInstance("SHA-256")
             .digest("$issuanceHash|$nonce".toByteArray(Charsets.UTF_8))
         return hasLeadingZeroBits(hash, difficultyBits)
     }
 
-    /** Search for a claim nonce from zero upward; null when the iteration budget runs out. */
     fun mineClaim(issuanceHash: String, difficultyBits: Int, maxIterations: Long = 500_000_000L): Long? {
         val digest = MessageDigest.getInstance("SHA-256")
         val prefix = "$issuanceHash|".toByteArray(Charsets.UTF_8)

@@ -33,7 +33,6 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 object AdsConfig {
     const val BANNER_AD_UNIT_ID = "ca-app-pub-8153915858493339/9228952828"
 
-    // Rewarded ad unit ID from the AdMob console (Rewarded format).
     // While empty, the "Ad-free 24h" button stays hidden.
     const val REWARDED_AD_UNIT_ID = "ca-app-pub-8153915858493339/3102160618"
 }
@@ -81,8 +80,6 @@ fun AdBannerBar(onRewardEarned: () -> Unit) {
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // The ad-free button sits above the banner as a full-width button,
-        // where it can actually be reached and tapped.
         if (AdsConfig.REWARDED_AD_UNIT_ID.isNotEmpty()) {
             Button(
                 enabled = activity != null && !isLoadingRewarded,

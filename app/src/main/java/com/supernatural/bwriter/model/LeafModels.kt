@@ -32,7 +32,6 @@ enum class SectionType(
     val defaultLeafSide: LeafSide,
     val defaultDescription: String
 ) {
-    // Front Matter
     HALF_TITLE("Half-Title", MatterType.FRONT_MATTER, true, LeafSide.RECTO, "Contains solely the main title of the work, preceding the full title page."),
     TITLE_PAGE("Title Page", MatterType.FRONT_MATTER, true, LeafSide.RECTO, "Full title, subtitle, author byline, and publisher imprint."),
     COPYRIGHT_COLOPHON("Copyright & Colophon", MatterType.FRONT_MATTER, false, LeafSide.VERSO, "Copyright notice, edition notice, cataloging data, and printing information on the verso of the title page."),
@@ -44,12 +43,10 @@ enum class SectionType(
     ACKNOWLEDGMENTS("Acknowledgments", MatterType.FRONT_MATTER, true, LeafSide.RECTO, "Author's formal thanks to contributors, editors, and institutions."),
     INTRODUCTION("Introduction", MatterType.FRONT_MATTER, true, LeafSide.RECTO, "Thematic or conceptual introduction preceding the main text body."),
 
-    // Body Text
     PART_DIVIDER("Part Division", MatterType.TEXT_BODY, true, LeafSide.RECTO, "Part title leaf opening a major structural division of the book."),
     CHAPTER("Chapter", MatterType.TEXT_BODY, true, LeafSide.RECTO, "Main narrative chapter beginning on a recto leaf per CMOS."),
     SECTION("Section / Episode", MatterType.TEXT_BODY, false, LeafSide.RECTO, "Subordinate division within a chapter or manual module."),
 
-    // Back Matter
     APPENDIX("Appendix", MatterType.BACK_MATTER, true, LeafSide.RECTO, "Supplementary documentary data, tables, or specialized texts."),
     NOTES_ENDNOTES("Notes & Endnotes", MatterType.BACK_MATTER, true, LeafSide.RECTO, "Chapter-by-chapter endnotes following Chicago style citation rules."),
     GLOSSARY("Glossary", MatterType.BACK_MATTER, true, LeafSide.RECTO, "Alphabetical list of specialized terms with definitions."),

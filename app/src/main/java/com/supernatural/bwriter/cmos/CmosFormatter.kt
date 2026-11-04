@@ -23,34 +23,18 @@ import java.util.Locale
 
 object CmosFormatter {
 
-    /**
-     * Converts straight quotes (" ") and apostrophes (' ') to typographical smart/curly quotes
-     * honoring Chicago Manual of Style §6.112 - §6.115.
-     */
     fun applySmartQuotes(text: String): String {
         var result = text
-        // Replace double quotes
-        // Starts of strings or after whitespace/opening punctuation -> opening double quote
         result = result.replace(Regex("""(^|[\s(\[\{—–\-])""""), "$1“")
-        // Remaining double quotes -> closing double quote
         result = result.replace("\"", "”")
 
-        // Replace single quotes / apostrophes
-        // Contractions and possessives (letter + ' + letter)
         result = result.replace(Regex("""(\w)'(\w)"""), "$1’$2")
-        // Starts of strings or after whitespace -> opening single quote
         result = result.replace(Regex("""(^|[\s(\[\{—–\-])'"""), "$1‘")
-        // Remaining single quotes -> closing single quote / apostrophe
         result = result.replace("'", "’")
 
         return result
     }
 
-    /**
-     * Applies Chicago Manual of Style em-dash rules (§6.85):
-     * Em-dashes should be set without spaces on either side.
-     * Replaces "--" or " -- " or " - " (when used as parenthetical break) with "—".
-     */
     fun applyEmDashes(text: String): String {
         return text
             .replace(" -- ", "—")
@@ -60,24 +44,10 @@ object CmosFormatter {
             .replace("— ", "—")
     }
 
-    /**
-     * Applies Chicago Manual of Style en-dash rules (§6.78):
-     * En-dashes connect continuing or inclusive numbers, dates, times, or reference pages (e.g. 1914–1918, pp. 24–28).
-     */
     fun applyEnDashes(text: String): String {
-        // Replace hyphens between digits with en-dash: 1990-2000 -> 1990–2000, 10-15 -> 10–15
         return text.replace(Regex("""(\b\d+)\s*-\s*(\d+\b)"""), "$1–$2")
     }
 
-    /**
-     * Applies Chicago Headline-Style Capitalization (§8.159):
-     * - Capitalize first and last words in title and subtitle.
-     * - Capitalize all major words (nouns, pronouns, verbs, adjectives, adverbs).
-     * - Lowercase articles: a, an, the.
-     * - Lowercase coordinating conjunctions: and, but, for, or, nor.
-     * - Lowercase short prepositions: of, to, in, for, on, with, as, by, at, from, off, into, onto.
-     * - Capitalize prepositions when they are part of a phrasal verb or first/last word.
-     */
     fun toChicagoHeadlineCase(title: String): String {
         if (title.isBlank()) return ""
         val lowercaseWords = setOf(
@@ -86,7 +56,6 @@ object CmosFormatter {
             "as", "at", "by", "for", "from", "in", "into", "of", "off", "on", "onto", "out", "over", "to", "up", "with", "via"
         )
 
-        // Split by colons or em-dashes for subtitle handling
         val segments = title.split(Regex("(?<=[:—–])|(?=[:—–])"))
         return segments.joinToString("") { segment ->
             val words = segment.trim().split(Regex("""\s+""")).filter { it.isNotBlank() }
@@ -108,16 +77,12 @@ object CmosFormatter {
 
     private fun capitalizeWord(word: String): String {
         if (word.isEmpty()) return word
-        // Handle hyphenated words e.g. "Self-Reliance" -> "Self-Reliance"
         if (word.contains("-")) {
             return word.split("-").joinToString("-") { capitalizeWord(it) }
         }
         return word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
     }
 
-    /**
-     * Checks text for missing serial/Oxford commas (§6.19) before 'and' or 'or' in lists of 3+ items.
-     */
     fun checkOxfordComma(text: String): List<String> {
         val issues = mutableListOf<String>()
         val regex = Regex("""\b([A-Za-z]+),\s+([A-Za-z]+)\s+(and|or)\s+([A-Za-z]+)\b""", RegexOption.IGNORE_CASE)
@@ -130,9 +95,6 @@ object CmosFormatter {
         return issues
     }
 
-    /**
-     * Fixes serial/Oxford commas in list patterns.
-     */
     fun fixOxfordCommas(text: String): String {
         val regex = Regex("""\b([A-Za-z]+),\s+([A-Za-z]+)\s+(and|or)\s+([A-Za-z]+)\b""", RegexOption.IGNORE_CASE)
         return regex.replace(text) { match ->
@@ -140,19 +102,11 @@ object CmosFormatter {
         }
     }
 
-    /**
-     * Checks if a paragraph should be formatted as a block quotation per CMOS §13.10:
-     * Prose quotations that are 100 words or more (or five lines or more) should be set off as a block.
-     */
     fun isCandidateForBlockQuote(paragraph: String): Boolean {
         val wordCount = paragraph.trim().split(Regex("""\s+""")).filter { it.isNotBlank() }.size
         return wordCount >= 85 || paragraph.length >= 450
     }
 
-    /**
-     * Comprehensive CMOS polishing pipeline:
-     * Applies smart quotes, em-dashes, en-dashes, and Oxford commas.
-     */
     fun polishText(text: String): String {
         var polished = applySmartQuotes(text)
         polished = applyEmDashes(polished)
@@ -161,9 +115,6 @@ object CmosFormatter {
         return polished
     }
 
-    /**
-     * Converts an integer to lowercase Roman numeral for front matter pagination (e.g. 1 -> i, 4 -> iv, 9 -> ix, 14 -> xiv).
-     */
     fun toRoman(number: Int): String {
         if (number <= 0) return ""
         val values = intArrayOf(1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1)
@@ -179,10 +130,6 @@ object CmosFormatter {
         return sb.toString()
     }
 
-    /**
-     * Converts markdown styled text (*italic*, **bold**, ***bold italic***, _italic_)
-     * into a Jetpack Compose AnnotatedString with proper styling for Reader and UI components.
-     */
     fun toAnnotatedString(text: String, baseColor: Color = Color.Unspecified): AnnotatedString {
         val builder = AnnotatedString.Builder()
         val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
@@ -250,10 +197,6 @@ object CmosFormatter {
         return builder.toAnnotatedString()
     }
 
-    /**
-     * Converts markdown styled text (*italic*, **bold**, ***bold italic***) into Android Spanned
-     * with StyleSpan(Typeface.ITALIC/BOLD) for high quality PDF StaticLayout rendering.
-     */
     fun toSpanned(text: String): CharSequence {
         val ssb = SpannableStringBuilder()
         val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
@@ -324,10 +267,7 @@ object CmosFormatter {
         return ssb
     }
 
-    /**
-     * VisualTransformation for in-editor markdown rendering that styles *italics* and **bold**
-     * while preserving 1:1 character index mapping so the cursor position and typing never glitch.
-     */
+    // Preserves a 1:1 character index mapping so cursor position and typing never glitch.
     fun createMarkdownVisualTransformation(): VisualTransformation {
         return VisualTransformation { text ->
             val builder = AnnotatedString.Builder()
@@ -406,9 +346,6 @@ object CmosFormatter {
         }
     }
 
-    /**
-     * Toggles or applies italics (*...*) to the current selection or inserts *...* at cursor.
-     */
     fun applyItalics(current: TextFieldValue): TextFieldValue {
         val text = current.text
         val selection = current.selection
@@ -417,7 +354,6 @@ object CmosFormatter {
 
         return if (min != max) {
             val selected = text.substring(min, max)
-            // Check if already italicized
             if (selected.startsWith("*") && selected.endsWith("*") && selected.length >= 2) {
                 val unwrapped = selected.substring(1, selected.length - 1)
                 val newText = text.substring(0, min) + unwrapped + text.substring(max)
@@ -433,9 +369,6 @@ object CmosFormatter {
         }
     }
 
-    /**
-     * Toggles or applies bold (**...**) to current selection or inserts **** at cursor.
-     */
     fun applyBold(current: TextFieldValue): TextFieldValue {
         val text = current.text
         val selection = current.selection
@@ -459,9 +392,6 @@ object CmosFormatter {
         }
     }
 
-    /**
-     * Wraps selection in Chicago smart quotes or inserts “ ” at cursor.
-     */
     fun applySmartQuotesToSelection(current: TextFieldValue): TextFieldValue {
         val text = current.text
         val selection = current.selection
@@ -479,9 +409,6 @@ object CmosFormatter {
         }
     }
 
-    /**
-     * Inserts standard CMOS em-dash (—) at cursor.
-     */
     fun applyEmDashAtCursor(current: TextFieldValue): TextFieldValue {
         val text = current.text
         val min = current.selection.min
@@ -490,9 +417,6 @@ object CmosFormatter {
         return TextFieldValue(newText, selection = TextRange(min + 1))
     }
 
-    /**
-     * Inserts standard CMOS en-dash (–) at cursor.
-     */
     fun applyEnDashAtCursor(current: TextFieldValue): TextFieldValue {
         val text = current.text
         val min = current.selection.min
@@ -501,9 +425,6 @@ object CmosFormatter {
         return TextFieldValue(newText, selection = TextRange(min + 1))
     }
 
-    /**
-     * Inserts Chicago 4-space paragraph indent at cursor.
-     */
     fun applyIndentAtCursor(current: TextFieldValue): TextFieldValue {
         val text = current.text
         val min = current.selection.min
@@ -513,9 +434,6 @@ object CmosFormatter {
         return TextFieldValue(newText, selection = TextRange(min + indent.length))
     }
 
-    /**
-     * Inserts next sequential footnote reference [^N] at cursor.
-     */
     fun applyFootnoteAtCursor(current: TextFieldValue): TextFieldValue {
         val text = current.text
         val count = Regex("""\[\^(\d+)\]""").findAll(text).count() + 1
@@ -526,9 +444,6 @@ object CmosFormatter {
         return TextFieldValue(newText, selection = TextRange(min + tag.length))
     }
 
-    /**
-     * Formats block quote at cursor.
-     */
     fun applyBlockQuote(current: TextFieldValue): TextFieldValue {
         val text = current.text
         val min = current.selection.min
@@ -543,11 +458,6 @@ object CmosFormatter {
         return TextFieldValue(newText, selection = TextRange(min + block.length))
     }
 
-    /**
-     * Builds an AnnotatedString for Redline Tracked Changes diff:
-     * - All pre-existing / original text is rendered in normal dark black.
-     * - Only newly added / edited text is highlighted in red.
-     */
     fun buildRedlineDiffAnnotatedString(
         originalText: String,
         newText: String,
@@ -589,12 +499,10 @@ object CmosFormatter {
             if (isWhitespace) {
                 builder.append(token)
             } else if (j in matchedInNew) {
-                // Pre-existing original text -> Normal black
                 builder.pushStyle(SpanStyle(color = normalColor, fontWeight = FontWeight.Normal))
                 builder.append(token)
                 builder.pop()
             } else {
-                // Newly added / edited text -> Highlighted in red
                 builder.pushStyle(SpanStyle(color = highlightColor, background = highlightBgColor, fontWeight = FontWeight.Bold))
                 builder.append(token)
                 builder.pop()
@@ -604,9 +512,6 @@ object CmosFormatter {
         return builder.toAnnotatedString()
     }
 
-    /**
-     * Splits text into words and delimiter tokens preserving exact whitespace and punctuation.
-     */
     private fun tokenizeForDiff(text: String): List<String> {
         val tokens = mutableListOf<String>()
         val matcher = java.util.regex.Pattern.compile("""\S+|\s+""").matcher(text)
@@ -616,15 +521,11 @@ object CmosFormatter {
         return tokens
     }
 
-    /**
-     * Computes Longest Common Subsequence (LCS) to find indices in newTokens that match originalTokens.
-     */
     private fun computeLcsMatchedIndices(origTokens: List<String>, newTokens: List<String>): Set<Int> {
         val n = origTokens.size
         val m = newTokens.size
         if (n == 0 || m == 0) return emptySet()
 
-        // Guard against memory explosion on extraordinarily huge texts
         if (n * m > 600000) {
             val origSet = origTokens.filter { it.isNotBlank() }.toSet()
             val matched = mutableSetOf<Int>()
@@ -664,10 +565,6 @@ object CmosFormatter {
         return matchedInNew
     }
 
-    /**
-     * VisualTransformation for in-editor redline diff preview:
-     * Styles pre-existing text in normal black and highlights newly added text in bold red with a soft tint.
-     */
     fun createRedlineVisualTransformation(originalText: String): VisualTransformation {
         return VisualTransformation { text ->
             val annotated = buildRedlineDiffAnnotatedString(

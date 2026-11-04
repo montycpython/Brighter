@@ -191,7 +191,6 @@ fun SectionEditorScreen(
     var tailIllustrationUri by remember(section.id) { mutableStateOf(section.tailIllustrationUri) }
     var tailIllustrationCaption by remember(section.id) { mutableStateOf(section.tailIllustrationCaption) }
 
-    // Section Delegation & Contributor States
     var assignedAuthor by remember(section.id) { mutableStateOf(section.assignedAuthor) }
     var assignedRole by remember(section.id) { mutableStateOf(section.assignedRole) }
     var contributorNotes by remember(section.id) { mutableStateOf(section.contributorNotes) }
@@ -218,11 +217,9 @@ fun SectionEditorScreen(
     }
     var currentStatus by remember(section.id) { mutableStateOf(section.status) }
 
-    // Dialog States
     var showCharacterProfiler by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
 
-    // Questionnaire States
     var questionnaireGoal by remember(section.id) { mutableStateOf("") }
     var questionnaireConflict by remember(section.id) { mutableStateOf("") }
     var questionnairePacing by remember(section.id) { mutableStateOf("Contemplative & Atmospheric") }
@@ -233,7 +230,6 @@ fun SectionEditorScreen(
     var selectedCharactersForPrompt by remember { mutableStateOf(setOf<CharacterEntity>()) }
     var selectedSettingsForPrompt by remember { mutableStateOf(setOf<StorySettingEntity>()) }
 
-    // 0 = Prose, 1 = Illustrations & Art, 2 = AI Workshop
     var selectedEditorTab by remember { mutableIntStateOf(0) }
     var isTitleExpanded by remember { mutableStateOf(false) }
 
@@ -247,7 +243,6 @@ fun SectionEditorScreen(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Visual transformation for markdown *italic* / **bold** or in-editor Redline Diff for pending revisions
     val activeVisualTransformation = remember(section.hasPendingRevision, section.originalAuthorContent) {
         if (section.hasPendingRevision && section.originalAuthorContent.isNotBlank()) {
             CmosFormatter.createRedlineVisualTransformation(section.originalAuthorContent)
@@ -256,7 +251,6 @@ fun SectionEditorScreen(
         }
     }
 
-    // Image Pickers
     val headImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             headerIllustrationUri = uri.toString()
@@ -307,7 +301,6 @@ fun SectionEditorScreen(
                     }
                 },
                 actions = {
-                    // Status Badge with Dropdown
                     Box {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -363,7 +356,6 @@ fun SectionEditorScreen(
                         }
                     }
 
-                    // Comments Button
                     IconButton(
                         onClick = { showCommentsSheet = true },
                         modifier = Modifier.testTag("btn_editor_comments")
@@ -381,7 +373,6 @@ fun SectionEditorScreen(
                         }
                     }
 
-                    // Quick Save Button
                     IconButton(
                         onClick = {
                             onSaveContent(section, contentValue.text)
@@ -403,7 +394,6 @@ fun SectionEditorScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Compact, Expandable Section Title & Details Header
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                 modifier = Modifier.fillMaxWidth()
@@ -479,7 +469,6 @@ fun SectionEditorScreen(
                 }
             }
 
-            // Compact Navigation Tabs (38dp height)
             TabRow(
                 selectedTabIndex = selectedEditorTab,
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -514,15 +503,11 @@ fun SectionEditorScreen(
 
             when (selectedEditorTab) {
                 0 -> {
-                    // ==========================================
-                    // 1. MANUSCRIPT PROSE CANVAS
-                    // ==========================================
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(Color(0xFFEFECE6))
                     ) {
-                        // Role & Collaboration Banners
                         if (isAuthorRoleBlocked) {
                             Surface(
                                 color = Color(0xFFFFF8E1),
@@ -600,7 +585,6 @@ fun SectionEditorScreen(
                             }
                         }
 
-                        // Prominent Redline Tracked Revisions Card (Under Review)
                         if (section.hasPendingRevision) {
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF5F5)),
@@ -655,7 +639,6 @@ fun SectionEditorScreen(
 
                                     Spacer(modifier = Modifier.height(6.dp))
 
-                                    // Red Highlight Diff Preview Box (Pre-existing text in black, new additions in red)
                                     val diffAnnotatedString = remember(section.originalAuthorContent, section.pendingEditedContent, section.content) {
                                         CmosFormatter.buildRedlineDiffAnnotatedString(
                                             originalText = section.originalAuthorContent,
@@ -768,7 +751,6 @@ fun SectionEditorScreen(
                             }
                         }
 
-                        // Resizing, scrollable paper canvas that stays fully visible
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -788,7 +770,6 @@ fun SectionEditorScreen(
                                         .fillMaxSize()
                                         .padding(horizontal = 12.dp, vertical = 8.dp)
                                 ) {
-                                    // Status row
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
@@ -834,8 +815,6 @@ fun SectionEditorScreen(
                             }
                         }
 
-                        // Ultra-Compact Floating Formatting Toolbar with imePadding
-                        // Sits directly above the soft keyboard on mobile devices
                         CompactCmosToolbar(
                             onApplyItalics = {
                                 contentValue = CmosFormatter.applyItalics(contentValue)
@@ -922,9 +901,6 @@ fun SectionEditorScreen(
                     }
                 }
                 1 -> {
-                    // ==========================================
-                    // 2. ILLUSTRATIONS & CHAPTER ART WORKSHOP
-                    // ==========================================
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -947,7 +923,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // CHAPTER HEAD ILLUSTRATION CARD
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1037,7 +1012,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // CHAPTER TAILPIECE / END ORNAMENT CARD
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1127,9 +1101,6 @@ fun SectionEditorScreen(
                     }
                 }
                 2 -> {
-                    // ==========================================
-                    // 2. CONTRIBUTOR & ROLES DELEGATION WORKSHOP
-                    // ==========================================
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1137,7 +1108,6 @@ fun SectionEditorScreen(
                             .padding(14.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        // Header
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1169,7 +1139,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // ACTIVE ASSIGNMENT STATUS CARD
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF181824)),
@@ -1238,7 +1207,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // ASSIGN RESPONSIBILITY SECTION
                         Text(
                             text = "Assign Responsibility:",
                             fontWeight = FontWeight.Bold,
@@ -1247,7 +1215,6 @@ fun SectionEditorScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Quick Presets
                         Text(
                             text = "Quick Select Collaborator:",
                             fontSize = 10.5.sp,
@@ -1292,7 +1259,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Custom Name & Email Fields
                         OutlinedTextField(
                             value = assignedAuthor,
                             onValueChange = { assignedAuthor = it },
@@ -1327,7 +1293,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Role Selector
                         Text(
                             text = "Assigned Editorial Responsibility:",
                             fontSize = 11.sp,
@@ -1378,7 +1343,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Editorial Briefing & Directives Field
                         Text(
                             text = "Editorial Briefing & Scope Guidelines (CMOS 17th):",
                             fontSize = 11.5.sp,
@@ -1411,7 +1375,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Save Assignment Button
                         Button(
                             onClick = {
                                 onSaveAssignment(section, assignedAuthor, assignedRole, contributorNotes)
@@ -1427,9 +1390,6 @@ fun SectionEditorScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // ==========================================
-                        // INVITATION DISPATCH ACTIONS
-                        // ==========================================
                         Text(
                             text = "Dispatch Contributor Invitation:",
                             fontWeight = FontWeight.Bold,
@@ -1468,7 +1428,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Gmail Intent Button
                             Button(
                                 onClick = {
                                     val targetEmail = contributorEmailInput.trim()
@@ -1492,7 +1451,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
                                 Text("Gmail Invite", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
 
-                            // In-App Directive Button
                             Button(
                                 onClick = {
                                     val targetEmail = contributorEmailInput.ifBlank { "eleanor.types@bwriter.press" }.trim()
@@ -1520,7 +1478,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Copy Brief Button
                         OutlinedButton(
                             onClick = {
                                 clipboardManager.setPrimaryClip(ClipData.newPlainText("Bwriter Assignment Brief", inviteBody))
@@ -1536,9 +1493,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
                     }
                 }
                 3 -> {
-                    // ==========================================
-                    // 3. AI DRAFT PROMPT WORKSHOP (High-Contrast Black Theme)
-                    // ==========================================
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -1547,7 +1501,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
                             .padding(16.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        // Header
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1597,9 +1550,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // ==========================================
-                        // A. CHARACTER PROFILES STRIP
-                        // ==========================================
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF16161D)),
@@ -1712,9 +1662,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // ==========================================
-                        // B. STORY SETTING & WORLDBUILDING STRIP
-                        // ==========================================
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF16161D)),
@@ -1829,9 +1776,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // ==========================================
-                        // C. GUIDED CHAPTER QUESTIONNAIRE (Base Template)
-                        // ==========================================
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF15151D)),
@@ -1856,7 +1800,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Question 1: Goal & Turning Point
                                 Text("1. Chapter Goal & Turning Point", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = BookGoldLight)
                                 OutlinedTextField(
                                     value = questionnaireGoal,
@@ -1874,7 +1817,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                // Question 2: Conflict & Stakes
                                 Text("2. Central Conflict & Emotional Friction", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = BookGoldLight)
                                 OutlinedTextField(
                                     value = questionnaireConflict,
@@ -1892,7 +1834,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                // Question 3: Pacing & Mood
                                 Text("3. Pacing & Tone", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = BookGoldLight)
                                 val pacingOptions = listOf("Contemplative & Lyrical", "Tense & Suspenseful", "Urgent & Dramatic", "Melancholic", "Analytical & Precise")
                                 Row(
@@ -1919,7 +1860,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
-                                // Question 4: Sensory & Physical Details
                                 Text("4. Sensory Atmosphere & Physical Artifacts", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = BookGoldLight)
                                 OutlinedTextField(
                                     value = questionnaireSensory,
@@ -1939,9 +1879,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // ==========================================
-                        // D. SCROLLABLE LITERARY DEVICES CATALOG
-                        // ==========================================
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF15151D)),
@@ -2020,9 +1957,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // ==========================================
-                        // E. INTERTEXTUALITY & COMPANION TEXTS
-                        // ==========================================
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF15151D)),
@@ -2107,9 +2041,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // ==========================================
-                        // F. SUBSCRIPTION WALLET & CREDITS
-                        // ==========================================
                         if (subscription != null) {
                             val isSuper = com.supernatural.bwriter.data.StudioStanding.isEditorInChief || subscription.plan == com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED
                             Card(
@@ -2167,9 +2098,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
                             Spacer(modifier = Modifier.height(14.dp))
                         }
 
-                        // ==========================================
-                        // G. COMPILED CMOS PROMPT WORKSHOP
-                        // ==========================================
                         Text(
                             text = "Active CMOS Prompt & Directives:",
                             fontWeight = FontWeight.Bold,
@@ -2200,7 +2128,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // COMPILE BUTTON & GENERATE BUTTON
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2288,9 +2215,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
             )
         }
 
-        // ==========================================
-        // DIALOGS: CHARACTER PROFILER & SETTINGS STUDIO
-        // ==========================================
         if (showCharacterProfiler) {
             CharacterProfilerDialog(
                 manuscriptId = section.manuscriptId,
@@ -2337,7 +2261,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
             )
         }
 
-        // EDITORIAL COMMENTS BOTTOM SHEET
         if (showCommentsSheet) {
             val sheetState = rememberModalBottomSheetState()
             ModalBottomSheet(
@@ -2443,10 +2366,6 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
     }
 }
 
-/**
- * Sleek, ultra-compact formatting toolbar docked above the soft keyboard.
- * Uses horizontal scrolling and compact buttons to give maximum vertical space to prose canvas.
- */
 @Composable
 fun CompactCmosToolbar(
     onApplyItalics: () -> Unit,
@@ -2479,7 +2398,6 @@ fun CompactCmosToolbar(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Italics Button (I)
             ToolbarChip(
                 onClick = onApplyItalics,
                 testTag = "btn_toolbar_italics"
@@ -2493,7 +2411,6 @@ fun CompactCmosToolbar(
                 )
             }
 
-            // Bold Button (B)
             ToolbarChip(
                 onClick = onApplyBold,
                 testTag = "btn_toolbar_bold"
@@ -2506,7 +2423,6 @@ fun CompactCmosToolbar(
                 )
             }
 
-            // Smart Quotes
             ToolbarChip(
                 onClick = onApplySmartQuotes,
                 testTag = "btn_toolbar_quotes"
@@ -2514,7 +2430,6 @@ fun CompactCmosToolbar(
                 Text(text = "“ ”", fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
 
-            // Em-Dash
             ToolbarChip(
                 onClick = onApplyEmDash,
                 testTag = "btn_toolbar_emdash"
@@ -2522,7 +2437,6 @@ fun CompactCmosToolbar(
                 Text(text = "—", fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
 
-            // En-Dash
             ToolbarChip(
                 onClick = onApplyEnDash,
                 testTag = "btn_toolbar_endash"
@@ -2530,7 +2444,6 @@ fun CompactCmosToolbar(
                 Text(text = "–", fontWeight = FontWeight.Medium, fontSize = 12.sp)
             }
 
-            // Paragraph Indent (4 spaces)
             ToolbarChip(
                 onClick = onApplyIndent,
                 testTag = "btn_toolbar_indent"
@@ -2538,7 +2451,6 @@ fun CompactCmosToolbar(
                 Text(text = "⇥ Indent", fontSize = 10.5.sp)
             }
 
-            // Footnote
             ToolbarChip(
                 onClick = onApplyFootnote,
                 testTag = "btn_toolbar_footnote"
@@ -2546,7 +2458,6 @@ fun CompactCmosToolbar(
                 Text(text = "[^N]", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = BookGoldDark)
             }
 
-            // Block Quote
             ToolbarChip(
                 onClick = onApplyBlockQuote,
                 testTag = "btn_toolbar_blockquote"
@@ -2554,7 +2465,6 @@ fun CompactCmosToolbar(
                 Text(text = "“...”", fontSize = 10.5.sp)
             }
 
-            // Title Case
             ToolbarChip(
                 onClick = onApplyHeadlineCase,
                 testTag = "btn_toolbar_headline"
@@ -2562,7 +2472,6 @@ fun CompactCmosToolbar(
                 Text(text = "Aa Case", fontSize = 10.5.sp)
             }
 
-            // CMOS Full Polish
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = BookGoldDark,
@@ -2581,7 +2490,6 @@ fun CompactCmosToolbar(
                 }
             }
 
-            // Oxford Comma
             ToolbarChip(
                 onClick = onApplyOxfordComma,
                 testTag = "btn_toolbar_oxford"
@@ -2589,7 +2497,6 @@ fun CompactCmosToolbar(
                 Text(text = "Oxford", fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
             }
 
-            // Style Check
             ToolbarChip(
                 onClick = onRunStyleCheck,
                 testTag = "btn_toolbar_check"
@@ -2597,7 +2504,6 @@ fun CompactCmosToolbar(
                 Text(text = "Check", fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
             }
 
-            // Copy & Paste
             IconButton(
                 onClick = onCopy,
                 modifier = Modifier.size(30.dp)

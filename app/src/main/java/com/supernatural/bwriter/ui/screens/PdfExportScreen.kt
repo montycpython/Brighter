@@ -120,7 +120,6 @@ fun PdfExportScreen(
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // PDF Spec Header
             Card(
                 colors = CardDefaults.cardColors(containerColor = InkNavy),
                 shape = RoundedCornerShape(12.dp),
@@ -154,7 +153,6 @@ fun PdfExportScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Typographical Specification Card
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -182,7 +180,6 @@ fun PdfExportScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Export Actions
             if (isExporting) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
@@ -203,7 +200,6 @@ fun PdfExportScreen(
                     }
                 }
             } else if (exportResult != null) {
-                // Success State Card
                 Card(
                     colors = CardDefaults.cardColors(containerColor = ForestCloth.copy(alpha = 0.08f)),
                     border = BorderStroke(1.5.dp, ForestCloth),
@@ -241,7 +237,6 @@ fun PdfExportScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            // View / Open Intent
                             Button(
                                 onClick = {
                                     openPdf(context, exportResult.file)
@@ -256,7 +251,6 @@ fun PdfExportScreen(
                                 Text("Open PDF")
                             }
 
-                            // Share Intent
                             OutlinedButton(
                                 onClick = {
                                     sharePdf(context, exportResult.file, manuscript.title)
@@ -276,7 +270,6 @@ fun PdfExportScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Primary Generate Button
             Button(
                 onClick = onExportPdf,
                 colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
@@ -333,7 +326,6 @@ private fun openPdf(context: Context, file: File) {
         }
         context.startActivity(Intent.createChooser(intent, "Open Manuscript PDF"))
     } catch (e: Exception) {
-        // Fallback share if no viewer app exists
         sharePdf(context, file, file.name)
     }
 }

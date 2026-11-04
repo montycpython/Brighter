@@ -147,7 +147,6 @@ fun LeafReaderScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Sleek Spread Navigation Bar
             Surface(
                 color = Color(0xFF2A2A32),
                 shape = RoundedCornerShape(8.dp),
@@ -194,7 +193,6 @@ fun LeafReaderScreen(
                 }
             }
 
-            // Book spread container
             Card(
                 modifier = Modifier
                     .weight(1f)
@@ -207,7 +205,6 @@ fun LeafReaderScreen(
                 Row(
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    // LEFT LEAF (Verso - Even page)
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -226,7 +223,6 @@ fun LeafReaderScreen(
                         }
                     }
 
-                    // Book Spine / Gutter shadow
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -242,7 +238,6 @@ fun LeafReaderScreen(
                             )
                     )
 
-                    // RIGHT LEAF (Recto - Odd page)
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -280,7 +275,6 @@ fun SingleLeafView(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Top Running Header & Folio
         if (!leaf.hasBlindFolio) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -330,7 +324,6 @@ fun SingleLeafView(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Leaf Body Content by Type
         when (leaf.displayType) {
             LeafDisplayType.HALF_TITLE -> {
                 Spacer(modifier = Modifier.height(60.dp))
@@ -554,7 +547,6 @@ fun SingleLeafView(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Chapter Head Illustration
                 if (leaf.headerIllustrationUri.isNotBlank()) {
                     IllustrationPreview(
                         uriString = leaf.headerIllustrationUri,
@@ -570,7 +562,6 @@ fun SingleLeafView(
             else -> {
                 ProseParagraphsView(text = leaf.contentSnippet)
 
-                // Chapter Tailpiece (if closer)
                 if (leaf.isCloser && leaf.tailIllustrationUri.isNotBlank()) {
                     Spacer(modifier = Modifier.height(14.dp))
                     IllustrationPreview(
@@ -583,7 +574,6 @@ fun SingleLeafView(
             }
         }
 
-        // Drop folio on chapter openers (Centered bottom)
         if (leaf.isOpener && leaf.matterType == MatterType.TEXT_BODY && leaf.pageNumberDisplay.isNotBlank()) {
             Spacer(modifier = Modifier.weight(1f, fill = false))
             Spacer(modifier = Modifier.height(14.dp))
@@ -605,7 +595,7 @@ fun ProseParagraphsView(text: String) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (para in paragraphs) {
             if (para.isNotBlank()) {
-                val indent = "    " // Always indent every paragraph
+                val indent = "
                 val formatted = com.supernatural.bwriter.cmos.CmosFormatter.toAnnotatedString("$indent$para")
                 Text(
                     text = formatted,

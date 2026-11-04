@@ -198,7 +198,6 @@ fun ManuscriptDetailScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // CMOS Recto/Verso Leaf Status Bar
             Surface(
                 color = InkNavy,
                 modifier = Modifier.fillMaxWidth()
@@ -253,7 +252,6 @@ fun ManuscriptDetailScreen(
                 }
             }
 
-            // Division Tabs
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -292,7 +290,6 @@ fun ManuscriptDetailScreen(
                 )
             }
 
-            // Tab Content
             when (selectedTab) {
                 0 -> FrontMatterTab(
                     manuscript = manuscript,
@@ -326,7 +323,6 @@ fun ManuscriptDetailScreen(
         }
     }
 
-    // Add Section Dialog
     if (showAddSectionDialog) {
         AddSectionDialog(
             defaultMatter = when (selectedTab) {
@@ -342,7 +338,6 @@ fun ManuscriptDetailScreen(
         )
     }
 
-    // Metadata Settings Dialog
     if (showSettingsDialog) {
         ManuscriptSettingsDialog(
             manuscript = manuscript,
@@ -396,7 +391,6 @@ fun FrontMatterTab(
             )
         }
 
-        // Standard CMOS Display Leaves Overview
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
@@ -617,7 +611,6 @@ fun LeafFlowTab(
                     modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Leaf number & side badge
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.width(64.dp)
@@ -638,7 +631,6 @@ fun LeafFlowTab(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    // Title & Matter
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -973,7 +965,6 @@ fun AddSectionDialog(
                 )
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Matter Type selector
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -1005,7 +996,6 @@ fun AddSectionDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Section Type dropdown
                 ExposedDropdownMenuBox(
                     expanded = expandedTypeMenu,
                     onExpandedChange = { expandedTypeMenu = !expandedTypeMenu },
@@ -1216,7 +1206,6 @@ fun ManuscriptSettingsDialog(
                     }
                 }
 
-                // Book Trim Size Selector
                 item {
                     ExposedDropdownMenuBox(
                         expanded = trimSizeExpanded,
@@ -1256,7 +1245,6 @@ fun ManuscriptSettingsDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // Dynamic Copyright Editor with Reset Button
                 item {
                     Column {
                         Row(

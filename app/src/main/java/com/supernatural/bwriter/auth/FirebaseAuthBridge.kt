@@ -5,11 +5,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
 
-/**
- * Bridges the Credential Manager Google sign-in to a Firebase Auth session.
- * Firestore security rules key on request.auth, so the app must hold a
- * Firebase session for the back room to recognize the signed-in user.
- */
 object FirebaseAuthBridge {
 
     suspend fun signInWithGoogleIdToken(idToken: String): Result<Unit> {

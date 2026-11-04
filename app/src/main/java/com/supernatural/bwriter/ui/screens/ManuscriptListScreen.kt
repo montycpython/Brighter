@@ -158,7 +158,6 @@ fun ManuscriptListScreen(
                     }
                 },
                 actions = {
-                    // Restore from Drive Action
                     IconButton(
                         onClick = onRestoreFromDrive,
                         modifier = Modifier.testTag("btn_top_restore_drive")
@@ -170,7 +169,6 @@ fun ManuscriptListScreen(
                         )
                     }
 
-                    // AI Studio Subscription / Credits Wallet
                     IconButton(
                         onClick = onOpenSubscription,
                         modifier = Modifier.testTag("btn_top_subscription_wallet")
@@ -182,7 +180,6 @@ fun ManuscriptListScreen(
                         )
                     }
 
-                    // Community Book Directory
                     IconButton(
                         onClick = onOpenCommunity,
                         modifier = Modifier.testTag("btn_top_community")
@@ -194,7 +191,6 @@ fun ManuscriptListScreen(
                         )
                     }
 
-                    // Mailbox with unread badge
                     IconButton(
                         onClick = onOpenMailbox,
                         modifier = Modifier.testTag("btn_top_mailbox")
@@ -225,7 +221,6 @@ fun ManuscriptListScreen(
                         }
                     }
 
-                    // Master Admin God-Mode Button (Editor in Chief)
                     if (isEditorInChief) {
                         IconButton(
                             onClick = onOpenAdminDashboard,
@@ -239,7 +234,6 @@ fun ManuscriptListScreen(
                         }
                     }
 
-                    // CMOS Rulebook button
                     IconButton(
                         onClick = onOpenRulebook,
                         modifier = Modifier.testTag("btn_top_rulebook")
@@ -251,7 +245,6 @@ fun ManuscriptListScreen(
                         )
                     }
 
-                    // User role / Google Profile badge
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(20.dp),
@@ -311,7 +304,6 @@ fun ManuscriptListScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
-            // Hero Banner / Desk Illustration
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Card(
@@ -354,7 +346,6 @@ fun ManuscriptListScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Category Filter Chips (All, Novel, Biography, Documentary, Manual)
             item {
                 Row(
                     modifier = Modifier
@@ -385,7 +376,6 @@ fun ManuscriptListScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Manuscripts List
             if (manuscripts.isEmpty()) {
                 item {
                     Card(
@@ -492,7 +482,6 @@ fun ManuscriptListScreen(
         }
     }
 
-    // Author Profile & Pen Name Dialog
     if (showProfileDialog) {
         AuthorProfileDialog(
             currentUser = currentUser,
@@ -508,7 +497,6 @@ fun ManuscriptListScreen(
         )
     }
 
-    // Delete confirmation
     if (manuscriptToDelete != null) {
         AlertDialog(
             onDismissRequest = { manuscriptToDelete = null },
@@ -555,7 +543,6 @@ fun ManuscriptCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header Row: WorkType and Edition/Year
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -587,7 +574,6 @@ fun ManuscriptCard(
                     }
                 }
 
-                // Manuscript Status Badge (Under Review, Polished, Draft)
                 Surface(
                     color = when (manuscript.manuscriptStatus.uppercase()) {
                         "UNDER_REVIEW" -> Color(0xFFFFEBEE)
@@ -630,7 +616,6 @@ fun ManuscriptCard(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Sync button
                 IconButton(
                     onClick = onSync,
                     modifier = Modifier.size(28.dp).testTag("btn_sync_card_${manuscript.id}")
@@ -660,7 +645,6 @@ fun ManuscriptCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Title and Subtitle in Serif
             Text(
                 text = manuscript.title,
                 style = MaterialTheme.typography.titleLarge,
@@ -683,7 +667,6 @@ fun ManuscriptCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Author and Publisher
             Text(
                 text = "By ${manuscript.effectiveAuthorByline} • ${manuscript.publisher}",
                 style = MaterialTheme.typography.bodySmall,
@@ -692,13 +675,11 @@ fun ManuscriptCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Footer with quick action buttons: Draft / Leaves / PDF
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Draft / Edit
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(6.dp),
@@ -727,7 +708,6 @@ fun ManuscriptCard(
                     }
                 }
 
-                // Two-page Leaf Reader
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(6.dp),
@@ -756,7 +736,6 @@ fun ManuscriptCard(
                     }
                 }
 
-                // PDF Export
                 Surface(
                     color = BookGoldDark.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(6.dp),

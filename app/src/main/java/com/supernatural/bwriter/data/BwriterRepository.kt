@@ -52,7 +52,6 @@ class BwriterRepository(private val database: BwriterDatabase) {
     fun getCommentsForManuscript(manuscriptId: Long): Flow<List<EditorialCommentEntity>> =
         commentDao.getCommentsForManuscript(manuscriptId)
 
-    // Character Profiling
     fun getCharactersForManuscript(manuscriptId: Long): Flow<List<com.supernatural.bwriter.model.CharacterEntity>> =
         characterDao.getCharactersForManuscript(manuscriptId)
 
@@ -68,7 +67,6 @@ class BwriterRepository(private val database: BwriterDatabase) {
     suspend fun deleteCharacterById(id: Long) =
         withContext(Dispatchers.IO) { characterDao.deleteCharacterById(id) }
 
-    // Settings & Worldbuilding
     fun getSettingsForManuscript(manuscriptId: Long): Flow<List<com.supernatural.bwriter.model.StorySettingEntity>> =
         settingDao.getSettingsForManuscript(manuscriptId)
 
@@ -280,10 +278,6 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
         commentDao.setResolved(commentId, resolved)
     }
 
-    /**
-     * Propose an edit / revision by an Editor or Contributor on a section they did not author.
-     * Marks the section as UNDER_REVIEW with red-highlight tracked changes and logs acknowledgment telemetry.
-     */
     suspend fun proposeRevision(
         section: SectionEntity,
         newContent: String,
@@ -313,13 +307,11 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
         )
         sectionDao.updateSection(updatedSection)
 
-        // Update manuscript acknowledgment telemetry and status
         val manuscript = manuscriptDao.getManuscriptByIdOnce(section.manuscriptId)
         if (manuscript != null) {
             val existingCredits = manuscript.acknowledgmentsList.toMutableList()
             val contributorPenName = if (editorUser.penName.isNotBlank()) editorUser.penName else editorUser.name
 
-            // Find existing credit for this contributor or add new
             val existingIndex = existingCredits.indexOfFirst {
                 it.email.equals(editorUser.email, ignoreCase = true) || it.penName.equals(contributorPenName, ignoreCase = true)
             }
@@ -355,9 +347,6 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
         }
     }
 
-    /**
-     * Author accepts the proposed revision: merges the edited content into the official text.
-     */
     suspend fun acceptRevision(section: SectionEntity) = withContext(Dispatchers.IO) {
         val mergedContent = if (section.pendingEditedContent.isNotBlank()) section.pendingEditedContent else section.content
         val wordCount = countWords(mergedContent)
@@ -372,7 +361,6 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
         )
         sectionDao.updateSection(updatedSection)
 
-        // Check if there are other pending revisions in the manuscript
         val allSections = sectionDao.getSectionsForManuscriptOnce(section.manuscriptId)
         val hasOtherPending = allSections.any { it.id != section.id && it.hasPendingRevision }
 
@@ -387,9 +375,6 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
         }
     }
 
-    /**
-     * Author rejects the proposed revision: discards pending edits and restores original content.
-     */
     suspend fun rejectRevision(section: SectionEntity) = withContext(Dispatchers.IO) {
         val restoredContent = if (section.originalAuthorContent.isNotBlank()) section.originalAuthorContent else section.content
         val wordCount = countWords(restoredContent)

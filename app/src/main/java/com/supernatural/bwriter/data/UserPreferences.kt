@@ -11,8 +11,6 @@ class UserPreferences(context: Context) {
 
     fun getUserProfile(): UserProfile {
         val id = prefs.getString(KEY_ID, "user_google_1") ?: "user_google_1"
-        // No address is built in. An install that has not signed in has
-        // no identity at all; standing appears only after sign-in.
         val email = prefs.getString(KEY_EMAIL, "") ?: ""
         val name = prefs.getString(KEY_NAME, "") ?: ""
         val penName = prefs.getString(KEY_PEN_NAME, "") ?: ""
@@ -110,8 +108,6 @@ class UserPreferences(context: Context) {
             e.printStackTrace()
         }
 
-        // Older builds planted two built-in accounts in this list. They
-        // were never real sign-ins; remove them wherever they were saved.
         val cleaned = list.filterNot {
             it.id == "user_editor_in_chief" || it.id == "user_author_demo"
         }
@@ -229,7 +225,6 @@ class UserPreferences(context: Context) {
         )
         saveUserSubscription(updated)
 
-        // Record transaction
         val tx = com.supernatural.bwriter.model.AiTokenTransaction(
             transactionId = "tx_" + System.currentTimeMillis() + "_" + (100..999).random(),
             userEmail = email,
@@ -263,7 +258,6 @@ class UserPreferences(context: Context) {
                 put("isSuccess", tx.isSuccess)
             }
             array.put(obj)
-            // Keep last 100 transactions
             val trimmedArray = org.json.JSONArray()
             val startIdx = Math.max(0, array.length() - 100)
             for (i in startIdx until array.length()) {

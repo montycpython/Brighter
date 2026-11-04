@@ -93,11 +93,10 @@ fun CharacterProfilerDialog(
                 .fillMaxSize()
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF121216), // Dark background for crystal clear high contrast
+            color = Color(0xFF121216),
             border = BorderStroke(1.dp, BookGoldDark.copy(alpha = 0.6f))
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -137,7 +136,6 @@ fun CharacterProfilerDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (editingCharacter != null || isCreatingNew) {
-                    // EDIT / CREATE FORM
                     val current = editingCharacter ?: CharacterEntity(
                         manuscriptId = manuscriptId,
                         name = ""
@@ -155,7 +153,6 @@ fun CharacterProfilerDialog(
                         }
                     )
                 } else {
-                    // LIST VIEW
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -368,7 +365,6 @@ fun CharacterEditForm(
         )
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Name
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
@@ -385,7 +381,6 @@ fun CharacterEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Role Selector Chips
         Text("Dramatic Role:", fontSize = 11.sp, color = Color(0xFFB0A89C))
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -424,7 +419,6 @@ fun CharacterEditForm(
             }
         }
 
-        // Physical Description
         OutlinedTextField(
             value = physicalDescription,
             onValueChange = { physicalDescription = it },
@@ -441,7 +435,6 @@ fun CharacterEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Psychological Description
         OutlinedTextField(
             value = psychologicalDescription,
             onValueChange = { psychologicalDescription = it },
@@ -458,7 +451,6 @@ fun CharacterEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Backstory
         OutlinedTextField(
             value = backstory,
             onValueChange = { backstory = it },
@@ -475,7 +467,6 @@ fun CharacterEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Voice & Mannerisms
         OutlinedTextField(
             value = voiceAndMannerisms,
             onValueChange = { voiceAndMannerisms = it },
@@ -492,7 +483,6 @@ fun CharacterEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Intertextual Archetype
         OutlinedTextField(
             value = intertextualArchetype,
             onValueChange = { intertextualArchetype = it },
@@ -510,7 +500,6 @@ fun CharacterEditForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Other Details
         OutlinedTextField(
             value = otherDetails,
             onValueChange = { otherDetails = it },

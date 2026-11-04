@@ -151,7 +151,6 @@ fun CmosRulebookScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = InkNavy),
@@ -183,7 +182,6 @@ fun CmosRulebookScreen(
                 }
             }
 
-            // Interactive Playground
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

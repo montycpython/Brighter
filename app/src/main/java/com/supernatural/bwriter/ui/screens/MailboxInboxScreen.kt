@@ -282,7 +282,6 @@ fun MailboxInboxScreen(
         }
     }
 
-    // Message Detail Dialog
     selectedMessage?.let { msg ->
         Dialog(onDismissRequest = { selectedMessage = null }) {
             Surface(

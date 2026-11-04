@@ -1,9 +1,6 @@
 package com.supernatural.bwriter.model
 
-/**
- * Standard Book Trim Sizes per Chicago Manual of Style / US & International Trade Standards.
- * Point dimensions at 72 points per inch (1 in = 72 pt).
- */
+// Point dimensions at 72 points per inch (1 in = 72 pt).
 enum class BookTrimSize(
     val id: String,
     val displayName: String,

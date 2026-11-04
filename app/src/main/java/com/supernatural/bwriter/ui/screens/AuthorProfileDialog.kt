@@ -89,7 +89,6 @@ fun AuthorProfileDialog(
     var legalName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
     var email by remember { mutableStateOf(currentUser.email) }
-    // Standing is derived from the address, never picked.
     val selectedRole = if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
     var organization by remember { mutableStateOf(currentUser.organization) }
     var cmosEdition by remember { mutableStateOf(currentUser.preferredCmosEdition) }
@@ -121,7 +120,6 @@ fun AuthorProfileDialog(
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Header Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -163,7 +161,6 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Live Byline Preview Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -235,7 +232,6 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Pen Name Input (Highlighted)
                 OutlinedTextField(
                     value = penName,
                     onValueChange = { penName = it },
@@ -259,7 +255,6 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Author / Legal Name Input
                 OutlinedTextField(
                     value = legalName,
                     onValueChange = { legalName = it },
@@ -285,7 +280,6 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Publishing House / Organization
                 OutlinedTextField(
                     value = organization,
                     onValueChange = { organization = it },
@@ -306,7 +300,6 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // CMOS Edition Preference
                 ExposedDropdownMenuBox(
                     expanded = cmosDropdownExpanded,
                     onExpandedChange = { cmosDropdownExpanded = !cmosDropdownExpanded }
@@ -339,7 +332,6 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Role Selection
                 Text(
                     text = "Workspace Role & Permissions",
                     style = MaterialTheme.typography.titleSmall,
@@ -364,7 +356,6 @@ fun AuthorProfileDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Action Buttons
                 Button(
                     onClick = {
                         onSaveProfile(legalName, penName, email, selectedRole, organization, cmosEdition)
@@ -384,7 +375,6 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Explicit Google Sign Out / Switch Account Button
                 OutlinedButton(
                     onClick = {
                         onDismiss()
@@ -416,7 +406,6 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Secondary Navigation options
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween

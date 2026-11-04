@@ -33,9 +33,6 @@ data class ManuscriptEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
-    /**
-     * Returns the Pen Name if provided, otherwise the Author Name, or fallback to 'Author'.
-     */
     val effectiveAuthorByline: String
         get() {
             return when {
@@ -45,15 +42,9 @@ data class ManuscriptEntity(
             }
         }
 
-    /**
-     * Returns the list of parsed contributor and editor credits.
-     */
     val acknowledgmentsList: List<ContributorCredit>
         get() = ContributorCredit.parseListFromJson(acknowledgmentsJson)
 
-    /**
-     * Dynamically generates the Chicago Manual of Style Copyright notice attributed to the Author or Pen Name.
-     */
     val effectiveCopyrightText: String
         get() {
             if (copyrightText.isNotBlank()) {

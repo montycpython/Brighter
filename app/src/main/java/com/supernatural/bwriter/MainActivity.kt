@@ -81,7 +81,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val context = LocalContext.current
     val navController = rememberNavController()
 
-    // Google Drive consent: the data layer asks, this screen shows the prompt.
     val driveConsentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -107,7 +106,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val exportResult by viewModel.exportResult.collectAsState()
     val isExporting by viewModel.isExporting.collectAsState()
 
-    // Google Drive & Serverless Governance State
     val driveSyncStatus by viewModel.driveSyncStatus.collectAsState()
     val globalBookIndex by viewModel.globalBookIndex.collectAsState()
     val pendingBooks by viewModel.pendingBooks.collectAsState()
@@ -127,7 +125,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     var showNewWorkDialog by remember { mutableStateOf(false) }
     var manuscriptToSync by remember { mutableStateOf<ManuscriptEntity?>(null) }
 
-    // Mandatory First-Launch / First Sign-in User Agreement Gate
     if (!hasAcceptedTerms) {
         UserAgreementScreen(
             isMandatoryOnboarding = true,
@@ -139,7 +136,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         return
     }
 
-    // Google Sign-In & Account Chooser Gate (Entry Door)
     if (!isLoggedIn) {
         AuthScreen(
             currentUser = currentUser,
@@ -156,7 +152,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         return
     }
 
-    // Hard-lock Kill-Switch: a suspended account stops here.
     if (activeSuspension != null) {
         KillSwitchSuspensionScreen(
             userProfile = currentUser,
@@ -185,7 +180,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         navController = navController,
         startDestination = "manuscripts"
     ) {
-        // Auth / Google Identity & Role Screen (Account Switcher)
         composable("auth") {
             AuthScreen(
                 currentUser = currentUser,
@@ -203,7 +197,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             )
         }
 
-        // Manuscript Library Dashboard
         composable("manuscripts") {
             ManuscriptListScreen(
                 manuscripts = manuscripts,
@@ -276,7 +269,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             )
         }
 
-        // Manuscript Detail (Divisions, Structure, Leaf Flow)
         composable(
             route = "manuscript_detail/{manuscriptId}",
             arguments = listOf(navArgument("manuscriptId") { type = NavType.LongType })
@@ -320,7 +312,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             }
         }
 
-        // Section Drafting Studio
         composable(
             route = "section_editor/{sectionId}",
             arguments = listOf(navArgument("sectionId") { type = NavType.LongType })
@@ -396,7 +387,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             }
         }
 
-        // Two-Page Spread Leaf Reader
         composable(
             route = "leaf_reader/{manuscriptId}",
             arguments = listOf(navArgument("manuscriptId") { type = NavType.LongType })
@@ -418,7 +408,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             }
         }
 
-        // CMOS PDF Exporter
         composable(
             route = "pdf_export/{manuscriptId}",
             arguments = listOf(navArgument("manuscriptId") { type = NavType.LongType })
@@ -437,20 +426,18 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     isExporting = isExporting,
                     onBack = { navController.popBackStack() },
                     onExportPdf = {
-                        viewModel.exportActiveManuscriptToPdf(context) { /* Completed */ }
+                        viewModel.exportActiveManuscriptToPdf(context) { }
                     }
                 )
             }
         }
 
-        // CMOS Rulebook
         composable("cmos_rulebook") {
             CmosRulebookScreen(
                 onBack = { navController.popBackStack() }
             )
         }
 
-        // User Agreement / EULA / Terms of Service (Viewable anytime)
         composable("user_agreement") {
             UserAgreementScreen(
                 isMandatoryOnboarding = false,
@@ -464,14 +451,12 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             )
         }
 
-        // App Version page
         composable("version") {
             VersionScreen(
                 onBack = { navController.popBackStack() }
             )
         }
 
-        // Community Public/Private Book Directory
         composable("community_directory") {
             CommunityDirectoryScreen(
                 books = globalBookIndex,
@@ -501,7 +486,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             )
         }
 
-        // Serverless Mailbox Inbox
         composable("mailbox_inbox") {
             MailboxInboxScreen(
                 currentUser = currentUser,
@@ -512,7 +496,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             )
         }
 
-        // Master Admin God-Mode Control Panel (Editor in Chief)
         composable("admin_god_mode") {
             AdminGodModeDashboardScreen(
                 currentUser = currentUser,
@@ -567,7 +550,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         }
     }
 
-    // AI Studio Subscription & Token Ledger Dialog
     if (showPaywall) {
         SubscriptionPaywallDialog(
             subscription = userSubscription,
@@ -579,7 +561,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         )
     }
 
-    // Google Drive Sync Modal Dialog
     if (manuscriptToSync != null) {
         SyncToGoogleDriveDialog(
             manuscript = manuscriptToSync!!,
@@ -602,7 +583,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         )
     }
 
-    // New Work Scaffolding Dialog
     if (showNewWorkDialog) {
         NewWorkDialog(
             initialAuthorName = currentUser.name,
