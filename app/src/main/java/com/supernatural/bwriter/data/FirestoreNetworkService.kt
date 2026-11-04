@@ -325,9 +325,18 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun fetchGlobalBookIndex(currentUser: UserProfile): Result<List<GlobalBookIndexEntry>> = withContext(Dispatchers.IO) {
         try {
-            val snap = db.collection(COL_REGISTRY).get().await()
-            val allEntries = snap.documents.mapNotNull { docToRegistry(it.data) }
             val isEditorInChief = StudioStanding.isEditorInChief
+            val allEntries = if (isEditorInChief) {
+                db.collection(COL_REGISTRY).get().await()
+                    .documents.mapNotNull { docToRegistry(it.data) }
+            } else {
+                val publicDocs = db.collection(COL_REGISTRY)
+                    .whereEqualTo("isPublicInCommunity", true).get().await().documents
+                val ownDocs = db.collection(COL_REGISTRY)
+                    .whereEqualTo("authorEmail", currentUser.email).get().await().documents
+                (publicDocs + ownDocs).mapNotNull { docToRegistry(it.data) }
+                    .distinctBy { it.fileId }
+            }
 
             val synchronizedEntries = allEntries.map { entry ->
                 if (entry.authorEmail.equals(currentUser.email, ignoreCase = true) && !isEditorInChief) {
