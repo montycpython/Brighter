@@ -1228,10 +1228,7 @@ fun SectionEditorScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             val presets = listOf(
-                                "👑 Myself (${currentUser.displayName})" to (currentUser.displayName to currentUser.email),
-                                "Eleanor Vance" to ("Eleanor Vance" to "eleanor.types@bwriter.press"),
-                                "Silas Thorne" to ("Silas Thorne" to "silas.thorne@artisan.press"),
-                                "Arthur Vance (Editor)" to ("Arthur Vance" to "arthur.editor@bwriter.press")
+                                "👑 Myself (${currentUser.displayName})" to (currentUser.displayName to currentUser.email)
                             )
 
                             presets.forEach { (label, data) ->
@@ -1453,19 +1450,21 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
 
                             Button(
                                 onClick = {
-                                    val targetEmail = contributorEmailInput.ifBlank { "eleanor.types@bwriter.press" }.trim()
-                                    val mail = ServerlessMailMessage(
-                                        recipientEmail = targetEmail,
-                                        senderEmail = currentUser.email,
-                                        senderName = currentUser.displayName,
-                                        subject = inviteSubject,
-                                        body = inviteBody,
-                                        manuscriptId = section.manuscriptId,
-                                        manuscriptTitle = manuscript?.title ?: section.title,
-                                        messageType = "EDITORIAL_REVISION"
-                                    )
-                                    onSendServerlessMail(mail)
-                                    Toast.makeText(context, "In-App Directive dispatched to $targetEmail", Toast.LENGTH_SHORT).show()
+                                    val targetEmail = contributorEmailInput.trim()
+                                    if (targetEmail.isNotBlank()) {
+                                        val mail = ServerlessMailMessage(
+                                            recipientEmail = targetEmail,
+                                            senderEmail = currentUser.email,
+                                            senderName = currentUser.displayName,
+                                            subject = inviteSubject,
+                                            body = inviteBody,
+                                            manuscriptId = section.manuscriptId,
+                                            manuscriptTitle = manuscript?.title ?: section.title,
+                                            messageType = "EDITORIAL_REVISION"
+                                        )
+                                        onSendServerlessMail(mail)
+                                        Toast.makeText(context, "In-App Directive dispatched to $targetEmail", Toast.LENGTH_SHORT).show()
+                                    }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5)),
                                 modifier = Modifier.weight(1f).testTag("btn_dispatch_directive")
