@@ -62,6 +62,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.supernatural.bwriter.data.bisnFor
 import com.supernatural.bwriter.model.BookTrimSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -112,6 +113,7 @@ fun ManuscriptDetailScreen(
     var selectedTab by remember { mutableIntStateOf(1) } // 0: Front Matter, 1: Text Body, 2: Back Matter, 3: Full Leaf Flow, 4: Versions
     var showAddSectionDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var sectionPendingDeletion by remember { mutableStateOf<Long?>(null) }
 
     val frontSections = sections.filter { it.matterType == MatterType.FRONT_MATTER }
     val bodySections = sections.filter { it.matterType == MatterType.TEXT_BODY }
@@ -296,18 +298,18 @@ fun ManuscriptDetailScreen(
                     manuscript = manuscript,
                     sections = frontSections,
                     onOpenSection = onOpenSection,
-                    onDeleteSection = onDeleteSection
+                    onDeleteSection = { sectionPendingDeletion = it }
                 )
                 1 -> BodyMatterTab(
                     sections = bodySections,
                     onOpenSection = onOpenSection,
-                    onDeleteSection = onDeleteSection
+                    onDeleteSection = { sectionPendingDeletion = it }
                 )
                 2 -> BackMatterTab(
                     manuscript = manuscript,
                     sections = backSections,
                     onOpenSection = onOpenSection,
-                    onDeleteSection = onDeleteSection
+                    onDeleteSection = { sectionPendingDeletion = it }
                 )
                 3 -> LeafFlowTab(
                     leaves = calculatedLeaves,
@@ -348,6 +350,26 @@ fun ManuscriptDetailScreen(
             onSave = { updated ->
                 onUpdateManuscript(updated)
                 showSettingsDialog = false
+            }
+        )
+    }
+
+    if (sectionPendingDeletion != null) {
+        AlertDialog(
+            onDismissRequest = { sectionPendingDeletion = null },
+            title = { Text("Delete section?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    sectionPendingDeletion?.let { onDeleteSection(it) }
+                    sectionPendingDeletion = null
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sectionPendingDeletion = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -1179,6 +1201,19 @@ fun ManuscriptSettingsDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                if (manuscript.birthId.isNotBlank()) {
+                    item {
+                        OutlinedTextField(
+                            value = bisnFor(manuscript.birthId),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("BISN") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
 
                 // Book Trim Size Selector
