@@ -595,7 +595,7 @@ fun ProseParagraphsView(text: String) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (para in paragraphs) {
             if (para.isNotBlank()) {
-                val indent = "
+                val indent = "    "
                 val formatted = com.supernatural.bwriter.cmos.CmosFormatter.toAnnotatedString("$indent$para")
                 Text(
                     text = formatted,
