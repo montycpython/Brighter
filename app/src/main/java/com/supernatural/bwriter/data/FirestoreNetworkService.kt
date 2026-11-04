@@ -592,12 +592,16 @@ class FirestoreNetworkService(private val context: Context) {
             val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
                 .whereEqualTo("fileId", entry.fileId).get().await()
                 .documents.mapNotNull { docToIssuance(it.data) }
-            if (existingForBook.any { it.kind == "AUTHOR" && it.authorEmail == normEmail(entry.authorEmail) }) return
+            val existingAuthorIssuance = existingForBook.firstOrNull {
+                it.kind == "AUTHOR" && it.authorEmail == normEmail(entry.authorEmail)
+            }
 
-            val prior = fetchIssuancesFor(entry.authorEmail).count { it.kind == "AUTHOR" }
-            val amount = CreditSchedule.amountForApproval(prior)
+            val amount = existingAuthorIssuance?.amount
+                ?: CreditSchedule.amountForApproval(
+                    fetchIssuancesFor(entry.authorEmail).count { it.kind == "AUTHOR" }
+                )
 
-            if (entry.authorAddress.isNotBlank()) {
+            if (existingAuthorIssuance == null && entry.authorAddress.isNotBlank()) {
                 writeIssuance(entry.authorEmail, entry.authorAddress, amount, "AUTHOR", entry)
             }
             fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
