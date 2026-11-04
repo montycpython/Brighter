@@ -630,10 +630,17 @@ class FirestoreNetworkService(private val context: Context) {
     /** Record a mined claim: the proof-of-work that makes an issuance spendable. */
     suspend fun recordClaim(email: String, issuance: CreditIssuance, nonce: Long) = withContext(Dispatchers.IO) {
         try {
+            val issuances = fetchIssuancesFor(email)
+            val index = issuances.indexOfFirst { it.issuanceHash == issuance.issuanceHash }
+            if (index < 0) return@withContext
+            val difficulty = CreditSchedule.difficultyBits(index)
+            if (!CreditChain.verifyClaim(issuance.issuanceHash, nonce, difficulty)) return@withContext
             db.collection(COL_CREDIT_CLAIMS).document(issuance.issuanceHash + "_" + nonce).set(
                 mapOf(
                     "authorEmail" to normEmail(email),
                     "issuanceHash" to issuance.issuanceHash,
+                    "amount" to issuance.amount,
+                    "fileId" to issuance.fileId,
                     "nonce" to nonce,
                     "claimedAtMillis" to System.currentTimeMillis()
                 )
