@@ -3,4 +3,6 @@
     <include domain="database" path="." />
     <include domain="sharedpref" path="." />
     <include domain="file" path="." />
+    <exclude domain="sharedpref" path="bwriter_user_prefs.xml" />
+    <exclude domain="sharedpref" path="author_keys.xml" />
 </full-backup-content>
