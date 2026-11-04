@@ -219,7 +219,7 @@ fun UserAgreementScreen(
                     content = """
                     • Code of Conduct: Users participating in the community book registry and editorial mailbox must maintain civil, professional literary discourse.
                     • Administrative Suspensions: The Editor-in-Chief reserves the right to suspend community access for accounts engaging in abusive conduct, spamming, or intellectual property infringement.
-                    • Account Restoration: Suspended users retain access to local drafts and may appeal governance actions directly to the Editor-in-Chief.
+                    • Account Restoration: While an account is suspended, access to the app is paused; drafts remain stored on the device and in the writer's own Google Drive, and governance actions may be appealed directly to the Editor-in-Chief.
                     """.trimIndent()
                 )
 
@@ -242,7 +242,7 @@ fun UserAgreementScreen(
                     icon = Icons.Default.CloudDone,
                     title = "6. In-App Credit",
                     content = """
-                    Bwriter includes an in-app credit system. Credit is earned when a book is approved for the registry, and for appointed editors when an edition they worked on is published. Amounts follow a schedule that decreases as an author accumulates approved books. Claiming earned credit requires a proof-of-work computation performed by your own device.
+                    Bwriter includes an in-app credit system. Credit is earned when a book is approved for the registry, and editors of record on a book are issued the same amount as its author at the moment the book is approved. Amounts follow a schedule that decreases as an author accumulates approved books. Claiming earned credit requires a proof-of-work computation performed by your own device.
 
                     Credit is recorded using cryptographic signatures and hash-linked records, technology adapted from a separate ledger system. Credit is not Soul Bank, Soul Entrepreneur, or any other product. It is not a cryptocurrency, not money, and holds no cash value; it cannot be transferred, sold, or redeemed outside this app. A future version may develop this system into a real cryptocurrency; this version makes no such promise.
 

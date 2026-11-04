@@ -160,7 +160,7 @@ class UserPreferences(context: Context) {
 
     fun hasAcceptedTerms(): Boolean {
         val acceptedVer = prefs.getString(KEY_TERMS_ACCEPTED_VERSION, null)
-        return !acceptedVer.isNullOrBlank()
+        return acceptedVer == com.supernatural.bwriter.ui.screens.CURRENT_TERMS_VERSION
     }
 
     fun getAcceptedTermsVersion(): String? {
