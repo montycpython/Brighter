@@ -235,6 +235,21 @@ fun UserAgreementScreen(
                     """.trimIndent()
                 )
 
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Section 6: In-App Credit
+                AgreementSectionCard(
+                    icon = Icons.Default.CloudDone,
+                    title = "6. In-App Credit",
+                    content = """
+                    Bwriter includes an in-app credit system. Credit is earned when a book is approved for the registry, and for appointed editors when an edition they worked on is published. Amounts follow a schedule that decreases as an author accumulates approved books. Claiming earned credit requires a proof-of-work computation performed by your own device.
+
+                    Credit is recorded using cryptographic signatures and hash-linked records, technology adapted from a separate ledger system. Credit is not Soul Bank, Soul Entrepreneur, or any other product. It is not a cryptocurrency, not money, and holds no cash value; it cannot be transferred, sold, or redeemed outside this app. A future version may develop this system into a real cryptocurrency; this version makes no such promise.
+
+                    Each person may hold exactly one account. Your author key is created and kept on your device. An optional backup, sealed with a passphrase known only to you, may be stored in your own Google Drive; the passphrase is never collected or stored by the app. If you lose both your device and your passphrase, access to your credit identity cannot be restored.
+                    """.trimIndent()
+                )
+
                 Spacer(modifier = Modifier.height(16.dp))
             }
 

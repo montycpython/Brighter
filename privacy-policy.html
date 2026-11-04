@@ -37,6 +37,13 @@
   <li><strong>In the community registry</strong>, when you sync a book as Public: the book's full text is stored with its registry entry and can be read by any signed-in Bwriter user. Books synced as Private are not shown in the community catalog, and their text can be read only by you and the Editor-in-Chief.</li>
 </ul>
 
+<h2>In-App Credit & Author Keys</h2>
+<ul>
+  <li>The app generates a cryptographic keypair on your device; the private key leaves the device only inside the passphrase-sealed backup you choose to store in your own Google Drive.</li>
+  <li>The back room stores issuance and claim records — your author address (an identifier derived from your public key), credit amounts, the book's registry id, and timestamps. These records are digitally signed and cannot be altered after the fact.</li>
+  <li>Your passphrase is never collected, transmitted, or stored.</li>
+</ul>
+
 <h2>How information is used</h2>
 <ul>
   <li>To save, sync, and restore your books.</li>
