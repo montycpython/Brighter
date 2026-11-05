@@ -673,7 +673,7 @@ fun MasterBookIndexTab(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        registryAuthors.forEach { (authorName, authorEmail) ->
+        registryAuthors.filterNot { it.second.equals(currentUser.email, ignoreCase = true) }.forEach { (authorName, authorEmail) ->
             val authorSelected = selectedEditorEmail == authorEmail
             Card(
                 modifier = Modifier
@@ -1064,7 +1064,7 @@ fun AuthorRosterTab(
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Restore Account", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
-                            } else {
+                            } else if (!isCurrentUser) {
                                 Button(
                                     onClick = { onOpenSuspendModal(email) },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF381414)),

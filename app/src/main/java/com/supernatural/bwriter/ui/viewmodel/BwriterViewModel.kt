@@ -1025,6 +1025,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun suspendUserAccount(targetEmail: String, reason: String) {
+        if (targetEmail.equals(_currentUser.value.email, ignoreCase = true)) return
         viewModelScope.launch {
             networkService.suspendUser(
                 adminEmail = _currentUser.value.email,
