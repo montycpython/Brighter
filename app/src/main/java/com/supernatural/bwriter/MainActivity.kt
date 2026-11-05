@@ -122,6 +122,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val pendingEditorAssignments by viewModel.pendingEditorAssignments.collectAsState()
     val registryAuthors by viewModel.registryAuthors.collectAsState()
     val siteUsers by viewModel.siteUsers.collectAsState()
+    val regentEmail by viewModel.regentEmail.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -555,6 +556,15 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onAppointEditor = { fileId, bookAuthorEmail, editorEmail, editorAddress ->
                     viewModel.appointEditor(fileId, bookAuthorEmail, editorEmail, editorAddress)
                     Toast.makeText(context, "Editor appointed: $editorEmail", Toast.LENGTH_SHORT).show()
+                },
+                regentEmail = regentEmail,
+                onSetRegent = { email ->
+                    viewModel.setRegent(email)
+                    Toast.makeText(context, "Regent appointed: $email", Toast.LENGTH_SHORT).show()
+                },
+                onClearRegent = {
+                    viewModel.clearRegent()
+                    Toast.makeText(context, "Regent cleared", Toast.LENGTH_SHORT).show()
                 },
                 onSendServerlessMail = { mail ->
                     viewModel.sendServerlessMailDirective(mail)

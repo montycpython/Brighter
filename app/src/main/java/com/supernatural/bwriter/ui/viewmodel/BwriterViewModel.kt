@@ -685,6 +685,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _siteUsers = MutableStateFlow<List<SiteUser>>(emptyList())
     val siteUsers: StateFlow<List<SiteUser>> = _siteUsers.asStateFlow()
 
+    private val _regentEmail = MutableStateFlow("")
+    val regentEmail: StateFlow<String> = _regentEmail.asStateFlow()
+
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
@@ -812,6 +815,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
                 _pendingEditorAssignments.value = networkService.fetchPendingEditorAssignments()
                 _siteUsers.value = networkService.fetchSiteUsers()
+                _regentEmail.value = networkService.fetchRegentEmail()
                 val indexAuthors = _globalBookIndex.value
                     .map { it.authorName to it.authorEmail.trim().lowercase() }
                     .filter { it.second.isNotBlank() }
@@ -1072,6 +1076,20 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
+            refreshNetwork()
+        }
+    }
+
+    fun setRegent(email: String) {
+        viewModelScope.launch {
+            networkService.setRegent(email)
+            refreshNetwork()
+        }
+    }
+
+    fun clearRegent() {
+        viewModelScope.launch {
+            networkService.setRegent("")
             refreshNetwork()
         }
     }

@@ -120,6 +120,9 @@ fun AdminGodModeDashboardScreen(
     siteUsers: List<SiteUser> = emptyList(),
     onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
     onAppointEditor: (fileId: String, bookAuthorEmail: String, editorEmail: String, editorAddress: String) -> Unit = { _, _, _, _ -> },
+    regentEmail: String = "",
+    onSetRegent: (String) -> Unit = {},
+    onClearRegent: () -> Unit = {},
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -261,7 +264,10 @@ fun AdminGodModeDashboardScreen(
                     registryAuthors = registryAuthors,
                     siteUsers = siteUsers,
                     onDecideEditorAssignment = onDecideEditorAssignment,
-                    onAppointEditor = onAppointEditor
+                    onAppointEditor = onAppointEditor,
+                    regentEmail = regentEmail,
+                    onSetRegent = onSetRegent,
+                    onClearRegent = onClearRegent
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -502,7 +508,10 @@ fun MasterBookIndexTab(
     registryAuthors: List<Pair<String, String>> = emptyList(),
     siteUsers: List<SiteUser> = emptyList(),
     onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
-    onAppointEditor: (String, String, String, String) -> Unit = { _, _, _, _ -> }
+    onAppointEditor: (String, String, String, String) -> Unit = { _, _, _, _ -> },
+    regentEmail: String = "",
+    onSetRegent: (String) -> Unit = {},
+    onClearRegent: () -> Unit = {}
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
@@ -734,6 +743,53 @@ fun MasterBookIndexTab(
             modifier = Modifier.testTag("btn_appoint_editor")
         ) {
             Text("Appoint", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Regent Editor in Chief",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = if (regentEmail.isBlank()) "No regent appointed." else "Regent: $regentEmail",
+            fontSize = 12.sp,
+            color = Color(0xFFC8C2B7)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        var regentInput by remember { mutableStateOf("") }
+        OutlinedTextField(
+            value = regentInput,
+            onValueChange = { regentInput = it },
+            label = { Text("Regent email") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { if (regentInput.isNotBlank()) onSetRegent(regentInput) },
+                enabled = regentInput.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Appoint Regent", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+            }
+            if (regentEmail.isNotBlank()) {
+                OutlinedButton(
+                    onClick = onClearRegent,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Clear Regent", fontSize = 12.5.sp)
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(14.dp))

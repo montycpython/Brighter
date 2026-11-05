@@ -798,6 +798,28 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    suspend fun fetchRegentEmail(): String = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_STUDIO_CONFIG).document("regency").get().await()
+            snap.getString("regentEmail") ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    suspend fun setRegent(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val data = mapOf(
+                "regentEmail" to email.trim().lowercase(),
+                "updatedAtMillis" to System.currentTimeMillis()
+            )
+            db.collection(COL_STUDIO_CONFIG).document("regency").set(data).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun fetchMailboxMessages(userEmail: String): Result<List<ServerlessMailMessage>> = withContext(Dispatchers.IO) {
         try {
             val mine = fetchMailboxFor(userEmail)
