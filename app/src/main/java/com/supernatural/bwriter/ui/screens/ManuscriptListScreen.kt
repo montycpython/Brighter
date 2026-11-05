@@ -113,6 +113,7 @@ fun ManuscriptListScreen(
     onOpenAdminDashboard: () -> Unit = {},
     onSyncManuscript: (ManuscriptEntity) -> Unit = {},
     onOpenUserAgreement: () -> Unit = {},
+    onOpenOrigin: () -> Unit = {},
     onOpenVersion: () -> Unit = {},
     onOpenSubscription: () -> Unit = {},
     onSignOut: () -> Unit = {},
@@ -126,23 +127,26 @@ fun ManuscriptListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    Surface(
+                        shape = CircleShape,
+                        border = BorderStroke(1.5.dp, BookGoldDark),
+                        color = Color(0xFF1E1A17),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable { onOpenOrigin() }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            androidx.compose.foundation.Image(
+                                painter = androidx.compose.ui.res.painterResource(id = com.supernatural.bwriter.R.drawable.img_bwriter_emblem_1786987156557),
+                                contentDescription = "The Origin of Writing",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = CircleShape,
-                            border = BorderStroke(1.5.dp, BookGoldDark),
-                            color = Color(0xFF1E1A17),
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                androidx.compose.foundation.Image(
-                                    painter = androidx.compose.ui.res.painterResource(id = com.supernatural.bwriter.R.drawable.img_bwriter_emblem_1786987156557),
-                                    contentDescription = "Bwriter Logo",
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "Bwriter",

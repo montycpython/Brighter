@@ -44,6 +44,7 @@ import com.supernatural.bwriter.ui.screens.MailboxInboxScreen
 import com.supernatural.bwriter.ui.screens.ManuscriptDetailScreen
 import com.supernatural.bwriter.ui.screens.ManuscriptListScreen
 import com.supernatural.bwriter.ui.screens.NewWorkDialog
+import com.supernatural.bwriter.ui.screens.OriginOfWritingScreen
 import com.supernatural.bwriter.ui.screens.PdfExportScreen
 import com.supernatural.bwriter.ui.screens.SectionEditorScreen
 import com.supernatural.bwriter.ui.screens.SubscriptionPaywallDialog
@@ -227,6 +228,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 },
                 onOpenRulebook = {
                     navController.navigate("cmos_rulebook")
+                },
+                onOpenOrigin = {
+                    navController.navigate("origin_of_writing")
                 },
                 onOpenAuthScreen = {
                     navController.navigate("auth")
@@ -444,6 +448,12 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
 
         composable("cmos_rulebook") {
             CmosRulebookScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("origin_of_writing") {
+            OriginOfWritingScreen(
                 onBack = { navController.popBackStack() }
             )
         }
