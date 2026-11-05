@@ -61,7 +61,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        MobileAds.initialize(this) {}
+        try {
+            com.google.firebase.FirebaseApp.initializeApp(this)
+        } catch (t: Throwable) {
+        }
+        try {
+            MobileAds.initialize(this) {}
+        } catch (t: Throwable) {
+        }
         enableEdgeToEdge()
         setContent {
             BwriterTheme {

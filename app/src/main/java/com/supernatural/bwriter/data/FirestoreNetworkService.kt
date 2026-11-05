@@ -44,7 +44,7 @@ data class SiteUser(
 
 class FirestoreNetworkService(private val context: Context) {
 
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
     companion object {
         const val DEFAULT_STUDIO_AUTHOR_EMAIL = "author.studio@bwriter.io"

@@ -771,6 +771,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun refreshNetwork() {
         viewModelScope.launch {
+            try {
             com.supernatural.bwriter.data.StudioStanding.isEditorInChief = networkService.verifyEditorInChief()
             val provenStanding = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
             val userNow = _currentUser.value
@@ -818,6 +819,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     .filter { it.email.isNotBlank() && it.displayName.isNotBlank() }
                     .map { it.displayName to it.email }
                 _registryAuthors.value = (directoryAuthors + indexAuthors).distinctBy { it.second }
+            }
+            } catch (t: Throwable) {
             }
 
                     }
