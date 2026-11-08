@@ -177,6 +177,30 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _isRoot.value = false
         userPreferences.signOut()
         _isLoggedIn.value = false
+        val blankUser = UserProfile(
+            id = "",
+            name = "",
+            penName = "",
+            email = "",
+            role = WorkRole.AUTHOR,
+            organization = ""
+        )
+        _currentUser.value = blankUser
+        _userAiSubscription.value = userPreferences.getUserSubscription("")
+        _tokenTransactions.value = emptyList()
+        _creditBalance.value = 0
+        _unclaimedCredit.value = 0
+        _mailboxMessages.value = emptyList()
+        _globalBookIndex.value = emptyList()
+        _suspendedUsers.value = emptyList()
+        _pendingBooks.value = emptyList()
+        _pendingEditorAssignments.value = emptyList()
+        _siteUsers.value = emptyList()
+        _registryAuthors.value = emptyList()
+        _regentEmail.value = ""
+        _selectedManuscriptId.value = null
+        lastRefreshEmail = ""
+        _driveSyncStatus.value = DriveSyncStatus()
     }
 
     fun removeSavedGoogleAccount(email: String) {
