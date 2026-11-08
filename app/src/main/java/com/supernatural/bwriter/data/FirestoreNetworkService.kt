@@ -713,7 +713,8 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun createEditorAssignment(assignment: EditorAssignment) = withContext(Dispatchers.IO) {
         try {
             val id = CreditChain.sha256Hex(assignment.fileId + "|" + normEmail(assignment.editorEmail))
-            val stored = assignment.copy(id = id, editorEmail = normEmail(assignment.editorEmail))
+            val storedStatus = if (StudioStanding.isEditorInChief) assignment.status else "PENDING"
+            val stored = assignment.copy(id = id, editorEmail = normEmail(assignment.editorEmail), status = storedStatus)
             db.collection(COL_EDITOR_ASSIGNMENTS).document(id).set(assignmentToMap(stored)).await()
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Create editor assignment failed", e)
@@ -721,6 +722,7 @@ class FirestoreNetworkService(private val context: Context) {
     }
 
     suspend fun setEditorAssignmentStatus(id: String, status: String) = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext
         try {
             db.collection(COL_EDITOR_ASSIGNMENTS).document(id).update("status", status).await()
         } catch (e: Exception) {
