@@ -823,12 +823,30 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    private var refreshJob: kotlinx.coroutines.Job? = null
+    private var lastRefreshEmail = ""
+
     fun refreshNetwork() {
-        launchGuarded {
+        refreshJob?.cancel()
+        refreshJob = launchGuarded {
             try {
             com.supernatural.bwriter.data.StudioStanding.isEditorInChief = networkService.verifyEditorInChief()
             val provenStanding = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
             val userNow = _currentUser.value
+            if (!userNow.email.equals(lastRefreshEmail, ignoreCase = true)) {
+                lastRefreshEmail = userNow.email
+                _mailboxMessages.value = emptyList()
+                _globalBookIndex.value = emptyList()
+            }
+            if (!provenStanding) {
+                _suspendedUsers.value = emptyList()
+                _pendingBooks.value = emptyList()
+                _pendingEditorAssignments.value = emptyList()
+                _siteUsers.value = emptyList()
+                _registryAuthors.value = emptyList()
+                _regentEmail.value = ""
+                _isRoot.value = false
+            }
             if (provenStanding && userNow.role != WorkRole.EDITOR) {
                 val corrected = userNow.copy(role = WorkRole.EDITOR, organization = "Bwriter Editorial Board")
                 _currentUser.value = corrected
