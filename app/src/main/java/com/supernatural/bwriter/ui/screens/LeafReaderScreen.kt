@@ -85,7 +85,7 @@ fun LeafReaderScreen(
 ) {
     var currentSpreadIndex by remember { mutableIntStateOf(0) }
     val totalLeaves = leaves.size
-    val totalSpreads = maxOf(1, (totalLeaves + 1) / 2)
+    val totalSpreads = maxOf(1, (totalLeaves + 2) / 2)
 
     val rectoIndex = currentSpreadIndex * 2
     val versoIndex = rectoIndex - 1
