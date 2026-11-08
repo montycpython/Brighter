@@ -639,24 +639,32 @@ class FirestoreNetworkService(private val context: Context) {
         kind: String,
         entry: GlobalBookIndexEntry
     ) {
-        val recipientIssuances = fetchIssuancesFor(recipientEmail)
-        val prevHash = recipientIssuances.maxByOrNull { it.issuedAtMillis }?.issuanceHash ?: ""
-        val issuedAt = System.currentTimeMillis()
-        val hash = CreditChain.issuanceHashFor(prevHash, recipientAddress, amount, entry.fileId, issuedAt)
-        val issuance = CreditIssuance(
-            id = hash,
-            authorEmail = normEmail(recipientEmail),
-            authorAddress = recipientAddress,
-            amount = amount,
-            kind = kind,
-            fileId = entry.fileId,
-            birthId = entry.birthId,
-            issuedAtMillis = issuedAt,
-            prevIssuanceHash = prevHash,
-            issuanceHash = hash,
-            signature = AuthorKeys.sign(context, hash)
-        )
-        db.collection(COL_CREDIT_ISSUANCES).document(hash).set(issuanceToMap(issuance)).await()
+        db.runTransaction { transaction ->
+            val snap = db.collection(COL_CREDIT_ISSUANCES)
+                .whereEqualTo("authorEmail", normEmail(recipientEmail))
+                .get().result
+            val recipientIssuances = snap.documents.mapNotNull { docToIssuance(it.data) }
+            val prevHash = recipientIssuances
+                .maxWithOrNull(compareBy<CreditIssuance> { it.issuedAtMillis }.thenBy { it.issuanceHash })
+                ?.issuanceHash ?: ""
+            val issuedAt = System.currentTimeMillis()
+            val hash = CreditChain.issuanceHashFor(prevHash, recipientAddress, amount, entry.fileId, issuedAt)
+            val issuance = CreditIssuance(
+                id = hash,
+                authorEmail = normEmail(recipientEmail),
+                authorAddress = recipientAddress,
+                amount = amount,
+                kind = kind,
+                fileId = entry.fileId,
+                birthId = entry.birthId,
+                issuedAtMillis = issuedAt,
+                prevIssuanceHash = prevHash,
+                issuanceHash = hash,
+                signature = AuthorKeys.sign(context, hash)
+            )
+            transaction.set(db.collection(COL_CREDIT_ISSUANCES).document(hash), issuanceToMap(issuance))
+            null
+        }.await()
     }
 
     suspend fun fetchClaimedIssuanceIds(email: String): Set<String> = withContext(Dispatchers.IO) {
