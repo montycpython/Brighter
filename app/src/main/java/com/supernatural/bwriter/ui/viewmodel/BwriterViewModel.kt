@@ -955,6 +955,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             onDone(Result.failure(IllegalStateException("Only the author can sync this book.")))
             return
         }
+        if (_driveSyncStatus.value.isSyncing) {
+            onDone(Result.failure(IllegalStateException("A sync is already in progress for this book.")))
+            return
+        }
         _driveSyncStatus.value = _driveSyncStatus.value.copy(isSyncing = true, syncError = null)
         launchGuarded {
             try {
@@ -972,6 +976,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val authorPubKey = AuthorKeys.publicKeyHex(appContext)
                 val birthId = manuscript.birthId.ifBlank { java.util.UUID.randomUUID().toString() }
                 val stamped = manuscript.copy(birthId = birthId, authorAddress = authorAddress)
+                if (manuscript.birthId.isBlank()) {
+                    repository.updateManuscript(stamped)
+                }
                 val payloadJson = networkService.buildPayloadJson(
                     stamped, sections, characters, settings, comments, _currentUser.value, isPublicInCommunity
                 )
