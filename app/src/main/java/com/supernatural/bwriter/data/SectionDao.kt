@@ -36,6 +36,15 @@ interface SectionDao {
     @Update
     suspend fun updateSection(section: SectionEntity)
 
+    @Query("UPDATE sections SET content = :content, wordCount = :wordCount, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateSectionContent(id: Long, content: String, wordCount: Int, updatedAt: Long)
+
+    @Query("UPDATE sections SET title = :title, subtitle = :subtitle, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateSectionTitle(id: Long, title: String, subtitle: String, updatedAt: Long)
+
+    @Query("UPDATE sections SET headerIllustrationUri = :headerUri, headerIllustrationCaption = :headerCaption, tailIllustrationUri = :tailUri, tailIllustrationCaption = :tailCaption, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateSectionIllustrations(id: Long, headerUri: String, headerCaption: String, tailUri: String, tailCaption: String, updatedAt: Long)
+
     @Delete
     suspend fun deleteSection(section: SectionEntity)
 

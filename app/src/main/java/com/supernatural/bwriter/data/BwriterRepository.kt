@@ -265,6 +265,21 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
         touchManuscript(section.manuscriptId)
     }
 
+    suspend fun updateSectionContent(section: SectionEntity, newContent: String) = withContext(Dispatchers.IO) {
+        sectionDao.updateSectionContent(section.id, newContent, countWords(newContent), System.currentTimeMillis())
+        touchManuscript(section.manuscriptId)
+    }
+
+    suspend fun updateSectionTitle(section: SectionEntity, newTitle: String, newSubtitle: String) = withContext(Dispatchers.IO) {
+        sectionDao.updateSectionTitle(section.id, newTitle, newSubtitle, System.currentTimeMillis())
+        touchManuscript(section.manuscriptId)
+    }
+
+    suspend fun updateSectionIllustrations(section: SectionEntity, headerUri: String, headerCaption: String, tailUri: String, tailCaption: String) = withContext(Dispatchers.IO) {
+        sectionDao.updateSectionIllustrations(section.id, headerUri, headerCaption, tailUri, tailCaption, System.currentTimeMillis())
+        touchManuscript(section.manuscriptId)
+    }
+
     suspend fun deleteSection(id: Long, manuscriptId: Long) = withContext(Dispatchers.IO) {
         sectionDao.deleteSectionById(id)
         touchManuscript(manuscriptId)

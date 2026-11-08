@@ -479,7 +479,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateSectionContent(section: SectionEntity, newContent: String) {
         viewModelScope.launch {
-            repository.updateSection(section.copy(content = newContent))
+            repository.updateSectionContent(section, newContent)
         }
     }
 
@@ -491,7 +491,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateSectionTitle(section: SectionEntity, newTitle: String, newSubtitle: String) {
         viewModelScope.launch {
-            repository.updateSection(section.copy(title = newTitle, subtitle = newSubtitle))
+            repository.updateSectionTitle(section, newTitle, newSubtitle)
         }
     }
 
@@ -526,14 +526,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         tailCaption: String
     ) {
         viewModelScope.launch {
-            repository.updateSection(
-                section.copy(
-                    headerIllustrationUri = headerUri,
-                    headerIllustrationCaption = headerCaption,
-                    tailIllustrationUri = tailUri,
-                    tailIllustrationCaption = tailCaption
-                )
-            )
+            repository.updateSectionIllustrations(section, headerUri, headerCaption, tailUri, tailCaption)
         }
     }
 
