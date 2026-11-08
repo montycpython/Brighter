@@ -1057,18 +1057,22 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val email = _currentUser.value.email
                 val issuances = networkService.fetchIssuancesFor(email).sortedBy { it.issuedAtMillis }
                 val claimed = networkService.fetchClaimedIssuanceIds(email)
-                val target = issuances.firstOrNull { !claimed.contains(it.issuanceHash) }
-                if (target != null) {
+                val unclaimed = issuances.filter { !claimed.contains(it.issuanceHash) }
+                if (unclaimed.isNotEmpty()) {
                     _claimFailed.value = false
-                    val difficulty = CreditSchedule.difficultyFor(issuances, target)
-                    val nonce = withContext(Dispatchers.Default) {
-                        CreditChain.mineClaim(target.issuanceHash, difficulty)
+                    var claimedAny = false
+                    for (target in unclaimed) {
+                        val difficulty = CreditSchedule.difficultyFor(issuances, target)
+                        val nonce = withContext(Dispatchers.Default) {
+                            CreditChain.mineClaim(target.issuanceHash, difficulty)
+                        }
+                        if (nonce != null) {
+                            networkService.recordClaim(email, target, nonce)
+                            claimedAny = true
+                            break
+                        }
                     }
-                    if (nonce != null) {
-                        networkService.recordClaim(email, target, nonce)
-                    } else {
-                        _claimFailed.value = true
-                    }
+                    if (!claimedAny) _claimFailed.value = true
                 }
             } finally {
                 _isMiningCredit.value = false
