@@ -156,7 +156,9 @@ class GoogleDriveClient(context: Context) {
                 val root = JSONObject(response)
                 val files = root.optJSONArray("files") ?: JSONArray()
                 for (i in 0 until files.length()) {
-                    val id = files.getJSONObject(i).optString("id")
+                    val fileObj = files.getJSONObject(i)
+                    if (fileObj.optString("name") == KEY_BACKUP_NAME) continue
+                    val id = fileObj.optString("id")
                     if (id.isBlank()) continue
                     val (downloadCode, content) = http("GET", "$FILES_URL/$id?alt=media", token, null, null)
                     if (downloadCode in 200..299 && content.isNotBlank()) {
