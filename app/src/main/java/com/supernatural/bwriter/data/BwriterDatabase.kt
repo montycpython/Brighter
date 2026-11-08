@@ -34,6 +34,7 @@ abstract class BwriterDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): BwriterDatabase {
             return INSTANCE ?: synchronized(this) {
+                INSTANCE?.let { return it }
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     BwriterDatabase::class.java,
