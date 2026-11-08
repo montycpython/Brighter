@@ -134,6 +134,7 @@ fun AdminGodModeDashboardScreen(
 
     var showProfileDialog by remember { mutableStateOf(false) }
     var inspectingEntry by remember { mutableStateOf<GlobalBookIndexEntry?>(null) }
+    var revokingEntry by remember { mutableStateOf<GlobalBookIndexEntry?>(null) }
     var suspendingTargetUser by remember { mutableStateOf<String?>(null) }
     var suspensionReasonInput by remember { mutableStateOf("Violation of editorial guidelines or unapproved distribution.") }
 
@@ -258,7 +259,7 @@ fun AdminGodModeDashboardScreen(
                     entries = globalIndex,
                     currentUser = currentUser,
                     onInspect = { inspectingEntry = it },
-                    onRevoke = onRevokeManuscript,
+                    onRevoke = { fileId -> revokingEntry = globalIndex.firstOrNull { it.fileId == fileId } },
                     pendingBooks = pendingBooks,
                     onApproveBook = onApproveBook,
                     onRejectBook = onRejectBook,
@@ -290,6 +291,54 @@ fun AdminGodModeDashboardScreen(
                     suspendedUsers = suspendedUsers,
                     mailboxMessages = mailboxMessages
                 )
+            }
+        }
+    }
+
+    revokingEntry?.let { entry ->
+        Dialog(onDismissRequest = { revokingEntry = null }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C26),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Revoke registry access?",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 15.sp,
+                        color = BookGoldLight
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "\u2018${entry.title}\u2019 will lose its registry access.",
+                        fontSize = 12.5.sp,
+                        color = Color(0xFFC8C2B7)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { revokingEntry = null },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel", color = Color.LightGray)
+                        }
+                        Button(
+                            onClick = {
+                                onRevokeManuscript(entry.fileId)
+                                revokingEntry = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Revoke Access", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
     }
@@ -388,7 +437,7 @@ fun AdminGodModeDashboardScreen(
                         }
                         Button(
                             onClick = {
-                                onRevokeManuscript(entry.fileId)
+                                revokingEntry = entry
                                 inspectingEntry = null
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
@@ -960,6 +1009,7 @@ fun MasterBookIndexTab(
 
                                 Spacer(modifier = Modifier.width(8.dp))
 
+                                if (!entry.authorEmail.equals(currentUser.email, ignoreCase = true)) {
                                 Button(
                                     onClick = { onRevoke(entry.fileId) },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF381414)),
@@ -969,6 +1019,7 @@ fun MasterBookIndexTab(
                                     Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFFE57373))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Revoke Access", fontSize = 10.5.sp, color = Color(0xFFE57373))
+                                }
                                 }
                             }
                         }
