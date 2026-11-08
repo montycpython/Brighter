@@ -201,9 +201,11 @@ fun SectionEditorScreen(
 
     val handleBackAndSave: () -> Unit = {
         focusManager.clearFocus()
-        onSaveContent(section, contentValue.text)
-        onSaveTitle(section, title, subtitle)
-        onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+        if (!isAuthorRoleBlocked) {
+            onSaveContent(section, contentValue.text)
+            onSaveTitle(section, title, subtitle)
+            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+        }
         onBack()
     }
 
@@ -399,6 +401,7 @@ fun SectionEditorScreen(
                         }
                     }
 
+                    if (!isAuthorRoleBlocked) {
                     IconButton(
                         onClick = {
                             onSaveContent(section, contentValue.text)
@@ -409,6 +412,7 @@ fun SectionEditorScreen(
                         modifier = Modifier.testTag("btn_save_section")
                     ) {
                         Icon(imageVector = Icons.Default.Save, contentDescription = "Save")
+                    }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -457,8 +461,9 @@ fun SectionEditorScreen(
                             value = title,
                             onValueChange = {
                                 title = it
-                                onSaveTitle(section, title, subtitle)
+                                if (!isAuthorRoleBlocked) onSaveTitle(section, title, subtitle)
                             },
+                            readOnly = isAuthorRoleBlocked,
                             label = { Text("Title (Headline Style)") },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -477,8 +482,9 @@ fun SectionEditorScreen(
                             value = subtitle,
                             onValueChange = {
                                 subtitle = it
-                                onSaveTitle(section, title, subtitle)
+                                if (!isAuthorRoleBlocked) onSaveTitle(section, title, subtitle)
                             },
+                            readOnly = isAuthorRoleBlocked,
                             label = { Text("Subtitle / Epigraph (Optional)") },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -841,6 +847,7 @@ fun SectionEditorScreen(
                             }
                         }
 
+                        if (!isAuthorRoleBlocked) {
                         CompactCmosToolbar(
                             onApplyItalics = {
                                 contentValue = CmosFormatter.applyItalics(contentValue)
@@ -924,6 +931,7 @@ fun SectionEditorScreen(
                                 }
                             }
                         )
+                        }
                     }
                 }
                 1 -> {
