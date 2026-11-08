@@ -580,17 +580,22 @@ class FirestoreNetworkService(private val context: Context) {
     }
 
 
-    suspend fun fetchIssuancesFor(email: String): List<CreditIssuance> = withContext(Dispatchers.IO) {
+    suspend fun fetchIssuancesForResult(email: String): Result<List<CreditIssuance>> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CREDIT_ISSUANCES)
                 .whereEqualTo("authorEmail", normEmail(email)).get().await()
-            snap.documents.mapNotNull { docToIssuance(it.data) }
-                .sortedBy { it.issuedAtMillis }
+            Result.success(
+                snap.documents.mapNotNull { docToIssuance(it.data) }
+                    .sortedBy { it.issuedAtMillis }
+            )
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch credit issuances failed", e)
-            emptyList()
+            Result.failure(e)
         }
     }
+
+    suspend fun fetchIssuancesFor(email: String): List<CreditIssuance> =
+        fetchIssuancesForResult(email).getOrDefault(emptyList())
 
     suspend fun issueCredit(entry: GlobalBookIndexEntry): Boolean {
         if (!StudioStanding.isEditorInChief) return false
@@ -662,16 +667,19 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    suspend fun fetchClaimedIssuanceIds(email: String): Set<String> = withContext(Dispatchers.IO) {
+    suspend fun fetchClaimedIssuanceIdsResult(email: String): Result<Set<String>> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CREDIT_CLAIMS)
                 .whereEqualTo("authorEmail", normEmail(email)).get().await()
-            snap.documents.mapNotNull { it.getString("issuanceHash") }.toSet()
+            Result.success(snap.documents.mapNotNull { it.getString("issuanceHash") }.toSet())
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch credit claims failed", e)
-            emptySet()
+            Result.failure(e)
         }
     }
+
+    suspend fun fetchClaimedIssuanceIds(email: String): Set<String> =
+        fetchClaimedIssuanceIdsResult(email).getOrDefault(emptySet())
 
     suspend fun recordClaim(email: String, issuance: CreditIssuance, nonce: Long) = withContext(Dispatchers.IO) {
         try {

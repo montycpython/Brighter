@@ -1042,10 +1042,14 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _unclaimedCredit.value = 0
                 return@launchGuarded
             }
-            val issuances = networkService.fetchIssuancesFor(email)
-            val claimed = networkService.fetchClaimedIssuanceIds(email)
-            _creditBalance.value = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
-            _unclaimedCredit.value = issuances.filterNot { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+            val issuancesResult = networkService.fetchIssuancesForResult(email)
+            val claimedResult = networkService.fetchClaimedIssuanceIdsResult(email)
+            if (issuancesResult.isSuccess && claimedResult.isSuccess) {
+                val issuances = issuancesResult.getOrNull() ?: emptyList()
+                val claimed = claimedResult.getOrNull() ?: emptySet()
+                _creditBalance.value = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+                _unclaimedCredit.value = issuances.filterNot { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+            }
         }
     }
 
