@@ -1,6 +1,7 @@
 package com.supernatural.bwriter.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -43,6 +44,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -74,10 +77,17 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     private val googleDriveClient = GoogleDriveClient(application)
 
+    private val guardExceptionHandler = CoroutineExceptionHandler { _, e ->
+        Log.e("BwriterViewModel", "Guarded launch failed", e)
+    }
+
+    private fun launchGuarded(block: suspend CoroutineScope.() -> Unit) =
+        viewModelScope.launch(guardExceptionHandler, block = block)
+
     init {
         val db = BwriterDatabase.getDatabase(application)
         repository = BwriterRepository(db)
-        viewModelScope.launch {
+        launchGuarded {
             refreshNetwork()
         }
     }
@@ -274,7 +284,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     )
 
     fun saveCharacter(character: com.supernatural.bwriter.model.CharacterEntity) {
-        viewModelScope.launch {
+        launchGuarded {
             if (character.id == 0L) {
                 repository.insertCharacter(character)
             } else {
@@ -284,7 +294,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteCharacter(characterId: Long) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.deleteCharacterById(characterId)
         }
     }
@@ -301,13 +311,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     val versionHistory: StateFlow<List<BookVersionSnapshot>> = _versionHistory.asStateFlow()
 
     fun loadVersionHistory(manuscriptId: Long) {
-        viewModelScope.launch {
+        launchGuarded {
             _versionHistory.value = networkService.getVersionHistory(manuscriptId, _currentUser.value.email)
         }
     }
 
     fun saveSetting(setting: com.supernatural.bwriter.model.StorySettingEntity) {
-        viewModelScope.launch {
+        launchGuarded {
             if (setting.id == 0L) {
                 repository.insertSetting(setting)
             } else {
@@ -317,7 +327,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteSetting(settingId: Long) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.deleteSettingById(settingId)
         }
     }
@@ -369,7 +379,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
 
         _isGeneratingAiProse.value = true
-        viewModelScope.launch {
+        launchGuarded {
             try {
                 val result = com.supernatural.bwriter.ai.GeminiProseGenerator.generateChapterProse(prompt)
                 val aiResult = result.getOrNull()
@@ -419,7 +429,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         epigraph: String,
         onCreated: (Long) -> Unit
     ) {
-        viewModelScope.launch {
+        launchGuarded {
             val author = authorName.ifBlank { _currentUser.value.name }
             val pen = authorPenName.trim()
             val pub = publisher.ifBlank { "Bwriter Editions" }
@@ -448,13 +458,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateManuscriptDetails(updated: ManuscriptEntity) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.updateManuscript(updated)
         }
     }
 
     fun deleteManuscript(id: Long) {
-        viewModelScope.launch {
+        launchGuarded {
             val manuscript = repository.getManuscriptByIdOnce(id)
             repository.deleteManuscript(id)
             if (_selectedManuscriptId.value == id) {
@@ -482,7 +492,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         subtitle: String = "",
         content: String = ""
     ) {
-        viewModelScope.launch {
+        launchGuarded {
             val maxOrder = (activeSections.value.maxOfOrNull { it.orderIndex } ?: 0) + 1
             val section = SectionEntity(
                 manuscriptId = manuscriptId,
@@ -502,25 +512,25 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateSectionContent(section: SectionEntity, newContent: String) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.updateSectionContent(section, newContent)
         }
     }
 
     fun updateSectionAiPrompt(section: SectionEntity, prompt: String) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.updateSection(section.copy(aiDraftPrompt = prompt))
         }
     }
 
     fun updateSectionTitle(section: SectionEntity, newTitle: String, newSubtitle: String) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.updateSectionTitle(section, newTitle, newSubtitle)
         }
     }
 
     fun updateSectionStatus(section: SectionEntity, newStatus: SectionStatus) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.updateSection(section.copy(status = newStatus))
         }
     }
@@ -531,7 +541,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         assignedRole: WorkRole,
         contributorNotes: String
     ) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.updateSection(
                 section.copy(
                     assignedAuthor = assignedAuthor,
@@ -549,13 +559,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         tailUri: String,
         tailCaption: String
     ) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.updateSectionIllustrations(section, headerUri, headerCaption, tailUri, tailCaption)
         }
     }
 
     fun deleteSection(sectionId: Long, manuscriptId: Long) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.deleteSection(sectionId, manuscriptId)
             if (_selectedSectionId.value == sectionId) {
                 _selectedSectionId.value = null
@@ -567,7 +577,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         section: SectionEntity,
         newContent: String
     ) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.proposeRevision(
                 section = section,
                 newContent = newContent,
@@ -594,7 +604,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun acceptSectionRevision(section: SectionEntity) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.acceptRevision(section)
             if (section.revisionAuthorEmail.isNotBlank() && !section.revisionAuthorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
                 networkService.sendServerlessMail(
@@ -614,7 +624,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun rejectSectionRevision(section: SectionEntity) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.rejectRevision(section)
             if (section.revisionAuthorEmail.isNotBlank() && !section.revisionAuthorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
                 networkService.sendServerlessMail(
@@ -634,7 +644,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun addEditorialComment(sectionId: Long, manuscriptId: Long, text: String, cmosRef: String = "") {
-        viewModelScope.launch {
+        launchGuarded {
             val comment = EditorialCommentEntity(
                 sectionId = sectionId,
                 manuscriptId = manuscriptId,
@@ -648,7 +658,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun resolveComment(commentId: Long, resolved: Boolean) {
-        viewModelScope.launch {
+        launchGuarded {
             repository.setCommentResolved(commentId, resolved)
         }
     }
@@ -663,7 +673,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val m = activeManuscript.value ?: return
         val s = activeSections.value
         _isExporting.value = true
-        viewModelScope.launch {
+        launchGuarded {
             try {
                 val result = com.supernatural.bwriter.export.CmosPdfExporter.exportToPdf(
                     context, m, s,
@@ -710,7 +720,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     val activeSuspension: StateFlow<SuspendedUserEntry?> = _activeSuspension.asStateFlow()
 
     fun checkAccountSuspension() {
-        viewModelScope.launch {
+        launchGuarded {
             val suspension = networkService.checkUserSuspension(_currentUser.value.email)
             _activeSuspension.value = suspension
             _driveSyncStatus.value = _driveSyncStatus.value.copy(
@@ -724,7 +734,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         title.trim().lowercase() + "|" + authorEmail.trim().lowercase()
 
     fun restoreManuscriptsFromGoogleDrive(interactive: Boolean = false, onRestored: (Int) -> Unit = {}) {
-        viewModelScope.launch {
+        launchGuarded {
             val restored = networkService.restoreUserManuscriptsFromBackRoom(_currentUser.value.email)
             var total = 0
             for (book in restored) {
@@ -792,7 +802,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun openCommunityBook(entry: GlobalBookIndexEntry, onReady: (Long) -> Unit) {
-        viewModelScope.launch {
+        launchGuarded {
             if (entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
                 onReady(entry.manuscriptId)
                 return@launch
@@ -814,7 +824,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun refreshNetwork() {
-        viewModelScope.launch {
+        launchGuarded {
             try {
             com.supernatural.bwriter.data.StudioStanding.isEditorInChief = networkService.verifyEditorInChief()
             val provenStanding = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
@@ -891,7 +901,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             return
         }
         _driveSyncStatus.value = _driveSyncStatus.value.copy(isSyncing = true, syncError = null)
-        viewModelScope.launch {
+        launchGuarded {
             try {
                 val manuscript = repository.getManuscriptByIdOnce(manuscript.id) ?: manuscript
                 val sections = repository.getSectionsForManuscriptOnce(manuscript.id)
@@ -985,7 +995,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun refreshCredit() {
-        viewModelScope.launch {
+        launchGuarded {
             val email = _currentUser.value.email
             if (email.isBlank()) {
                 _creditBalance.value = 0
@@ -1002,7 +1012,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     fun claimCredit() {
         if (_isMiningCredit.value) return
         _isMiningCredit.value = true
-        viewModelScope.launch {
+        launchGuarded {
             try {
                 val email = _currentUser.value.email
                 val issuances = networkService.fetchIssuancesFor(email).sortedBy { it.issuedAtMillis }
@@ -1028,7 +1038,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun backupAuthorKey(passphrase: String, onDone: (Result<Unit>) -> Unit) {
-        viewModelScope.launch {
+        launchGuarded {
             try {
                 val appContext = getApplication<Application>().applicationContext
                 AuthorKeys.ensureKeyPair(appContext)
@@ -1050,7 +1060,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun restoreAuthorKey(passphrase: String, onDone: (Result<Boolean>) -> Unit) {
-        viewModelScope.launch {
+        launchGuarded {
             try {
                 val appContext = getApplication<Application>().applicationContext
                 val tokenResult = googleDriveClient.accessToken(interactive = true)
@@ -1075,7 +1085,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun markMailMessageAsRead(messageId: String) {
-        viewModelScope.launch {
+        launchGuarded {
             networkService.markMailAsRead(_currentUser.value.email, messageId)
             refreshNetwork()
         }
@@ -1086,7 +1096,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             onDone(false)
             return
         }
-        viewModelScope.launch {
+        launchGuarded {
             val result = networkService.suspendUser(
                 adminEmail = _currentUser.value.email,
                 targetEmail = targetEmail,
@@ -1098,7 +1108,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun unsuspendUserAccount(targetEmail: String, onDone: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
+        launchGuarded {
             val result = networkService.unsuspendUser(
                 adminEmail = _currentUser.value.email,
                 targetEmail = targetEmail
@@ -1109,7 +1119,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun revokeRegistryAccess(fileId: String, onDone: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
+        launchGuarded {
             val result = networkService.revokeManuscriptAccess(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
@@ -1120,7 +1130,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun approveRegistryBook(fileId: String, onDone: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
+        launchGuarded {
             val result = networkService.approvePendingBook(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
@@ -1131,7 +1141,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun rejectRegistryBook(fileId: String, onDone: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
+        launchGuarded {
             val result = networkService.rejectPendingBook(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
@@ -1152,7 +1162,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             onDone(false)
             return
         }
-        viewModelScope.launch {
+        launchGuarded {
             val ok = networkService.setRegent(trimmed).isSuccess
             refreshNetwork()
             onDone(ok)
@@ -1160,7 +1170,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun clearRegent(onDone: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
+        launchGuarded {
             val ok = networkService.setRegent("").isSuccess
             refreshNetwork()
             onDone(ok)
@@ -1168,7 +1178,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun appointEditor(fileId: String, bookAuthorEmail: String, editorEmail: String, editorAddress: String) {
-        viewModelScope.launch {
+        launchGuarded {
             val book = _globalBookIndex.value.firstOrNull { it.fileId == fileId }
             networkService.createEditorAssignment(
                 EditorAssignment(
@@ -1194,7 +1204,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun decideEditorAssignment(assignment: EditorAssignment, approve: Boolean) {
-        viewModelScope.launch {
+        launchGuarded {
             networkService.setEditorAssignmentStatus(assignment.id, if (approve) "APPROVED" else "DECLINED")
             val book = _globalBookIndex.value.firstOrNull { it.fileId == assignment.fileId }
             networkService.sendServerlessMail(
@@ -1220,7 +1230,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             onResult(false)
             return
         }
-        viewModelScope.launch {
+        launchGuarded {
             val result = networkService.sendServerlessMail(
                 ServerlessMailMessage(
                     recipientEmail = FirestoreNetworkService.DEFAULT_STUDIO_AUTHOR_EMAIL,
@@ -1236,7 +1246,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun sendServerlessMailDirective(message: ServerlessMailMessage) {
-        viewModelScope.launch {
+        launchGuarded {
             networkService.sendServerlessMail(message)
             refreshNetwork()
         }
