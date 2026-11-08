@@ -262,10 +262,10 @@ fun SectionEditorScreen(
             context.contentResolver.openInputStream(uri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, bounds)
             }
-            bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
-                (bounds.outWidth <= maxWidthPx && bounds.outHeight <= maxHeightPx)
+            bounds.outWidth > 0 && bounds.outHeight > 0 &&
+                bounds.outWidth <= maxWidthPx && bounds.outHeight <= maxHeightPx
         } catch (e: Exception) {
-            true
+            false
         }
     }
 
