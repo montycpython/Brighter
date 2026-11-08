@@ -80,6 +80,7 @@ fun PdfExportScreen(
     calculatedLeaves: List<CalculatedLeaf>,
     exportResult: CmosPdfExporter.ExportResult?,
     isExporting: Boolean,
+    exportFailed: Boolean = false,
     onBack: () -> Unit,
     onExportPdf: () -> Unit
 ) {
@@ -180,6 +181,14 @@ fun PdfExportScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            if (exportFailed && !isExporting) {
+                Text(
+                    text = "The PDF export failed. Nothing was written.",
+                    fontSize = 12.sp,
+                    color = Color(0xFFE57373)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             if (isExporting) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),

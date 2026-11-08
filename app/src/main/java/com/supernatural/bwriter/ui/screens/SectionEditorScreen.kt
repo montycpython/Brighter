@@ -165,6 +165,7 @@ fun SectionEditorScreen(
     onDeleteSetting: (Long) -> Unit = {},
     onGenerateAiDraft: (SectionEntity, String, (String) -> Unit) -> Unit = { _, _, _ -> },
     isGeneratingAi: Boolean = false,
+    aiGenerationFailed: Boolean = false,
     subscription: com.supernatural.bwriter.model.UserAiSubscription? = null,
     onOpenSubscription: () -> Unit = {},
     onSaveAssignment: (SectionEntity, String, WorkRole, String) -> Unit = { _, _, _, _ -> },
@@ -247,6 +248,11 @@ fun SectionEditorScreen(
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(aiGenerationFailed) {
+        if (aiGenerationFailed) {
+            snackbarHostState.showSnackbar("Generation failed — nothing was added.")
+        }
+    }
 
     val activeVisualTransformation = remember(section.hasPendingRevision, section.originalAuthorContent) {
         if (section.hasPendingRevision && section.originalAuthorContent.isNotBlank()) {

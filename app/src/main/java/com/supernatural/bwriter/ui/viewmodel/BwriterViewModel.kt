@@ -376,6 +376,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _isMiningCredit = MutableStateFlow(false)
     private val _claimFailed = MutableStateFlow(false)
     val claimFailed: StateFlow<Boolean> = _claimFailed.asStateFlow()
+    private val _aiGenerationFailed = MutableStateFlow(false)
+    val aiGenerationFailed: StateFlow<Boolean> = _aiGenerationFailed.asStateFlow()
+    private val _exportFailed = MutableStateFlow(false)
+    val exportFailed: StateFlow<Boolean> = _exportFailed.asStateFlow()
     val isMiningCredit: StateFlow<Boolean> = _isMiningCredit.asStateFlow()
 
     fun openPaywall() {
@@ -401,6 +405,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
 
         _isGeneratingAiProse.value = true
+        _aiGenerationFailed.value = false
         launchGuarded {
             try {
                 val result = com.supernatural.bwriter.ai.GeminiProseGenerator.generateChapterProse(prompt)
@@ -432,7 +437,11 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     _tokenTransactions.value = userPreferences.getTokenTransactions(_currentUser.value.email)
 
                     onGenerated(generatedText)
+                } else {
+                    _aiGenerationFailed.value = true
                 }
+            } catch (e: Exception) {
+                _aiGenerationFailed.value = true
             } finally {
                 _isGeneratingAiProse.value = false
             }
@@ -695,6 +704,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val m = activeManuscript.value ?: return
         val s = activeSections.value
         _isExporting.value = true
+        _exportFailed.value = false
         launchGuarded {
             try {
                 val result = com.supernatural.bwriter.export.CmosPdfExporter.exportToPdf(
@@ -703,6 +713,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 )
                 _exportResult.value = result
                 onComplete(result)
+            } catch (e: Exception) {
+                _exportFailed.value = true
             } finally {
                 _isExporting.value = false
             }

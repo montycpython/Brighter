@@ -136,6 +136,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val creditBalance by viewModel.creditBalance.collectAsState()
     val unclaimedCredit by viewModel.unclaimedCredit.collectAsState()
     val claimFailed by viewModel.claimFailed.collectAsState()
+    val aiGenerationFailed by viewModel.aiGenerationFailed.collectAsState()
+    val exportFailed by viewModel.exportFailed.collectAsState()
     val versionHistory by viewModel.versionHistory.collectAsState()
 
     var showNewWorkDialog by remember { mutableStateOf(false) }
@@ -410,6 +412,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                         viewModel.generateAiDraftFromPrompt(sec, prompt, onDone)
                     },
                     isGeneratingAi = isGeneratingAiProse,
+                    aiGenerationFailed = aiGenerationFailed,
                     subscription = userSubscription,
                     onOpenSubscription = { viewModel.openPaywall() },
                     onSaveAssignment = { sec, author, role, notes ->
@@ -468,6 +471,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     calculatedLeaves = calculatedLeaves,
                     exportResult = exportResult,
                     isExporting = isExporting,
+                    exportFailed = exportFailed,
                     onBack = { navController.popBackStack() },
                     onExportPdf = {
                         viewModel.exportActiveManuscriptToPdf(context) { }
