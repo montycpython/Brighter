@@ -199,7 +199,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         if (hostActivity != null && route != null && previous != null) {
             val openedBook = previous == "manuscripts" && route == "manuscript_detail/{manuscriptId}"
             val closedBook = previous == "manuscript_detail/{manuscriptId}" && route == "manuscripts"
-            if (openedBook || closedBook) {
+            val openedRegistryBook = previous == "community_directory" &&
+                (route == "manuscript_detail/{manuscriptId}" || route == "leaf_reader/{manuscriptId}")
+            val closedRegistryBook = (previous == "manuscript_detail/{manuscriptId}" ||
+                previous == "leaf_reader/{manuscriptId}") && route == "community_directory"
+            if (openedBook || closedBook || openedRegistryBook || closedRegistryBook) {
                 InterstitialAds.showIfEligible(hostActivity)
             }
         }
