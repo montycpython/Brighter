@@ -170,17 +170,20 @@ class UserPreferences(context: Context) {
             .apply()
     }
 
+    private fun subKey(base: String, email: String): String =
+        base + "_" + email.trim().lowercase()
+
     fun getUserSubscription(email: String): com.supernatural.bwriter.model.UserAiSubscription {
         val isEditorInChief = StudioStanding.isEditorInChief
         val defaultPlan = if (isEditorInChief) com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.supernatural.bwriter.model.SubscriptionPlan.FREE
         val defaultCredits = if (isEditorInChief) 999999 else 5
 
-        val planId = prefs.getString(KEY_SUBSCRIPTION_PLAN, defaultPlan.id) ?: defaultPlan.id
+        val planId = prefs.getString(subKey(KEY_SUBSCRIPTION_PLAN, email), defaultPlan.id) ?: defaultPlan.id
         val plan = if (isEditorInChief) com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.supernatural.bwriter.model.SubscriptionPlan.fromId(planId).takeIf { it != com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED } ?: com.supernatural.bwriter.model.SubscriptionPlan.FREE
-        val credits = prefs.getInt(KEY_CREDITS_REMAINING, defaultCredits)
-        val tokensUsed = prefs.getLong(KEY_TOTAL_TOKENS_USED, 0L)
-        val generationsCount = prefs.getInt(KEY_TOTAL_GENERATIONS, 0)
-        val renewalTime = prefs.getLong(KEY_RENEWAL_TIMESTAMP, System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000))
+        val credits = prefs.getInt(subKey(KEY_CREDITS_REMAINING, email), defaultCredits)
+        val tokensUsed = prefs.getLong(subKey(KEY_TOTAL_TOKENS_USED, email), 0L)
+        val generationsCount = prefs.getInt(subKey(KEY_TOTAL_GENERATIONS, email), 0)
+        val renewalTime = prefs.getLong(subKey(KEY_RENEWAL_TIMESTAMP, email), System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000))
 
         return com.supernatural.bwriter.model.UserAiSubscription(
             userEmail = email,
@@ -194,12 +197,13 @@ class UserPreferences(context: Context) {
     }
 
     fun saveUserSubscription(subscription: com.supernatural.bwriter.model.UserAiSubscription) {
+        val email = subscription.userEmail
         prefs.edit()
-            .putString(KEY_SUBSCRIPTION_PLAN, subscription.plan.id)
-            .putInt(KEY_CREDITS_REMAINING, subscription.creditsRemaining)
-            .putLong(KEY_TOTAL_TOKENS_USED, subscription.totalTokensUsed)
-            .putInt(KEY_TOTAL_GENERATIONS, subscription.totalGenerationsCount)
-            .putLong(KEY_RENEWAL_TIMESTAMP, subscription.monthlyRenewalTimestamp)
+            .putString(subKey(KEY_SUBSCRIPTION_PLAN, email), subscription.plan.id)
+            .putInt(subKey(KEY_CREDITS_REMAINING, email), subscription.creditsRemaining)
+            .putLong(subKey(KEY_TOTAL_TOKENS_USED, email), subscription.totalTokensUsed)
+            .putInt(subKey(KEY_TOTAL_GENERATIONS, email), subscription.totalGenerationsCount)
+            .putLong(subKey(KEY_RENEWAL_TIMESTAMP, email), subscription.monthlyRenewalTimestamp)
             .apply()
 
     }
@@ -243,7 +247,7 @@ class UserPreferences(context: Context) {
 
     private fun appendTokenTransaction(tx: com.supernatural.bwriter.model.AiTokenTransaction) {
         try {
-            val raw = prefs.getString(KEY_TOKEN_TRANSACTIONS_JSON, "[]") ?: "[]"
+            val raw = prefs.getString(subKey(KEY_TOKEN_TRANSACTIONS_JSON, tx.userEmail), "[]") ?: "[]"
             val array = org.json.JSONArray(raw)
             val obj = org.json.JSONObject().apply {
                 put("transactionId", tx.transactionId)
@@ -263,16 +267,16 @@ class UserPreferences(context: Context) {
             for (i in startIdx until array.length()) {
                 trimmedArray.put(array.getJSONObject(i))
             }
-            prefs.edit().putString(KEY_TOKEN_TRANSACTIONS_JSON, trimmedArray.toString()).apply()
+            prefs.edit().putString(subKey(KEY_TOKEN_TRANSACTIONS_JSON, tx.userEmail), trimmedArray.toString()).apply()
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    fun getTokenTransactions(): List<com.supernatural.bwriter.model.AiTokenTransaction> {
+    fun getTokenTransactions(email: String): List<com.supernatural.bwriter.model.AiTokenTransaction> {
         val list = mutableListOf<com.supernatural.bwriter.model.AiTokenTransaction>()
         try {
-            val raw = prefs.getString(KEY_TOKEN_TRANSACTIONS_JSON, "[]") ?: "[]"
+            val raw = prefs.getString(subKey(KEY_TOKEN_TRANSACTIONS_JSON, email), "[]") ?: "[]"
             val array = org.json.JSONArray(raw)
             for (i in (array.length() - 1) downTo 0) {
                 val obj = array.getJSONObject(i)

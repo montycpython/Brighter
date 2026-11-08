@@ -324,7 +324,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _userAiSubscription = MutableStateFlow(userPreferences.getUserSubscription(_currentUser.value.email))
     val userAiSubscription: StateFlow<com.supernatural.bwriter.model.UserAiSubscription> = _userAiSubscription.asStateFlow()
 
-    private val _tokenTransactions = MutableStateFlow(userPreferences.getTokenTransactions())
+    private val _tokenTransactions = MutableStateFlow(userPreferences.getTokenTransactions(_currentUser.value.email))
     val tokenTransactions: StateFlow<List<com.supernatural.bwriter.model.AiTokenTransaction>> = _tokenTransactions.asStateFlow()
 
 
@@ -393,7 +393,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                         modelUsed = modelUsed
                     )
                     _userAiSubscription.value = updatedSub
-                    _tokenTransactions.value = userPreferences.getTokenTransactions()
+                    _tokenTransactions.value = userPreferences.getTokenTransactions(_currentUser.value.email)
 
                     onGenerated(generatedText)
                 }
