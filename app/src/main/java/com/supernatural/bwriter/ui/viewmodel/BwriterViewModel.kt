@@ -515,7 +515,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         content: String = ""
     ) {
         launchGuarded {
-            val maxOrder = (activeSections.value.maxOfOrNull { it.orderIndex } ?: 0) + 1
+            val maxOrder = (repository.getSectionsForManuscriptOnce(manuscriptId).maxOfOrNull { it.orderIndex } ?: 0) + 1
             val section = SectionEntity(
                 manuscriptId = manuscriptId,
                 matterType = matterType,
