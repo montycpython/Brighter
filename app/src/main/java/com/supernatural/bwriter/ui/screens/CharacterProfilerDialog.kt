@@ -83,6 +83,7 @@ fun CharacterProfilerDialog(
 ) {
     var editingCharacter by remember { mutableStateOf<CharacterEntity?>(null) }
     var isCreatingNew by remember { mutableStateOf(false) }
+    var characterToDelete by remember { mutableStateOf<CharacterEntity?>(null) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -209,13 +210,61 @@ fun CharacterProfilerDialog(
                                 CharacterCard(
                                     character = char,
                                     onEdit = { editingCharacter = char },
-                                    onDelete = { onDeleteCharacter(char.id) },
+                                    onDelete = { characterToDelete = char },
                                     onInsert = {
                                         onInsertIntoPrompt(char)
                                         onDismiss()
                                     }
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    characterToDelete?.let { char ->
+        Dialog(onDismissRequest = { characterToDelete = null }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C26),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Delete this character?",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 15.sp,
+                        color = BookGoldLight
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "\u2018${char.name}\u2019 and the whole dossier will be deleted. This cannot be undone.",
+                        fontSize = 12.5.sp,
+                        color = Color(0xFFC8C2B7)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { characterToDelete = null },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel", color = Color.LightGray)
+                        }
+                        Button(
+                            onClick = {
+                                onDeleteCharacter(char.id)
+                                characterToDelete = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Delete", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
