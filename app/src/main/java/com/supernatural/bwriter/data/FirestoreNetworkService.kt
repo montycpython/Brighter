@@ -600,7 +600,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun issueCredit(entry: GlobalBookIndexEntry): Boolean {
         if (!StudioStanding.isEditorInChief) return false
-        try {
+        return try {
             val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
                 .whereEqualTo("fileId", entry.fileId).get().await()
                 .documents.mapNotNull { docToIssuance(it.data) }
