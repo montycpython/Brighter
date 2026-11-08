@@ -704,17 +704,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     fun restoreManuscriptsFromGoogleDrive(interactive: Boolean = false, onRestored: (Int) -> Unit = {}) {
         viewModelScope.launch {
             val restored = networkService.restoreUserManuscriptsFromBackRoom(_currentUser.value.email)
-            val knownKeys = manuscripts.value.map { bookKey(it.title, it.authorEmail) }.toMutableSet()
             var total = 0
             for (pair in restored) {
-                val manuscript = pair.first
-                val sections = pair.second
-                if (!knownKeys.add(bookKey(manuscript.title, manuscript.authorEmail))) continue
-                val mId = repository.createManuscript(manuscript, populateTemplate = false)
-                for (sec in sections) {
-                    repository.insertSection(sec.copy(manuscriptId = mId))
-                }
-                total++
+                if (applyRestoredBook(pair.first, pair.second)) total++
             }
 
             val tokenResult = googleDriveClient.accessToken(interactive = interactive)
@@ -722,18 +714,32 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val payloads = googleDriveClient.downloadAllPayloads(tokenResult.getOrThrow())
                 for (payload in payloads) {
                     val parsed = networkService.parsePayloadJson(payload, _currentUser.value.email) ?: continue
-                    if (!knownKeys.add(bookKey(parsed.first.title, parsed.first.authorEmail))) continue
-                    val mId = repository.createManuscript(parsed.first, populateTemplate = false)
-                    for (sec in parsed.second) {
-                        repository.insertSection(sec.copy(manuscriptId = mId))
-                    }
-                    total++
+                    if (applyRestoredBook(parsed.first, parsed.second)) total++
                 }
             }
 
             refreshNetwork()
             onRestored(total)
         }
+    }
+
+    private suspend fun applyRestoredBook(
+        manuscript: ManuscriptEntity,
+        sections: List<SectionEntity>
+    ): Boolean {
+        val local = manuscripts.value.firstOrNull { existing ->
+            (manuscript.birthId.isNotBlank() && existing.birthId == manuscript.birthId) ||
+                bookKey(existing.title, existing.authorEmail) == bookKey(manuscript.title, manuscript.authorEmail)
+        }
+        if (local != null && local.updatedAt >= manuscript.updatedAt) return false
+        if (local != null) {
+            repository.deleteManuscript(local.id)
+        }
+        val mId = repository.createManuscript(manuscript, populateTemplate = false)
+        for (sec in sections) {
+            repository.insertSection(sec.copy(manuscriptId = mId))
+        }
+        return true
     }
 
     private val registryCopyPrefs by lazy {
@@ -890,7 +896,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                         fullyStamped, sections, _currentUser.value, isPublicInCommunity
                     )
                     val driveResult = googleDriveClient.accessToken(interactive = true).fold(
-                        onSuccess = { token -> googleDriveClient.saveBook(token, manuscript.id, manuscript.title, payload) },
+                        onSuccess = { token -> googleDriveClient.saveBook(token, birthId, manuscript.title, payload) },
                         onFailure = { e -> Result.failure(e) }
                     )
                     if (driveResult.isFailure) {

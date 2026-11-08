@@ -167,11 +167,20 @@ class FirestoreNetworkService(private val context: Context) {
 
             val manuscriptJson = buildManuscriptPayload(manuscript, sections, currentUser, resolvedAuthorName, isPublicInCommunity)
 
-            val cloudDocId = "${normEmail(currentUser.email)}_${manuscript.id}"
-            db.collection(COL_CLOUD_BOOKS).document(cloudDocId).set(
+            val cloudDocId = "${normEmail(currentUser.email)}_${stamp.birthId}"
+            val cloudRef = db.collection(COL_CLOUD_BOOKS).document(cloudDocId)
+            val existingCloud = cloudRef.get().await()
+            val cloudUpdatedAt = existingCloud.getLong("updatedAt") ?: 0L
+            if (existingCloud.exists() && cloudUpdatedAt > manuscript.updatedAt) {
+                return@withContext Result.failure(
+                    Exception("Cloud copy of '${manuscript.title}' is newer than this device. Restore it before syncing.")
+                )
+            }
+            cloudRef.set(
                 mapOf(
                     "ownerEmail" to normEmail(currentUser.email),
                     "manuscriptId" to manuscript.id,
+                    "birthId" to stamp.birthId,
                     "payload" to manuscriptJson.toString(),
                     "updatedAt" to System.currentTimeMillis()
                 )
@@ -896,6 +905,7 @@ class FirestoreNetworkService(private val context: Context) {
             put("authorAddress", manuscript.authorAddress)
             put("authorPubKey", AuthorKeys.publicKeyHex(context))
             put("birthId", manuscript.birthId)
+            put("updatedAt", manuscript.updatedAt)
             put("stampHash", manuscript.stampHash)
             put("prevStampHash", manuscript.prevStampHash)
             put("stampSignature", manuscript.stampSignature)
@@ -969,7 +979,8 @@ class FirestoreNetworkService(private val context: Context) {
                 epigraphAuthor = mObj.optString("epigraphAuthor", ""),
                 targetPageSize = mObj.optString("targetPageSize", "Trade 6\" x 9\""),
                 manuscriptStatus = mObj.optString("manuscriptStatus", "DRAFT"),
-                acknowledgmentsJson = mObj.optString("acknowledgmentsJson", "[]")
+                acknowledgmentsJson = mObj.optString("acknowledgmentsJson", "[]"),
+                updatedAt = mObj.optLong("updatedAt", System.currentTimeMillis())
             )
 
             val secArray = mObj.optJSONArray("sections") ?: JSONArray()

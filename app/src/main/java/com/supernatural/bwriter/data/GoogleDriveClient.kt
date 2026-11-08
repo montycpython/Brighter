@@ -61,14 +61,24 @@ class GoogleDriveClient(context: Context) {
 
     suspend fun saveBook(
         token: String,
-        manuscriptId: Long,
+        bookKey: String,
         title: String,
         payloadJson: String
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val folderId = ensureFolder(token)
-            val existingId = findBookFileId(token, folderId, manuscriptId)
+            val existingId = findBookFileId(token, folderId, bookKey)
             if (existingId != null) {
+                val (dlCode, dlContent) = http("GET", "$FILES_URL/$existingId?alt=media", token, null, null)
+                if (dlCode in 200..299 && dlContent.isNotBlank()) {
+                    val existingUpdatedAt = try { JSONObject(dlContent).optLong("updatedAt", 0L) } catch (e: Exception) { 0L }
+                    val newUpdatedAt = try { JSONObject(payloadJson).optLong("updatedAt", 0L) } catch (e: Exception) { 0L }
+                    if (existingUpdatedAt > newUpdatedAt) {
+                        return@withContext Result.failure(
+                            IllegalStateException("Drive copy of '$title' is newer than this device. Restore it before syncing.")
+                        )
+                    }
+                }
                 val (code, _) = http(
                     "PATCH",
                     "$UPLOAD_URL/$existingId?uploadType=media",
@@ -87,7 +97,7 @@ class GoogleDriveClient(context: Context) {
                     put("parents", JSONArray().put(folderId))
                     put("appProperties", JSONObject().apply {
                         put("app", "bwriter")
-                        put("manuscriptId", manuscriptId.toString())
+                        put("birthId", bookKey)
                     })
                 }
                 val boundary = "bwriter-" + System.currentTimeMillis()
@@ -257,8 +267,8 @@ class GoogleDriveClient(context: Context) {
         return files.getJSONObject(0).optString("id").ifBlank { null }
     }
 
-    private suspend fun findBookFileId(token: String, folderId: String, manuscriptId: Long): String? {
-        val rawQuery = "appProperties has { key='manuscriptId' and value='$manuscriptId' } " +
+    private suspend fun findBookFileId(token: String, folderId: String, bookKey: String): String? {
+        val rawQuery = "appProperties has { key='birthId' and value='$bookKey' } " +
             "and '$folderId' in parents and trashed = false"
         val q = URLEncoder.encode(rawQuery, "UTF-8")
         val (code, response) = http("GET", "$FILES_URL?q=$q&fields=files(id,name)", token, null, null)
