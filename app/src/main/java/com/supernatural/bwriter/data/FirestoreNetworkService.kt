@@ -73,6 +73,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_VERSIONS = "versionSnapshots"
         private const val COL_STUDIO_CONFIG = "studioConfig"
         private const val COL_CREDIT_ISSUANCES = "creditIssuances"
+        private val VOLATILE_PAYLOAD_KEYS = setOf("updatedAt", "timestamp", "stampHash", "prevStampHash", "stampSignature", "revisionTimestamp")
         private const val COL_CREDIT_CLAIMS = "creditClaims"
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
         private const val COL_USERS = "users"
@@ -225,21 +226,14 @@ class FirestoreNetworkService(private val context: Context) {
             val estimatedLeaves = (totalWords / 250).coerceAtLeast(1)
 
             val isEditorInChief = StudioStanding.isEditorInChief
-            val registryExisting = findRegistryDoc(manuscript.id, currentUser.email)
-            if (registryExisting != null) {
-                findDocInCollection(COL_PENDING, manuscript.id, currentUser.email)?.let { stale ->
-                    try {
-                        stale.reference.collection("content").document("fullText").delete().await()
-                        stale.reference.delete().await()
-                    } catch (e: Exception) {
-                        Log.e("FirestoreNetwork", "Clearing stale pending copy failed", e)
-                    }
-                }
-            }
-            val pendingExisting = if (registryExisting == null) findDocInCollection(COL_PENDING, manuscript.id, currentUser.email) else null
+            val pendingExisting = findDocInCollection(COL_PENDING, manuscript.id, currentUser.email)
+            val registryExisting = if (pendingExisting == null) findRegistryDoc(manuscript.id, currentUser.email) else null
             val existing = pendingExisting ?: registryExisting
+            val editedAfterApproval = registryExisting != null && !isEditorInChief &&
+                registryContentDiffers(registryExisting.id, manuscriptJson.toString())
             val targetCollection = when {
                 pendingExisting != null -> COL_PENDING
+                editedAfterApproval -> COL_PENDING
                 registryExisting != null -> COL_REGISTRY
                 isEditorInChief -> COL_REGISTRY
                 else -> COL_PENDING
@@ -1237,6 +1231,39 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+
+    private suspend fun registryContentDiffers(fileId: String, newPayload: String): Boolean {
+        return try {
+            val snap = db.collection(COL_REGISTRY).document(fileId)
+                .collection("content").document("fullText").get().await()
+            val stored = snap.getString("payload") ?: return true
+            canonicalPayload(stored) != canonicalPayload(newPayload)
+        } catch (e: Exception) {
+            true
+        }
+    }
+
+    private fun canonicalPayload(json: String): String {
+        fun canon(node: Any?): String = when (node) {
+            is org.json.JSONObject -> {
+                val keys = mutableListOf<String>()
+                val iter = node.keys()
+                while (iter.hasNext()) {
+                    val k = iter.next()
+                    if (k !in VOLATILE_PAYLOAD_KEYS) keys.add(k)
+                }
+                keys.sorted().joinToString(",", "{", "}") { k -> org.json.JSONObject.quote(k) + ":" + canon(node.get(k)) }
+            }
+            is org.json.JSONArray -> (0 until node.length()).joinToString(",", "[", "]") { i -> canon(node.get(i)) }
+            is String -> org.json.JSONObject.quote(node)
+            else -> node.toString()
+        }
+        return try {
+            canon(org.json.JSONObject(json))
+        } catch (e: Exception) {
+            json
+        }
+    }
 
     private suspend fun findRegistryDoc(manuscriptId: Long, authorEmail: String): com.google.firebase.firestore.DocumentSnapshot? {
         return findDocInCollection(COL_REGISTRY, manuscriptId, authorEmail)
