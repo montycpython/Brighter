@@ -70,6 +70,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _hasAcceptedTerms.value = true
     }
 
+    val networkService = FirestoreNetworkService(application)
+
+    private val googleDriveClient = GoogleDriveClient(application)
+
     init {
         val db = BwriterDatabase.getDatabase(application)
         repository = BwriterRepository(db)
@@ -672,10 +676,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
-
-    val networkService = FirestoreNetworkService(application)
-
-    private val googleDriveClient = GoogleDriveClient(application)
 
     private val _driveSyncStatus = MutableStateFlow(DriveSyncStatus())
     val driveSyncStatus: StateFlow<DriveSyncStatus> = _driveSyncStatus.asStateFlow()
