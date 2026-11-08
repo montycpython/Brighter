@@ -331,6 +331,7 @@ private fun openPdf(context: Context, file: File) {
 }
 
 private fun sharePdf(context: Context, file: File, title: String) {
+    try {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"
@@ -340,4 +341,7 @@ private fun sharePdf(context: Context, file: File, title: String) {
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(Intent.createChooser(intent, "Share Manuscript PDF"))
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "Could not share the PDF", android.widget.Toast.LENGTH_SHORT).show()
+    }
 }
