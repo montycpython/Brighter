@@ -826,11 +826,23 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     fun openCommunityBook(entry: GlobalBookIndexEntry, onReady: (Long) -> Unit) {
         launchGuarded {
             if (entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
-                onReady(entry.manuscriptId)
-                return@launchGuarded
+                val local = repository.getManuscriptByIdOnce(entry.manuscriptId)
+                if (local != null) {
+                    onReady(local.id)
+                    return@launchGuarded
+                }
             }
             val savedId = registryCopyPrefs.getLong(entry.fileId, -1L)
+            val savedTs = registryCopyPrefs.getLong(entry.fileId + "_ts", 0L)
             if (savedId > 0 && repository.getManuscriptByIdOnce(savedId) != null) {
+                if (entry.lastSyncedTimestamp > savedTs) {
+                    val refreshed = networkService.fetchRegistryBook(entry.fileId)
+                    if (refreshed != null) {
+                        applyRestoredBook(refreshed)
+                        registryCopyPrefs.edit()
+                            .putLong(entry.fileId + "_ts", entry.lastSyncedTimestamp).apply()
+                    }
+                }
                 onReady(savedId)
                 return@launchGuarded
             }
@@ -840,7 +852,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 return@launchGuarded
             }
             val mId = insertRestoredBook(fetched)
-            registryCopyPrefs.edit().putLong(entry.fileId, mId).apply()
+            registryCopyPrefs.edit()
+                .putLong(entry.fileId, mId)
+                .putLong(entry.fileId + "_ts", entry.lastSyncedTimestamp)
+                .apply()
             onReady(mId)
         }
     }
