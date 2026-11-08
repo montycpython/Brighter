@@ -43,7 +43,8 @@ enum class SubscriptionPlan(
 
     companion object {
         fun fromId(id: String): SubscriptionPlan {
-            return entries.find { it.id.equals(id, ignoreCase = true) } ?: FREE
+            val match = entries.find { it.id.equals(id.trim(), ignoreCase = true) } ?: return FREE
+            return if (match == SUPERUSER_UNLIMITED) FREE else match
         }
     }
 }
@@ -51,7 +52,7 @@ enum class SubscriptionPlan(
 data class UserAiSubscription(
     val userEmail: String = "",
     val plan: SubscriptionPlan = SubscriptionPlan.FREE,
-    val creditsRemaining: Int = 5,
+    val creditsRemaining: Int = plan.monthlyCredits,
     val totalTokensUsed: Long = 0L,
     val totalGenerationsCount: Int = 0,
     val monthlyRenewalTimestamp: Long = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000),

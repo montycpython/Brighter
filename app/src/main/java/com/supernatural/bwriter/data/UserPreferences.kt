@@ -179,6 +179,11 @@ class UserPreferences(context: Context) {
         val defaultCredits = if (isEditorInChief) 999999 else 5
 
         val planId = prefs.getString(subKey(KEY_SUBSCRIPTION_PLAN, email), defaultPlan.id) ?: defaultPlan.id
+        if (!isEditorInChief && planId.isNotBlank() &&
+            com.supernatural.bwriter.model.SubscriptionPlan.entries.none { it.id.equals(planId.trim(), ignoreCase = true) }
+        ) {
+            android.util.Log.w("UserPreferences", "Unknown stored plan id; using the free plan")
+        }
         val plan = if (isEditorInChief) com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED else com.supernatural.bwriter.model.SubscriptionPlan.fromId(planId).takeIf { it != com.supernatural.bwriter.model.SubscriptionPlan.SUPERUSER_UNLIMITED } ?: com.supernatural.bwriter.model.SubscriptionPlan.FREE
         val credits = prefs.getInt(subKey(KEY_CREDITS_REMAINING, email), defaultCredits)
         val tokensUsed = prefs.getLong(subKey(KEY_TOTAL_TOKENS_USED, email), 0L)
