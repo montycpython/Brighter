@@ -76,8 +76,8 @@ fun AuthScreen(
     var authorName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
     var sessionEmail by remember { mutableStateOf<String?>(null) }
-    val sessionIsEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
-    val selectedRole = if (sessionIsEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
+    val sessionIsEditorInChief = false
+    val selectedRole = WorkRole.AUTHOR
     var isAuthenticatingGoogle by remember { mutableStateOf(false) }
     var googleAuthError by remember { mutableStateOf<String?>(null) }
 
