@@ -588,12 +588,14 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 regentEmail = regentEmail,
                 isRoot = isRoot,
                 onSetRegent = { email ->
-                    viewModel.setRegent(email)
-                    Toast.makeText(context, "Regent appointed: $email", Toast.LENGTH_SHORT).show()
+                    viewModel.setRegent(email) { ok ->
+                        Toast.makeText(context, if (ok) "Regent appointed: $email" else "Regent appointment failed", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onClearRegent = {
-                    viewModel.clearRegent()
-                    Toast.makeText(context, "Regent cleared", Toast.LENGTH_SHORT).show()
+                    viewModel.clearRegent { ok ->
+                        Toast.makeText(context, if (ok) "Regent cleared" else "Regent clear failed", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onSendServerlessMail = { mail ->
                     viewModel.sendServerlessMailDirective(mail)

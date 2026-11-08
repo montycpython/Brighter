@@ -1129,18 +1129,29 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun setRegent(email: String) {
-        if (email.trim().equals(_currentUser.value.email, ignoreCase = true)) return
+    fun setRegent(email: String, onDone: (Boolean) -> Unit = {}) {
+        val trimmed = email.trim()
+        if (trimmed.equals(_currentUser.value.email, ignoreCase = true)) {
+            onDone(false)
+            return
+        }
+        val at = trimmed.indexOf('@')
+        if (at < 1 || !trimmed.substring(at).contains('.') || trimmed.contains(' ')) {
+            onDone(false)
+            return
+        }
         viewModelScope.launch {
-            networkService.setRegent(email)
+            val ok = networkService.setRegent(trimmed).isSuccess
             refreshNetwork()
+            onDone(ok)
         }
     }
 
-    fun clearRegent() {
+    fun clearRegent(onDone: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            networkService.setRegent("")
+            val ok = networkService.setRegent("").isSuccess
             refreshNetwork()
+            onDone(ok)
         }
     }
 
