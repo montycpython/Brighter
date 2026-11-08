@@ -355,7 +355,7 @@ class FirestoreNetworkService(private val context: Context) {
                 val publicDocs = db.collection(COL_REGISTRY)
                     .whereEqualTo("isPublicInCommunity", true).get().await().documents
                 val ownDocs = db.collection(COL_REGISTRY)
-                    .whereEqualTo("authorEmail", currentUser.email).get().await().documents
+                    .whereEqualTo("authorEmailLower", normEmail(currentUser.email)).get().await().documents
                 (publicDocs + ownDocs).mapNotNull { docToRegistry(it.data) }
                     .distinctBy { it.fileId }
             }
@@ -944,7 +944,7 @@ class FirestoreNetworkService(private val context: Context) {
             val base = db.collection(COL_VERSIONS)
                 .whereEqualTo("manuscriptId", manuscriptId)
             val query = if (StudioStanding.isEditorInChief) base
-                else base.whereEqualTo("authorEmail", requesterEmail)
+                else base.whereEqualTo("authorEmailLower", normEmail(requesterEmail))
             val snap = query.get().await()
             snap.documents.mapNotNull { docToSnapshot(it.data) }.sortedByDescending { it.timestamp }
         } catch (e: Exception) {
@@ -1280,7 +1280,7 @@ class FirestoreNetworkService(private val context: Context) {
     private suspend fun findDocInCollection(collection: String, manuscriptId: Long, authorEmail: String): com.google.firebase.firestore.DocumentSnapshot? {
         val snap = db.collection(collection)
             .whereEqualTo("manuscriptId", manuscriptId)
-            .whereEqualTo("authorEmail", authorEmail)
+            .whereEqualTo("authorEmailLower", normEmail(authorEmail))
             .get().await()
         return snap.documents.firstOrNull()
     }
@@ -1409,6 +1409,7 @@ class FirestoreNetworkService(private val context: Context) {
         "changeSummary" to s.changeSummary,
         "authorPenName" to s.authorPenName,
         "authorEmail" to s.authorEmail,
+        "authorEmailLower" to normEmail(s.authorEmail),
         "wordCount" to s.wordCount,
         "totalLeaves" to s.totalLeaves,
         "timestamp" to s.timestamp,
