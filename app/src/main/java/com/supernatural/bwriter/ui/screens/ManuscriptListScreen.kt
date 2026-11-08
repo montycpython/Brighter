@@ -117,6 +117,7 @@ fun ManuscriptListScreen(
     onOpenVersion: () -> Unit = {},
     onOpenSubscription: () -> Unit = {},
     onSignOut: () -> Unit = {},
+    onRequestAccountDeletion: ((Boolean) -> Unit) -> Unit = {},
     onRestoreFromDrive: () -> Unit = {},
     unreadMailCount: Int = 0
 ) {
@@ -497,7 +498,8 @@ fun ManuscriptListScreen(
             onOpenUserAgreement = onOpenUserAgreement,
             onOpenVersion = onOpenVersion,
             onOpenAuthScreen = onOpenAuthScreen,
-            onSignOut = onSignOut
+            onSignOut = onSignOut,
+            onRequestAccountDeletion = onRequestAccountDeletion
         )
     }
 

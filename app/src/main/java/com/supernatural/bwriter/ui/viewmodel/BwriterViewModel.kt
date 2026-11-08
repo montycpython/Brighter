@@ -1141,6 +1141,27 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun requestAccountDeletion(onResult: (Boolean) -> Unit) {
+        val user = _currentUser.value
+        if (user.email.isBlank()) {
+            onResult(false)
+            return
+        }
+        viewModelScope.launch {
+            val result = networkService.sendServerlessMail(
+                ServerlessMailMessage(
+                    recipientEmail = FirestoreNetworkService.DEFAULT_STUDIO_AUTHOR_EMAIL,
+                    senderEmail = user.email,
+                    senderName = user.displayName,
+                    subject = "Account Deletion Request",
+                    body = "I request deletion of my Bwriter account and its associated cloud data: back-room book copies, registry and pending entries, in-app mail, version snapshots, and credit records.",
+                    messageType = "ACCOUNT_DELETION"
+                )
+            )
+            onResult(result.isSuccess)
+        }
+    }
+
     fun sendServerlessMailDirective(message: ServerlessMailMessage) {
         viewModelScope.launch {
             networkService.sendServerlessMail(message)

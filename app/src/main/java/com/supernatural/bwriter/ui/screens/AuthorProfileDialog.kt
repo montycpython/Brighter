@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ExitToApp
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -84,7 +86,8 @@ fun AuthorProfileDialog(
     onOpenUserAgreement: () -> Unit = {},
     onOpenVersion: () -> Unit = {},
     onOpenAuthScreen: () -> Unit = {},
-    onSignOut: () -> Unit = {}
+    onSignOut: () -> Unit = {},
+    onRequestAccountDeletion: ((Boolean) -> Unit) -> Unit = {}
 ) {
     var legalName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
@@ -94,6 +97,10 @@ fun AuthorProfileDialog(
     var cmosEdition by remember { mutableStateOf(currentUser.preferredCmosEdition) }
 
     var cmosDropdownExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var deletionSending by remember { mutableStateOf(false) }
+    var deletionSent by remember { mutableStateOf(false) }
+    var deletionFailed by remember { mutableStateOf(false) }
     val cmosOptions = listOf("17th Edition", "18th Edition", "16th Edition")
 
     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
@@ -406,6 +413,48 @@ fun AuthorProfileDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                if (!com.supernatural.bwriter.data.StudioStanding.isEditorInChief) {
+                    OutlinedButton(
+                        onClick = { showDeleteConfirm = true },
+                        enabled = !deletionSending && !deletionSent,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("btn_profile_delete_account")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteForever,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = when {
+                                deletionSent -> "Deletion Requested"
+                                deletionSending -> "Sending Request\u2026"
+                                else -> "Delete Account"
+                            },
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
+                    }
+                    if (deletionFailed) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Request could not be sent. Check your connection and try again.",
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -465,5 +514,35 @@ fun AuthorProfileDialog(
                 }
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Account?") },
+            text = {
+                Text("This sends a deletion request for your account. Your cloud data is deleted: back-room book copies, registry entries, in-app mail, and credit records. Books on this device and in your own Google Drive remain yours to delete. This cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        deletionSending = true
+                        deletionFailed = false
+                        onRequestAccountDeletion { success ->
+                            deletionSending = false
+                            if (success) deletionSent = true else deletionFailed = true
+                        }
+                    }
+                ) {
+                    Text("Request Deletion", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

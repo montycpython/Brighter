@@ -299,6 +299,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     viewModel.signOutGoogleAccount()
                     Toast.makeText(context, "Logged out of Google account", Toast.LENGTH_SHORT).show()
                 },
+                onRequestAccountDeletion = { onResult ->
+                    viewModel.requestAccountDeletion(onResult)
+                },
                 onRestoreFromDrive = {
                     viewModel.restoreManuscriptsFromGoogleDrive(interactive = true) { count ->
                         Toast.makeText(context, "Restored $count manuscripts from Google Drive!", Toast.LENGTH_LONG).show()
