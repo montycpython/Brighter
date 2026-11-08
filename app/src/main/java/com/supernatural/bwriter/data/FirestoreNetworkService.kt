@@ -1240,7 +1240,7 @@ class FirestoreNetworkService(private val context: Context) {
                 wordCount = (data["wordCount"] as? Number)?.toInt() ?: 0,
                 totalLeaves = (data["totalLeaves"] as? Number)?.toInt() ?: 0,
                 lastSyncedTimestamp = (data["lastSyncedTimestamp"] as? Number)?.toLong() ?: 0L,
-                isPublicInCommunity = data["isPublicInCommunity"] as? Boolean ?: true,
+                isPublicInCommunity = data["isPublicInCommunity"] as? Boolean ?: false,
                 editorInChief = data["editorInChief"] as? Boolean ?: false,
                 version = data["version"] as? String ?: "1.0",
                 authorAddress = data["authorAddress"] as? String ?: "",

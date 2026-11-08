@@ -64,7 +64,7 @@ fun SyncToGoogleDriveDialog(
     onBackupKey: (passphrase: String, onDone: (Result<Unit>) -> Unit) -> Unit,
     onRestoreKey: (passphrase: String, onDone: (Result<Boolean>) -> Unit) -> Unit
 ) {
-    var isPublicInCommunity by remember { mutableStateOf(true) }
+    var isPublicInCommunity by remember { mutableStateOf(false) }
     var keyPassphrase by remember { mutableStateOf("") }
     var keyStatus by remember { mutableStateOf("") }
     var keyBusy by remember { mutableStateOf(false) }
