@@ -121,6 +121,7 @@ fun AdminGodModeDashboardScreen(
     onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
     onAppointEditor: (fileId: String, bookAuthorEmail: String, editorEmail: String, editorAddress: String) -> Unit = { _, _, _, _ -> },
     regentEmail: String = "",
+    isRoot: Boolean = false,
     onSetRegent: (String) -> Unit = {},
     onClearRegent: () -> Unit = {},
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
@@ -266,6 +267,7 @@ fun AdminGodModeDashboardScreen(
                     onDecideEditorAssignment = onDecideEditorAssignment,
                     onAppointEditor = onAppointEditor,
                     regentEmail = regentEmail,
+                    isRoot = isRoot,
                     onSetRegent = onSetRegent,
                     onClearRegent = onClearRegent
                 )
@@ -510,6 +512,7 @@ fun MasterBookIndexTab(
     onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
     onAppointEditor: (String, String, String, String) -> Unit = { _, _, _, _ -> },
     regentEmail: String = "",
+    isRoot: Boolean = false,
     onSetRegent: (String) -> Unit = {},
     onClearRegent: () -> Unit = {}
 ) {
@@ -747,6 +750,7 @@ fun MasterBookIndexTab(
 
         Spacer(modifier = Modifier.height(14.dp))
 
+        if (isRoot) {
         Text(
             text = "Regent Editor in Chief",
             fontWeight = FontWeight.Bold,
@@ -790,6 +794,7 @@ fun MasterBookIndexTab(
                     Text("Clear Regent", fontSize = 12.5.sp)
                 }
             }
+        }
         }
 
         Spacer(modifier = Modifier.height(14.dp))

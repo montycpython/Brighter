@@ -125,6 +125,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val registryAuthors by viewModel.registryAuthors.collectAsState()
     val siteUsers by viewModel.siteUsers.collectAsState()
     val regentEmail by viewModel.regentEmail.collectAsState()
+    val isRoot by viewModel.isRoot.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -585,6 +586,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     Toast.makeText(context, "Editor appointed: $editorEmail", Toast.LENGTH_SHORT).show()
                 },
                 regentEmail = regentEmail,
+                isRoot = isRoot,
                 onSetRegent = { email ->
                     viewModel.setRegent(email)
                     Toast.makeText(context, "Regent appointed: $email", Toast.LENGTH_SHORT).show()

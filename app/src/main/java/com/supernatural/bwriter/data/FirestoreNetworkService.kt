@@ -818,8 +818,8 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun verifyEditorInChief(): Boolean = withContext(Dispatchers.IO) {
         try {
-            db.collection(COL_STUDIO_CONFIG).document("main").get().await()
-            true
+            val snap = db.collection(COL_STUDIO_CONFIG).document("main").get().await()
+            snap.exists()
         } catch (e: Exception) {
             false
         }

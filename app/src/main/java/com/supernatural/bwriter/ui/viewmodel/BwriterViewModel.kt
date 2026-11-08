@@ -142,6 +142,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun switchGoogleAccount(account: UserProfile) {
         com.supernatural.bwriter.data.StudioStanding.isEditorInChief = false
+        _isRoot.value = false
         val corrected = account.copy(role = standingRoleFor())
         _currentUser.value = corrected
         userPreferences.saveUserProfile(corrected)
@@ -157,6 +158,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     fun signOutGoogleAccount() {
         com.supernatural.bwriter.auth.FirebaseAuthBridge.signOut()
         com.supernatural.bwriter.data.StudioStanding.isEditorInChief = false
+        _isRoot.value = false
         userPreferences.signOut()
         _isLoggedIn.value = false
     }
@@ -681,6 +683,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     private val _regentEmail = MutableStateFlow("")
     val regentEmail: StateFlow<String> = _regentEmail.asStateFlow()
+    private val _isRoot = MutableStateFlow(false)
+    val isRoot: StateFlow<Boolean> = _isRoot.asStateFlow()
 
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
@@ -829,6 +833,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _pendingEditorAssignments.value = networkService.fetchPendingEditorAssignments()
                 _siteUsers.value = networkService.fetchSiteUsers()
                 _regentEmail.value = networkService.fetchRegentEmail()
+                _isRoot.value = _currentUser.value.email.isNotBlank() &&
+                    (_regentEmail.value.isBlank() ||
+                        !_currentUser.value.email.equals(_regentEmail.value, ignoreCase = true))
                 val indexAuthors = _globalBookIndex.value
                     .map { it.authorName to it.authorEmail.trim().lowercase() }
                     .filter { it.second.isNotBlank() }
@@ -1100,6 +1107,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setRegent(email: String) {
+        if (email.trim().equals(_currentUser.value.email, ignoreCase = true)) return
         viewModelScope.launch {
             networkService.setRegent(email)
             refreshNetwork()
