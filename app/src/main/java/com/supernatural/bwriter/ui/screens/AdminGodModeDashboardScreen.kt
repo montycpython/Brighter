@@ -572,6 +572,61 @@ fun MasterBookIndexTab(
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
     var selectedBookFileId by remember { mutableStateOf<String?>(null) }
     var regentInput by remember { mutableStateOf("") }
+    var decidingBook by remember { mutableStateOf<Pair<GlobalBookIndexEntry, Boolean>?>(null) }
+
+    decidingBook?.let { (entry, approve) ->
+        Dialog(onDismissRequest = { decidingBook = null }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C26),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = if (approve) "Approve this book?" else "Reject this book?",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 15.sp,
+                        color = BookGoldLight
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (approve) {
+                            "\u2018${entry.title}\u2019 by ${entry.authorName} will be published to the registry."
+                        } else {
+                            "\u2018${entry.title}\u2019 by ${entry.authorName} will be removed from the queue. This cannot be undone."
+                        },
+                        fontSize = 12.5.sp,
+                        color = Color(0xFFC8C2B7)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { decidingBook = null },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel", color = Color.LightGray)
+                        }
+                        Button(
+                            onClick = {
+                                if (approve) onApproveBook(entry.fileId) else onRejectBook(entry.fileId)
+                                decidingBook = null
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (approve) BookGoldDark else Color(0xFFC62828)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (approve) "Approve" else "Reject", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -641,7 +696,7 @@ fun MasterBookIndexTab(
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                onClick = { onApproveBook(entry.fileId) },
+                                onClick = { decidingBook = entry to true },
                                 colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.testTag("btn_approve_${entry.fileId}")
@@ -649,7 +704,7 @@ fun MasterBookIndexTab(
                                 Text("Approve", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                             }
                             OutlinedButton(
-                                onClick = { onRejectBook(entry.fileId) },
+                                onClick = { decidingBook = entry to false },
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.testTag("btn_reject_${entry.fileId}")
                             ) {
