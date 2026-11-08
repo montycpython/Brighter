@@ -68,6 +68,7 @@ fun SyncToGoogleDriveDialog(
     var keyPassphrase by remember { mutableStateOf("") }
     var keyStatus by remember { mutableStateOf("") }
     var keyBusy by remember { mutableStateOf(false) }
+    var showRestoreKeyConfirm by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = { if (!isSyncing) onDismiss() }) {
         Surface(
@@ -306,17 +307,7 @@ fun SyncToGoogleDriveDialog(
                         Text("Back Up Key", fontSize = 11.5.sp)
                     }
                     OutlinedButton(
-                        onClick = {
-                            keyBusy = true
-                            keyStatus = ""
-                            onRestoreKey(keyPassphrase) { result ->
-                                keyBusy = false
-                                keyStatus = result.fold(
-                                    onSuccess = { if (it) "Key restored." else "Restore failed: wrong passphrase." },
-                                    onFailure = { "Restore failed: ${it.message}" }
-                                )
-                            }
-                        },
+                        onClick = { showRestoreKeyConfirm = true },
                         enabled = !keyBusy && keyPassphrase.length >= 8,
                         modifier = Modifier.weight(1f)
                     ) {
@@ -368,5 +359,61 @@ fun SyncToGoogleDriveDialog(
                 }
             }
         }
+    if (showRestoreKeyConfirm) {
+        Dialog(onDismissRequest = { showRestoreKeyConfirm = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C26),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Replace the author key on this device?",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 15.sp,
+                        color = Color(0xFFFFD54F)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Restoring replaces this device's author key with the Drive backup. If the current key is not backed up, it and the credit identity attached to it are lost.",
+                        fontSize = 12.5.sp,
+                        color = Color(0xFFC8C2B7)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showRestoreKeyConfirm = false },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel", color = Color.LightGray)
+                        }
+                        Button(
+                            onClick = {
+                                showRestoreKeyConfirm = false
+                                keyBusy = true
+                                keyStatus = ""
+                                onRestoreKey(keyPassphrase) { result ->
+                                    keyBusy = false
+                                    keyStatus = result.fold(
+                                        onSuccess = { if (it) "Key restored." else "Restore failed: wrong passphrase." },
+                                        onFailure = { "Restore failed: ${it.message}" }
+                                    )
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Restore Key", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     }
 }
