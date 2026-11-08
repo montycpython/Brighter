@@ -205,8 +205,18 @@ class FirestoreNetworkService(private val context: Context) {
             val estimatedLeaves = (totalWords / 250).coerceAtLeast(1)
 
             val isEditorInChief = StudioStanding.isEditorInChief
-            val pendingExisting = findDocInCollection(COL_PENDING, manuscript.id, currentUser.email)
-            val registryExisting = if (pendingExisting == null) findRegistryDoc(manuscript.id, currentUser.email) else null
+            val registryExisting = findRegistryDoc(manuscript.id, currentUser.email)
+            if (registryExisting != null) {
+                findDocInCollection(COL_PENDING, manuscript.id, currentUser.email)?.let { stale ->
+                    try {
+                        stale.reference.collection("content").document("fullText").delete().await()
+                        stale.reference.delete().await()
+                    } catch (e: Exception) {
+                        Log.e("FirestoreNetwork", "Clearing stale pending copy failed", e)
+                    }
+                }
+            }
+            val pendingExisting = if (registryExisting == null) findDocInCollection(COL_PENDING, manuscript.id, currentUser.email) else null
             val existing = pendingExisting ?: registryExisting
             val targetCollection = when {
                 pendingExisting != null -> COL_PENDING
