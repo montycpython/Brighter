@@ -121,9 +121,14 @@ class FirestoreNetworkService(private val context: Context) {
 
     fun getSuspendedUsers(): List<SuspendedUserEntry> = suspendedCache
 
+    private fun claimedAdminMatches(adminEmail: String): Boolean {
+        val signedIn = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: return false
+        return normEmail(signedIn) == normEmail(adminEmail)
+    }
+
     suspend fun suspendUser(adminEmail: String, targetEmail: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!StudioStanding.isEditorInChief) {
+            if (!StudioStanding.isEditorInChief || !claimedAdminMatches(adminEmail)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can suspend users."))
             }
             val entry = SuspendedUserEntry(
@@ -152,7 +157,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun unsuspendUser(adminEmail: String, targetEmail: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!StudioStanding.isEditorInChief) {
+            if (!StudioStanding.isEditorInChief || !claimedAdminMatches(adminEmail)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can unsuspend users."))
             }
             db.collection(COL_SUSPENDED).document(normEmail(targetEmail)).delete().await()
@@ -444,7 +449,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun revokeManuscriptAccess(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!StudioStanding.isEditorInChief) {
+            if (!StudioStanding.isEditorInChief || !claimedAdminMatches(adminEmail)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can revoke drive access."))
             }
             val docRef = db.collection(COL_REGISTRY).document(fileId)
@@ -484,7 +489,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun approvePendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!StudioStanding.isEditorInChief) {
+            if (!StudioStanding.isEditorInChief || !claimedAdminMatches(adminEmail)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can approve books."))
             }
             val pendingRef = db.collection(COL_PENDING).document(fileId)
@@ -552,7 +557,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun rejectPendingBook(adminEmail: String, fileId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!StudioStanding.isEditorInChief) {
+            if (!StudioStanding.isEditorInChief || !claimedAdminMatches(adminEmail)) {
                 return@withContext Result.failure(IllegalAccessException("Only the Editor in Chief can reject books."))
             }
             val pendingRef = db.collection(COL_PENDING).document(fileId)
@@ -931,6 +936,11 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun markMailAsRead(userEmail: String, messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val mailDoc = db.collection(COL_MAIL).document(messageId).get().await()
+            val recipient = mailDoc.getString("recipientEmail") ?: ""
+            if (!StudioStanding.isEditorInChief && normEmail(recipient) != normEmail(userEmail)) {
+                return@withContext Result.failure(IllegalAccessException("Only the recipient can mark this message read."))
+            }
             db.collection(COL_MAIL).document(messageId).update("isRead", true).await()
             Result.success(Unit)
         } catch (e: Exception) {
