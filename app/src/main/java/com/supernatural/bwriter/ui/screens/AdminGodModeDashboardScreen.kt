@@ -278,7 +278,9 @@ fun AdminGodModeDashboardScreen(
                     suspendedUsers = suspendedUsers,
                     currentUser = currentUser,
                     onOpenSuspendModal = { email -> suspendingTargetUser = email },
-                    onUnsuspend = onUnsuspendUser
+                    onUnsuspend = onUnsuspendUser,
+                    isRoot = isRoot,
+                    regentEmail = regentEmail
                 )
                 2 -> MailboxDispatcherTab(
                     globalIndex = globalIndex,
@@ -1036,7 +1038,9 @@ fun AuthorRosterTab(
     suspendedUsers: List<SuspendedUserEntry>,
     currentUser: UserProfile,
     onOpenSuspendModal: (String) -> Unit,
-    onUnsuspend: (String) -> Unit
+    onUnsuspend: (String) -> Unit,
+    isRoot: Boolean = true,
+    regentEmail: String = ""
 ) {
     val allAuthorEmails = (globalIndex.map { it.authorEmail } + suspendedUsers.map { it.email } + listOf(currentUser.email)).distinct()
 
@@ -1069,6 +1073,9 @@ fun AuthorRosterTab(
                 val isSuspended = suspendedUsers.any { it.email.equals(email, ignoreCase = true) && it.isLockedOut }
                 val suspensionRecord = suspendedUsers.firstOrNull { it.email.equals(email, ignoreCase = true) }
                 val authorBooks = globalIndex.filter { it.authorEmail.equals(email, ignoreCase = true) }
+                val isProtectedRoot = !isRoot &&
+                    !email.equals(regentEmail, ignoreCase = true) &&
+                    authorBooks.any { it.editorInChief }
                 val authorName = if (isCurrentUser) {
                     currentUser.displayName
                 } else {
@@ -1178,7 +1185,7 @@ fun AuthorRosterTab(
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Restore Account", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
-                            } else if (!isCurrentUser) {
+                            } else if (!isCurrentUser && !isProtectedRoot) {
                                 Button(
                                     onClick = { onOpenSuspendModal(email) },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF381414)),

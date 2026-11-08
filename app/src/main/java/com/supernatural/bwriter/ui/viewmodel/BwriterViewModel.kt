@@ -1166,6 +1166,15 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             onDone(false)
             return
         }
+        if (!_isRoot.value && _regentEmail.value.isNotBlank() &&
+            !targetEmail.equals(_regentEmail.value, ignoreCase = true) &&
+            _globalBookIndex.value.any {
+                it.authorEmail.equals(targetEmail, ignoreCase = true) && it.editorInChief
+            }
+        ) {
+            onDone(false)
+            return
+        }
         launchGuarded {
             val result = networkService.suspendUser(
                 adminEmail = _currentUser.value.email,
