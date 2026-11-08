@@ -491,15 +491,23 @@ class FirestoreNetworkService(private val context: Context) {
                 return@withContext Result.failure(IllegalStateException("Author stamp verification failed."))
             }
 
-            db.collection(COL_REGISTRY).document(fileId).set(registryToMap(entry)).await()
-            if (contentSnap.exists()) {
-                db.collection(COL_REGISTRY).document(fileId)
-                    .collection("content").document("fullText")
-                    .set(contentSnap.data ?: emptyMap<String, Any>()).await()
+            if (!issueCredit(entry)) {
+                return@withContext Result.failure(
+                    IllegalStateException("Credit issuance failed; approval not completed. Try again.")
+                )
             }
-            issueCredit(entry)
-            pendingRef.collection("content").document("fullText").delete().await()
-            pendingRef.delete().await()
+            val batch = db.batch()
+            batch.set(db.collection(COL_REGISTRY).document(fileId), registryToMap(entry))
+            if (contentSnap.exists()) {
+                batch.set(
+                    db.collection(COL_REGISTRY).document(fileId)
+                        .collection("content").document("fullText"),
+                    contentSnap.data ?: emptyMap<String, Any>()
+                )
+            }
+            batch.delete(pendingRef.collection("content").document("fullText"))
+            batch.delete(pendingRef)
+            batch.commit().await()
 
             sendServerlessMail(
                 ServerlessMailMessage(
@@ -560,8 +568,8 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    suspend fun issueCredit(entry: GlobalBookIndexEntry) {
-        if (!StudioStanding.isEditorInChief) return
+    suspend fun issueCredit(entry: GlobalBookIndexEntry): Boolean {
+        if (!StudioStanding.isEditorInChief) return false
         try {
             val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
                 .whereEqualTo("fileId", entry.fileId).get().await()
@@ -587,8 +595,10 @@ class FirestoreNetworkService(private val context: Context) {
                     writeIssuance(assignment.editorEmail, editorEntry.authorAddress, amount, "EDITOR", entry)
                 }
             }
+            true
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Credit issuance failed", e)
+            false
         }
     }
 
