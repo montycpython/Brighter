@@ -1081,55 +1081,63 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun suspendUserAccount(targetEmail: String, reason: String) {
-        if (targetEmail.equals(_currentUser.value.email, ignoreCase = true)) return
+    fun suspendUserAccount(targetEmail: String, reason: String, onDone: (Boolean) -> Unit = {}) {
+        if (targetEmail.equals(_currentUser.value.email, ignoreCase = true)) {
+            onDone(false)
+            return
+        }
         viewModelScope.launch {
-            networkService.suspendUser(
+            val result = networkService.suspendUser(
                 adminEmail = _currentUser.value.email,
                 targetEmail = targetEmail,
                 reason = reason
             )
-            refreshNetwork()
+            if (result.isSuccess) refreshNetwork()
+            onDone(result.isSuccess)
         }
     }
 
-    fun unsuspendUserAccount(targetEmail: String) {
+    fun unsuspendUserAccount(targetEmail: String, onDone: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            networkService.unsuspendUser(
+            val result = networkService.unsuspendUser(
                 adminEmail = _currentUser.value.email,
                 targetEmail = targetEmail
             )
-            refreshNetwork()
+            if (result.isSuccess) refreshNetwork()
+            onDone(result.isSuccess)
         }
     }
 
-    fun revokeRegistryAccess(fileId: String) {
+    fun revokeRegistryAccess(fileId: String, onDone: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            networkService.revokeManuscriptAccess(
+            val result = networkService.revokeManuscriptAccess(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
-            refreshNetwork()
+            if (result.isSuccess) refreshNetwork()
+            onDone(result.isSuccess)
         }
     }
 
-    fun approveRegistryBook(fileId: String) {
+    fun approveRegistryBook(fileId: String, onDone: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            networkService.approvePendingBook(
+            val result = networkService.approvePendingBook(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
-            refreshNetwork()
+            if (result.isSuccess) refreshNetwork()
+            onDone(result.isSuccess)
         }
     }
 
-    fun rejectRegistryBook(fileId: String) {
+    fun rejectRegistryBook(fileId: String, onDone: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            networkService.rejectPendingBook(
+            val result = networkService.rejectPendingBook(
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
-            refreshNetwork()
+            if (result.isSuccess) refreshNetwork()
+            onDone(result.isSuccess)
         }
     }
 
