@@ -40,7 +40,8 @@ data class ContributorCredit(
                 val array = JSONArray(jsonString)
                 val list = mutableListOf<ContributorCredit>()
                 for (i in 0 until array.length()) {
-                    list.add(fromJsonObject(array.getJSONObject(i)))
+                    val obj = array.optJSONObject(i) ?: continue
+                    list.add(fromJsonObject(obj))
                 }
                 list
             } catch (e: Exception) {
