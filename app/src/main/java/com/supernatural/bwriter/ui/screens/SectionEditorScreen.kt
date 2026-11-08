@@ -2212,10 +2212,11 @@ ${if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) "Editor-in-C
                                         )
                                     }
                                     onGenerateAiDraft(section, promptToRun) { generated ->
-                                        contentValue = TextFieldValue(
-                                            if (contentValue.text.isBlank()) generated
+                                        val mergedText = if (contentValue.text.isBlank()) generated
                                             else "${contentValue.text.trimEnd()}\n\n$generated"
-                                        )
+                                        contentValue = TextFieldValue(mergedText)
+                                        if (isCollaboratorMode) onProposeRevision(section, mergedText)
+                                        else if (!isAuthorRoleBlocked) onSaveContent(section, mergedText)
                                         coroutineScope.launch {
                                             snackbarHostState.showSnackbar("Chapter prose generated & added to editor!")
                                         }
