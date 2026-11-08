@@ -313,7 +313,7 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
 
         val originalWords = countWords(originalText)
         val newWords = countWords(newContent)
-        val deltaWords = abs(newWords - originalWords).coerceAtLeast(newWords.coerceAtLeast(1))
+        val deltaWords = if (newContent == originalText) 0 else abs(newWords - originalWords).coerceAtLeast(1)
 
         val updatedSection = section.copy(
             hasPendingRevision = true,
