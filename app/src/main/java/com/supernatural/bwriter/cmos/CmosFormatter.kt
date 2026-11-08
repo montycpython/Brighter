@@ -58,10 +58,14 @@ object CmosFormatter {
 
         val segments = title.split(Regex("(?<=[:—–])|(?=[:—–])"))
         return segments.joinToString("") { segment ->
-            val words = segment.trim().split(Regex("""\s+""")).filter { it.isNotBlank() }
+            val leading = segment.takeWhile { it.isWhitespace() }
+            val trailing = segment.takeLastWhile { it.isWhitespace() }
+            val core = segment.trim()
+            if (core.isEmpty()) return@joinToString segment
+            val words = core.split(Regex("""\s+""")).filter { it.isNotBlank() }
             if (words.isEmpty()) return@joinToString segment
 
-            words.mapIndexed { index, rawWord ->
+            val cased = words.mapIndexed { index, rawWord ->
                 val cleanWord = rawWord.lowercase(Locale.ROOT)
                 val isFirst = index == 0
                 val isLast = index == words.size - 1
@@ -72,6 +76,7 @@ object CmosFormatter {
                     cleanWord
                 }
             }.joinToString(" ")
+            leading + cased + trailing
         }
     }
 
