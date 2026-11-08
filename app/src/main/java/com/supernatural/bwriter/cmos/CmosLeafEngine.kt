@@ -13,7 +13,8 @@ object CmosLeafEngine {
 
     fun calculateLeaves(
         manuscript: ManuscriptEntity,
-        sections: List<SectionEntity>
+        sections: List<SectionEntity>,
+        startPageOverrides: Map<Long, String> = emptyMap()
     ): List<CalculatedLeaf> {
         val trimSize = BookTrimSize.fromTargetString(manuscript.targetPageSize)
         val leaves = mutableListOf<CalculatedLeaf>()
@@ -255,7 +256,7 @@ object CmosLeafEngine {
                         if (sec.startOnRecto && curFront % 2 == 0) {
                             curFront++
                         }
-                        lines.add(formatTocLine(sec.title, CmosFormatter.toRoman(curFront)))
+                        lines.add(formatTocLine(sec.title, startPageOverrides[sec.id] ?: CmosFormatter.toRoman(curFront)))
                         val pageSnippets = paginateSectionProse(
                             content = sec.content,
                             trimSize = trimSize,
@@ -268,7 +269,7 @@ object CmosLeafEngine {
                 }
 
                 for (sec in bodySections) {
-                    val page = sectionStartPageMap[sec.id] ?: "1"
+                    val page = startPageOverrides[sec.id] ?: sectionStartPageMap[sec.id] ?: "1"
                     val title = if (sec.sectionType == SectionType.PART_DIVIDER) sec.title.uppercase() else sec.title
                     lines.add(formatTocLine(title, page))
                 }
@@ -276,7 +277,7 @@ object CmosLeafEngine {
                 if (backSections.isNotEmpty()) {
                     lines.add("")
                     for (sec in backSections) {
-                        val page = sectionStartPageMap[sec.id] ?: ""
+                        val page = startPageOverrides[sec.id] ?: sectionStartPageMap[sec.id] ?: ""
                         lines.add(formatTocLine(sec.title, page))
                     }
                 }

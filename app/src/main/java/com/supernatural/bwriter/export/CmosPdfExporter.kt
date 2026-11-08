@@ -53,6 +53,20 @@ object CmosPdfExporter {
         targetTrimSize: BookTrimSize? = null,
         ownBook: Boolean = true
     ): ExportResult {
+        val capturedStarts = mutableMapOf<Long, String>()
+        renderManuscriptPdf(context, manuscript, sections, targetTrimSize, ownBook, emptyMap(), capturedStarts)
+        return renderManuscriptPdf(context, manuscript, sections, targetTrimSize, ownBook, capturedStarts, null)
+    }
+
+    private fun renderManuscriptPdf(
+        context: Context,
+        manuscript: ManuscriptEntity,
+        sections: List<SectionEntity>,
+        targetTrimSize: BookTrimSize? = null,
+        ownBook: Boolean = true,
+        tocStartPages: Map<Long, String> = emptyMap(),
+        captureStarts: MutableMap<Long, String>? = null
+    ): ExportResult {
         val trimSize = targetTrimSize ?: BookTrimSize.fromTargetString(manuscript.targetPageSize)
         val pdfDocument = PdfDocument()
 
@@ -191,7 +205,7 @@ object CmosPdfExporter {
             frontMatterRomanPage++
         }
 
-        val calculatedLeaves = CmosLeafEngine.calculateLeaves(manuscript, sections)
+        val calculatedLeaves = CmosLeafEngine.calculateLeaves(manuscript, sections, tocStartPages)
         val tocLeaves = calculatedLeaves.filter { it.displayType == LeafDisplayType.TABLE_OF_CONTENTS }
 
         if (tocLeaves.isNotEmpty()) {
@@ -248,6 +262,7 @@ object CmosPdfExporter {
                 frontMatterRomanPage++
             }
 
+            captureStarts?.put(sec.id, CmosFormatter.toRoman(frontMatterRomanPage))
             renderFullSectionPages(
                 context = context,
                 pdfDocument = pdfDocument,
@@ -292,6 +307,7 @@ object CmosPdfExporter {
                 bodyArabicPage++
             }
 
+            captureStarts?.put(sec.id, bodyArabicPage.toString())
             renderFullSectionPages(
                 context = context,
                 pdfDocument = pdfDocument,
@@ -329,6 +345,7 @@ object CmosPdfExporter {
                 bodyArabicPage++
             }
 
+            captureStarts?.put(sec.id, bodyArabicPage.toString())
             renderFullSectionPages(
                 context = context,
                 pdfDocument = pdfDocument,
