@@ -2,7 +2,7 @@ package com.supernatural.bwriter.data
 
 object IllustrationUris {
     fun isOwnBook(authorEmail: String, userEmail: String): Boolean =
-        authorEmail.isBlank() || authorEmail.equals(userEmail, ignoreCase = true)
+        authorEmail.isNotBlank() && userEmail.isNotBlank() && authorEmail.equals(userEmail, ignoreCase = true)
 
     fun isLoadable(uriString: String, ownBook: Boolean): Boolean {
         if (ownBook) return true
