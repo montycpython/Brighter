@@ -15,6 +15,7 @@ import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
 import com.supernatural.bwriter.data.FirestoreNetworkService
+import com.supernatural.bwriter.data.RestoredBook
 import com.supernatural.bwriter.data.GoogleDriveClient
 import com.supernatural.bwriter.data.IllustrationUris
 import com.supernatural.bwriter.export.CmosPdfExporter
@@ -705,8 +706,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val restored = networkService.restoreUserManuscriptsFromBackRoom(_currentUser.value.email)
             var total = 0
-            for (pair in restored) {
-                if (applyRestoredBook(pair.first, pair.second)) total++
+            for (book in restored) {
+                if (applyRestoredBook(book)) total++
             }
 
             val tokenResult = googleDriveClient.accessToken(interactive = interactive)
@@ -714,7 +715,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val payloads = googleDriveClient.downloadAllPayloads(tokenResult.getOrThrow())
                 for (payload in payloads) {
                     val parsed = networkService.parsePayloadJson(payload, _currentUser.value.email) ?: continue
-                    if (applyRestoredBook(parsed.first, parsed.second)) total++
+                    if (applyRestoredBook(parsed)) total++
                 }
             }
 
@@ -723,10 +724,29 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private suspend fun applyRestoredBook(
-        manuscript: ManuscriptEntity,
-        sections: List<SectionEntity>
-    ): Boolean {
+    private suspend fun insertRestoredBook(book: RestoredBook): Long {
+        val mId = repository.createManuscript(book.manuscript, populateTemplate = false)
+        val sectionIdMap = mutableMapOf<Long, Long>()
+        book.sections.forEachIndexed { index, sec ->
+            val newSectionId = repository.insertSection(sec.copy(manuscriptId = mId))
+            val oldSectionId = book.sectionIds.getOrNull(index) ?: 0L
+            if (oldSectionId > 0) sectionIdMap[oldSectionId] = newSectionId
+        }
+        for (character in book.characters) {
+            repository.insertCharacter(character.copy(id = 0, manuscriptId = mId))
+        }
+        for (setting in book.settings) {
+            repository.insertSetting(setting.copy(id = 0, manuscriptId = mId))
+        }
+        for (comment in book.comments) {
+            val newSectionId = sectionIdMap[comment.sectionId] ?: continue
+            repository.addComment(comment.copy(id = 0, sectionId = newSectionId, manuscriptId = mId))
+        }
+        return mId
+    }
+
+    private suspend fun applyRestoredBook(book: RestoredBook): Boolean {
+        val manuscript = book.manuscript
         val local = manuscripts.value.firstOrNull { existing ->
             (manuscript.birthId.isNotBlank() && existing.birthId == manuscript.birthId) ||
                 bookKey(existing.title, existing.authorEmail) == bookKey(manuscript.title, manuscript.authorEmail)
@@ -735,10 +755,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         if (local != null) {
             repository.deleteManuscript(local.id)
         }
-        val mId = repository.createManuscript(manuscript, populateTemplate = false)
-        for (sec in sections) {
-            repository.insertSection(sec.copy(manuscriptId = mId))
-        }
+        insertRestoredBook(book)
         return true
     }
 
@@ -762,10 +779,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 onReady(-1L)
                 return@launch
             }
-            val mId = repository.createManuscript(fetched.first, populateTemplate = false)
-            for (sec in fetched.second) {
-                repository.insertSection(sec.copy(manuscriptId = mId))
-            }
+            val mId = insertRestoredBook(fetched)
             registryCopyPrefs.edit().putLong(entry.fileId, mId).apply()
             onReady(mId)
         }
@@ -849,6 +863,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 val sections = repository.getSectionsForManuscriptOnce(manuscript.id)
+                val characters = repository.getCharactersForManuscriptOnce(manuscript.id)
+                val settings = repository.getSettingsForManuscriptOnce(manuscript.id)
+                val comments = repository.getCommentsForManuscriptOnce(manuscript.id)
                 val appContext = getApplication<Application>().applicationContext
                 AuthorKeys.ensureKeyPair(appContext)
                 if (!AuthorKeys.isUsable(appContext)) {
@@ -859,7 +876,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val birthId = manuscript.birthId.ifBlank { java.util.UUID.randomUUID().toString() }
                 val stamped = manuscript.copy(birthId = birthId, authorAddress = authorAddress)
                 val payloadJson = networkService.buildPayloadJson(
-                    stamped, sections, _currentUser.value, isPublicInCommunity
+                    stamped, sections, characters, settings, comments, _currentUser.value, isPublicInCommunity
                 )
                 val prevStampHash = manuscript.stampHash
                 val newStampHash = sha256Hex("$authorAddress|$birthId|$prevStampHash|$payloadJson")
@@ -875,6 +892,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val result = networkService.syncManuscriptToBackRoom(
                     manuscript = stamped,
                     sections = sections,
+                    characters = characters,
+                    settings = settings,
+                    comments = comments,
                     currentUser = _currentUser.value,
                     isPublicInCommunity = isPublicInCommunity,
                     stamp = stamp
@@ -893,7 +913,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                         networkService.issueCredit(entry)
                     }
                     val payload = networkService.buildPayloadJson(
-                        fullyStamped, sections, _currentUser.value, isPublicInCommunity
+                        fullyStamped, sections, characters, settings, comments, _currentUser.value, isPublicInCommunity
                     )
                     val driveResult = googleDriveClient.accessToken(interactive = true).fold(
                         onSuccess = { token -> googleDriveClient.saveBook(token, birthId, manuscript.title, payload) },

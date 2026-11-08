@@ -17,6 +17,9 @@ interface CommentDao {
     @Query("SELECT * FROM editorial_comments WHERE manuscriptId = :manuscriptId ORDER BY timestamp DESC")
     fun getCommentsForManuscript(manuscriptId: Long): Flow<List<EditorialCommentEntity>>
 
+    @Query("SELECT * FROM editorial_comments WHERE manuscriptId = :manuscriptId ORDER BY timestamp DESC")
+    suspend fun getCommentsForManuscriptOnce(manuscriptId: Long): List<EditorialCommentEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertComment(comment: EditorialCommentEntity): Long
 

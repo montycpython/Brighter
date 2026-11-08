@@ -52,6 +52,9 @@ class BwriterRepository(private val database: BwriterDatabase) {
     fun getCommentsForManuscript(manuscriptId: Long): Flow<List<EditorialCommentEntity>> =
         commentDao.getCommentsForManuscript(manuscriptId)
 
+    suspend fun getCommentsForManuscriptOnce(manuscriptId: Long): List<EditorialCommentEntity> =
+        withContext(Dispatchers.IO) { commentDao.getCommentsForManuscriptOnce(manuscriptId) }
+
     fun getCharactersForManuscript(manuscriptId: Long): Flow<List<com.supernatural.bwriter.model.CharacterEntity>> =
         characterDao.getCharactersForManuscript(manuscriptId)
 

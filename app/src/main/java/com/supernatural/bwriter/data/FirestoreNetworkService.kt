@@ -9,6 +9,9 @@ import com.supernatural.bwriter.model.GlobalBookIndexEntry
 import com.supernatural.bwriter.model.ManuscriptEntity
 import com.supernatural.bwriter.model.MatterType
 import com.supernatural.bwriter.model.SectionEntity
+import com.supernatural.bwriter.model.CharacterEntity
+import com.supernatural.bwriter.model.EditorialCommentEntity
+import com.supernatural.bwriter.model.StorySettingEntity
 import com.supernatural.bwriter.model.SectionStatus
 import com.supernatural.bwriter.model.SectionType
 import com.supernatural.bwriter.model.ServerlessMailMessage
@@ -34,6 +37,15 @@ data class BookStamp(
     val stampHash: String = "",
     val prevStampHash: String = "",
     val stampSignature: String = ""
+)
+
+data class RestoredBook(
+    val manuscript: ManuscriptEntity,
+    val sections: List<SectionEntity>,
+    val sectionIds: List<Long> = emptyList(),
+    val characters: List<CharacterEntity> = emptyList(),
+    val settings: List<StorySettingEntity> = emptyList(),
+    val comments: List<EditorialCommentEntity> = emptyList()
 )
 
 data class SiteUser(
@@ -149,6 +161,9 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun syncManuscriptToBackRoom(
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>,
+        characters: List<CharacterEntity>,
+        settings: List<StorySettingEntity>,
+        comments: List<EditorialCommentEntity>,
         currentUser: UserProfile,
         isPublicInCommunity: Boolean,
         stamp: BookStamp
@@ -165,7 +180,7 @@ class FirestoreNetworkService(private val context: Context) {
                 else -> currentUser.displayName
             }
 
-            val manuscriptJson = buildManuscriptPayload(manuscript, sections, currentUser, resolvedAuthorName, isPublicInCommunity)
+            val manuscriptJson = buildManuscriptPayload(manuscript, sections, characters, settings, comments, currentUser, resolvedAuthorName, isPublicInCommunity)
 
             val cloudDocId = "${normEmail(currentUser.email)}_${stamp.birthId}"
             val cloudRef = db.collection(COL_CLOUD_BOOKS).document(cloudDocId)
@@ -279,12 +294,12 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    suspend fun restoreUserManuscriptsFromBackRoom(userEmail: String): List<Pair<ManuscriptEntity, List<SectionEntity>>> = withContext(Dispatchers.IO) {
+    suspend fun restoreUserManuscriptsFromBackRoom(userEmail: String): List<RestoredBook> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CLOUD_BOOKS)
                 .whereEqualTo("ownerEmail", normEmail(userEmail))
                 .get().await()
-            val list = mutableListOf<Pair<ManuscriptEntity, List<SectionEntity>>>()
+            val list = mutableListOf<RestoredBook>()
             for (doc in snap.documents) {
                 val payload = doc.getString("payload") ?: continue
                 val parsed = parseManuscriptPayload(JSONObject(payload), userEmail)
@@ -333,7 +348,7 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    suspend fun fetchRegistryBook(fileId: String): Pair<ManuscriptEntity, List<SectionEntity>>? = withContext(Dispatchers.IO) {
+    suspend fun fetchRegistryBook(fileId: String): RestoredBook? = withContext(Dispatchers.IO) {
         try {
             val doc = db.collection(COL_REGISTRY).document(fileId)
                 .collection("content").document("fullText")
@@ -350,6 +365,9 @@ class FirestoreNetworkService(private val context: Context) {
     fun buildPayloadJson(
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>,
+        characters: List<CharacterEntity>,
+        settings: List<StorySettingEntity>,
+        comments: List<EditorialCommentEntity>,
         currentUser: UserProfile,
         isPublicInCommunity: Boolean
     ): String {
@@ -358,10 +376,10 @@ class FirestoreNetworkService(private val context: Context) {
             manuscript.authorName.isNotBlank() -> manuscript.authorName.trim()
             else -> currentUser.displayName
         }
-        return buildManuscriptPayload(manuscript, sections, currentUser, resolvedAuthorName, isPublicInCommunity).toString()
+        return buildManuscriptPayload(manuscript, sections, characters, settings, comments, currentUser, resolvedAuthorName, isPublicInCommunity).toString()
     }
 
-    fun parsePayloadJson(payload: String, fallbackEmail: String): Pair<ManuscriptEntity, List<SectionEntity>>? {
+    fun parsePayloadJson(payload: String, fallbackEmail: String): RestoredBook? {
         return try {
             parseManuscriptPayload(JSONObject(payload), fallbackEmail)
         } catch (e: Exception) {
@@ -878,6 +896,9 @@ class FirestoreNetworkService(private val context: Context) {
     private fun buildManuscriptPayload(
         manuscript: ManuscriptEntity,
         sections: List<SectionEntity>,
+        characters: List<CharacterEntity>,
+        settings: List<StorySettingEntity>,
+        comments: List<EditorialCommentEntity>,
         currentUser: UserProfile,
         resolvedAuthorName: String,
         isPublicInCommunity: Boolean
@@ -945,10 +966,59 @@ class FirestoreNetworkService(private val context: Context) {
                 sectionsArray.put(secObj)
             }
             put("sections", sectionsArray)
+
+            val charactersArray = JSONArray()
+            characters.forEach { ch ->
+                val chObj = JSONObject().apply {
+                    put("id", ch.id)
+                    put("name", ch.name)
+                    put("role", ch.role)
+                    put("physicalDescription", ch.physicalDescription)
+                    put("psychologicalDescription", ch.psychologicalDescription)
+                    put("backstory", ch.backstory)
+                    put("voiceAndMannerisms", ch.voiceAndMannerisms)
+                    put("intertextualArchetype", ch.intertextualArchetype)
+                    put("otherDetails", ch.otherDetails)
+                }
+                charactersArray.put(chObj)
+            }
+            put("characters", charactersArray)
+
+            val settingsArray = JSONArray()
+            settings.forEach { st ->
+                val stObj = JSONObject().apply {
+                    put("id", st.id)
+                    put("locationName", st.locationName)
+                    put("timePeriodOrEra", st.timePeriodOrEra)
+                    put("atmosphereAndSensory", st.atmosphereAndSensory)
+                    put("architecturalOrSpatialDetails", st.architecturalOrSpatialDetails)
+                    put("historicalOrCulturalContext", st.historicalOrCulturalContext)
+                    put("targetIntertextualTouchstones", st.targetIntertextualTouchstones)
+                    put("otherNotes", st.otherNotes)
+                }
+                settingsArray.put(stObj)
+            }
+            put("settings", settingsArray)
+
+            val commentsArray = JSONArray()
+            comments.forEach { cm ->
+                val cmObj = JSONObject().apply {
+                    put("id", cm.id)
+                    put("sectionId", cm.sectionId)
+                    put("authorName", cm.authorName)
+                    put("authorRole", cm.authorRole.name)
+                    put("commentText", cm.commentText)
+                    put("cmosRuleReference", cm.cmosRuleReference)
+                    put("isResolved", cm.isResolved)
+                    put("timestamp", cm.timestamp)
+                }
+                commentsArray.put(cmObj)
+            }
+            put("comments", commentsArray)
         }
     }
 
-    private fun parseManuscriptPayload(mObj: JSONObject, userEmail: String): Pair<ManuscriptEntity, List<SectionEntity>>? {
+    private fun parseManuscriptPayload(mObj: JSONObject, userEmail: String): RestoredBook? {
         return try {
             val workType = try {
                 WorkType.valueOf(mObj.optString("workType", "NOVEL"))
@@ -985,6 +1055,7 @@ class FirestoreNetworkService(private val context: Context) {
 
             val secArray = mObj.optJSONArray("sections") ?: JSONArray()
             val sections = mutableListOf<SectionEntity>()
+            val sectionPayloadIds = mutableListOf<Long>()
             for (i in 0 until secArray.length()) {
                 val sObj = secArray.getJSONObject(i)
                 val matterType = try {
@@ -1008,6 +1079,7 @@ class FirestoreNetworkService(private val context: Context) {
                     SectionStatus.DRAFT
                 }
 
+                sectionPayloadIds.add(sObj.optLong("id", 0L))
                 sections.add(
                     SectionEntity(
                         manuscriptId = 0L,
@@ -1039,7 +1111,67 @@ class FirestoreNetworkService(private val context: Context) {
                     )
                 )
             }
-            Pair(manuscript, sections)
+            val characters = mutableListOf<CharacterEntity>()
+            val charArray = mObj.optJSONArray("characters") ?: JSONArray()
+            for (i in 0 until charArray.length()) {
+                val cObj = charArray.getJSONObject(i)
+                characters.add(
+                    CharacterEntity(
+                        manuscriptId = 0L,
+                        name = cObj.optString("name", ""),
+                        role = cObj.optString("role", "Protagonist"),
+                        physicalDescription = cObj.optString("physicalDescription", ""),
+                        psychologicalDescription = cObj.optString("psychologicalDescription", ""),
+                        backstory = cObj.optString("backstory", ""),
+                        voiceAndMannerisms = cObj.optString("voiceAndMannerisms", ""),
+                        intertextualArchetype = cObj.optString("intertextualArchetype", ""),
+                        otherDetails = cObj.optString("otherDetails", "")
+                    )
+                )
+            }
+
+            val settings = mutableListOf<StorySettingEntity>()
+            val setArray = mObj.optJSONArray("settings") ?: JSONArray()
+            for (i in 0 until setArray.length()) {
+                val stObj = setArray.getJSONObject(i)
+                settings.add(
+                    StorySettingEntity(
+                        manuscriptId = 0L,
+                        locationName = stObj.optString("locationName", ""),
+                        timePeriodOrEra = stObj.optString("timePeriodOrEra", ""),
+                        atmosphereAndSensory = stObj.optString("atmosphereAndSensory", ""),
+                        architecturalOrSpatialDetails = stObj.optString("architecturalOrSpatialDetails", ""),
+                        historicalOrCulturalContext = stObj.optString("historicalOrCulturalContext", ""),
+                        targetIntertextualTouchstones = stObj.optString("targetIntertextualTouchstones", ""),
+                        otherNotes = stObj.optString("otherNotes", "")
+                    )
+                )
+            }
+
+            val comments = mutableListOf<EditorialCommentEntity>()
+            val comArray = mObj.optJSONArray("comments") ?: JSONArray()
+            for (i in 0 until comArray.length()) {
+                val cmObj = comArray.getJSONObject(i)
+                val cRole = try {
+                    WorkRole.valueOf(cmObj.optString("authorRole", "AUTHOR"))
+                } catch (e: Exception) {
+                    WorkRole.AUTHOR
+                }
+                comments.add(
+                    EditorialCommentEntity(
+                        sectionId = cmObj.optLong("sectionId", 0L),
+                        manuscriptId = 0L,
+                        authorName = cmObj.optString("authorName", ""),
+                        authorRole = cRole,
+                        commentText = cmObj.optString("commentText", ""),
+                        cmosRuleReference = cmObj.optString("cmosRuleReference", ""),
+                        isResolved = cmObj.optBoolean("isResolved", false),
+                        timestamp = cmObj.optLong("timestamp", System.currentTimeMillis())
+                    )
+                )
+            }
+
+            RestoredBook(manuscript, sections, sectionPayloadIds, characters, settings, comments)
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Failed to parse manuscript payload", e)
             null
