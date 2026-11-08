@@ -3,6 +3,7 @@ package com.supernatural.bwriter.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -111,6 +112,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supernatural.bwriter.cmos.CmosFormatter
+import com.supernatural.bwriter.model.BookTrimSize
 import com.supernatural.bwriter.model.EditorialCommentEntity
 import com.supernatural.bwriter.model.SectionEntity
 import com.supernatural.bwriter.model.SectionStatus
@@ -251,19 +253,43 @@ fun SectionEditorScreen(
         }
     }
 
+    fun imageFitsBook(uri: Uri): Boolean {
+        val trim = BookTrimSize.fromTargetString(manuscript?.targetPageSize)
+        val maxWidthPx = (trim.widthPt * 300f / 72f).toInt()
+        val maxHeightPx = (trim.heightPt * 300f / 72f).toInt()
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, bounds)
+            }
+            bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+                (bounds.outWidth <= maxWidthPx && bounds.outHeight <= maxHeightPx)
+        } catch (e: Exception) {
+            true
+        }
+    }
+
     val headImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            headerIllustrationUri = uri.toString()
-            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
-            coroutineScope.launch { snackbarHostState.showSnackbar("Chapter Head Illustration attached.") }
+            if (!imageFitsBook(uri)) {
+                coroutineScope.launch { snackbarHostState.showSnackbar("Image is larger than the book page — not added.") }
+            } else {
+                headerIllustrationUri = uri.toString()
+                onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+                coroutineScope.launch { snackbarHostState.showSnackbar("Chapter Head Illustration attached.") }
+            }
         }
     }
 
     val tailImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            tailIllustrationUri = uri.toString()
-            onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
-            coroutineScope.launch { snackbarHostState.showSnackbar("Chapter Tailpiece Ornament attached.") }
+            if (!imageFitsBook(uri)) {
+                coroutineScope.launch { snackbarHostState.showSnackbar("Image is larger than the book page — not added.") }
+            } else {
+                tailIllustrationUri = uri.toString()
+                onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
+                coroutineScope.launch { snackbarHostState.showSnackbar("Chapter Tailpiece Ornament attached.") }
+            }
         }
     }
 
