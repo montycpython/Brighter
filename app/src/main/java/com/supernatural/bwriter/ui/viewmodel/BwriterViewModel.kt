@@ -367,12 +367,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val aiResult = result.getOrNull()
                 if (aiResult != null && aiResult.text.isNotBlank()) {
                     val generatedText = aiResult.text
-                    val updatedContent = if (section.content.isBlank()) {
+                    val freshSection = repository.getSectionByIdOnce(section.id) ?: section
+                    val updatedContent = if (freshSection.content.isBlank()) {
                         generatedText
                     } else {
-                        "${section.content.trimEnd()}\n\n$generatedText"
+                        "${freshSection.content.trimEnd()}\n\n$generatedText"
                     }
-                    repository.updateSection(section.copy(content = updatedContent, aiDraftPrompt = prompt))
+                    repository.updateSection(freshSection.copy(content = updatedContent, aiDraftPrompt = prompt))
 
                     val promptTokens = aiResult.promptTokens
                     val compTokens = aiResult.completionTokens
@@ -888,6 +889,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _driveSyncStatus.value = _driveSyncStatus.value.copy(isSyncing = true, syncError = null)
         viewModelScope.launch {
             try {
+                val manuscript = repository.getManuscriptByIdOnce(manuscript.id) ?: manuscript
                 val sections = repository.getSectionsForManuscriptOnce(manuscript.id)
                 val characters = repository.getCharactersForManuscriptOnce(manuscript.id)
                 val settings = repository.getSettingsForManuscriptOnce(manuscript.id)
