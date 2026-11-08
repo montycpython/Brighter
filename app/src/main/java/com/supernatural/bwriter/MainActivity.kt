@@ -554,26 +554,31 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onBack = { navController.popBackStack() },
                 onRefresh = { viewModel.refreshNetwork() },
                 onSuspendUser = { email, reason ->
-                    viewModel.suspendUserAccount(email, reason)
-                    Toast.makeText(context, "User $email suspended (Kill-Switch deployed)", Toast.LENGTH_SHORT).show()
+                    viewModel.suspendUserAccount(email, reason) { ok ->
+                        Toast.makeText(context, if (ok) "User $email suspended (Kill-Switch deployed)" else "Suspension failed for $email", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onUnsuspendUser = { email ->
-                    viewModel.unsuspendUserAccount(email)
-                    Toast.makeText(context, "User $email unsuspended", Toast.LENGTH_SHORT).show()
+                    viewModel.unsuspendUserAccount(email) { ok ->
+                        Toast.makeText(context, if (ok) "User $email unsuspended" else "Unsuspend failed for $email", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onRevokeManuscript = { fileId ->
-                    viewModel.revokeRegistryAccess(fileId)
-                    Toast.makeText(context, "Manuscript access revoked", Toast.LENGTH_SHORT).show()
+                    viewModel.revokeRegistryAccess(fileId) { ok ->
+                        Toast.makeText(context, if (ok) "Manuscript access revoked" else "Revoke failed", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 pendingBooks = pendingBooks,
                 mailboxMessages = mailboxMessages,
                 onApproveBook = { fileId ->
-                    viewModel.approveRegistryBook(fileId)
-                    Toast.makeText(context, "Book approved — now in the registry", Toast.LENGTH_SHORT).show()
+                    viewModel.approveRegistryBook(fileId) { ok ->
+                        Toast.makeText(context, if (ok) "Book approved — now in the registry" else "Approval failed — book is still pending", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onRejectBook = { fileId ->
-                    viewModel.rejectRegistryBook(fileId)
-                    Toast.makeText(context, "Book not approved", Toast.LENGTH_SHORT).show()
+                    viewModel.rejectRegistryBook(fileId) { ok ->
+                        Toast.makeText(context, if (ok) "Book not approved" else "Rejection failed — book is still pending", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 pendingEditorAssignments = pendingEditorAssignments,
                 registryAuthors = registryAuthors,
