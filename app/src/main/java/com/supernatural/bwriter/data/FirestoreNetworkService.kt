@@ -613,12 +613,16 @@ class FirestoreNetworkService(private val context: Context) {
                 writeIssuance(entry.authorEmail, entry.authorAddress, amount, "AUTHOR", entry)
             }
             fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
-                val editorEntry = db.collection(COL_REGISTRY)
-                    .whereEqualTo("authorEmailLower", normEmail(assignment.editorEmail)).get().await()
-                    .documents.mapNotNull { docToRegistry(it.data) }
-                    .firstOrNull { it.authorAddress.isNotBlank() }
-                if (editorEntry != null && !existingForBook.any { it.kind == "EDITOR" && it.authorEmail == normEmail(assignment.editorEmail) }) {
-                    writeIssuance(assignment.editorEmail, editorEntry.authorAddress, amount, "EDITOR", entry)
+                if (existingForBook.any { it.kind == "EDITOR" && it.authorEmail == normEmail(assignment.editorEmail) }) return@forEach
+                val editorAddress = assignment.editorAddress.ifBlank {
+                    db.collection(COL_REGISTRY)
+                        .whereEqualTo("authorEmailLower", normEmail(assignment.editorEmail)).get().await()
+                        .documents.mapNotNull { docToRegistry(it.data) }
+                        .firstOrNull { it.authorAddress.isNotBlank() }
+                        ?.authorAddress.orEmpty()
+                }
+                if (editorAddress.isNotBlank()) {
+                    writeIssuance(assignment.editorEmail, editorAddress, amount, "EDITOR", entry)
                 }
             }
             true
