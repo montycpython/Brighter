@@ -294,6 +294,15 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    suspend fun deleteCloudBackup(userEmail: String, birthId: String) = withContext(Dispatchers.IO) {
+        if (birthId.isBlank()) return@withContext
+        try {
+            db.collection(COL_CLOUD_BOOKS).document("${normEmail(userEmail)}_${birthId}").delete().await()
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Delete cloud backup failed", e)
+        }
+    }
+
     suspend fun restoreUserManuscriptsFromBackRoom(userEmail: String): List<RestoredBook> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CLOUD_BOOKS)

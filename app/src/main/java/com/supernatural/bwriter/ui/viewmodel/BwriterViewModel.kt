@@ -446,9 +446,21 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun deleteManuscript(id: Long) {
         viewModelScope.launch {
+            val manuscript = repository.getManuscriptByIdOnce(id)
             repository.deleteManuscript(id)
             if (_selectedManuscriptId.value == id) {
                 _selectedManuscriptId.value = null
+            }
+            val birthId = manuscript?.birthId.orEmpty()
+            if (birthId.isNotBlank()) {
+                val deleted = deletedBookPrefs.getStringSet("birthIds", emptySet())?.toMutableSet() ?: mutableSetOf()
+                deleted.add(birthId)
+                deletedBookPrefs.edit().putStringSet("birthIds", deleted).apply()
+                networkService.deleteCloudBackup(_currentUser.value.email, birthId)
+                val tokenResult = googleDriveClient.accessToken(interactive = false)
+                if (tokenResult.isSuccess) {
+                    googleDriveClient.deleteBook(tokenResult.getOrThrow(), birthId)
+                }
             }
         }
     }
@@ -751,6 +763,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     private suspend fun applyRestoredBook(book: RestoredBook): Boolean {
         val manuscript = book.manuscript
+        if (manuscript.birthId.isNotBlank() &&
+            (deletedBookPrefs.getStringSet("birthIds", emptySet())?.contains(manuscript.birthId) == true)
+        ) return false
         val local = manuscripts.value.firstOrNull { existing ->
             (manuscript.birthId.isNotBlank() && existing.birthId == manuscript.birthId) ||
                 bookKey(existing.title, existing.authorEmail) == bookKey(manuscript.title, manuscript.authorEmail)
@@ -761,6 +776,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
         insertRestoredBook(book)
         return true
+    }
+
+    private val deletedBookPrefs by lazy {
+        getApplication<Application>().getSharedPreferences("bwriter_deleted_books", Context.MODE_PRIVATE)
     }
 
     private val registryCopyPrefs by lazy {

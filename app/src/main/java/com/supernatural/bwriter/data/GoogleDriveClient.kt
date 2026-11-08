@@ -124,6 +124,22 @@ class GoogleDriveClient(context: Context) {
         }
     }
 
+    suspend fun deleteBook(token: String, bookKey: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val folderId = ensureFolder(token)
+            val existingId = findBookFileId(token, folderId, bookKey)
+            if (existingId != null) {
+                val (code, _) = http("DELETE", "$FILES_URL/$existingId", token, null, null)
+                if (code !in 200..299 && code != 404) {
+                    return@withContext Result.failure(IllegalStateException("Drive delete failed (HTTP $code)"))
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun downloadAllPayloads(token: String): List<String> = withContext(Dispatchers.IO) {
         try {
             val folderId = findFolderId(token) ?: return@withContext emptyList()
