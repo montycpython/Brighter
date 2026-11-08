@@ -103,6 +103,17 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    suspend fun isDefinitivelyNotSuspended(email: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val doc = db.collection(COL_SUSPENDED).document(normEmail(email)).get().await()
+            val entry = if (doc.exists()) docToSuspended(doc.data) else null
+            entry == null || !entry.isLockedOut
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Suspension verification failed", e)
+            false
+        }
+    }
+
     fun getSuspendedUsers(): List<SuspendedUserEntry> = suspendedCache
 
     suspend fun suspendUser(adminEmail: String, targetEmail: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
@@ -169,9 +180,14 @@ class FirestoreNetworkService(private val context: Context) {
         stamp: BookStamp
     ): Result<GlobalBookIndexEntry> = withContext(Dispatchers.IO) {
         try {
-            val suspension = checkUserSuspension(currentUser.email)
-            if (suspension != null) {
-                return@withContext Result.failure(Exception("Account suspended: ${suspension.reason}"))
+            if (!isDefinitivelyNotSuspended(currentUser.email)) {
+                val suspension = checkUserSuspension(currentUser.email)
+                return@withContext Result.failure(
+                    Exception(
+                        if (suspension != null) "Account suspended: ${suspension.reason}"
+                        else "Account standing could not be verified. Sync stopped."
+                    )
+                )
             }
 
             val resolvedAuthorName = when {
