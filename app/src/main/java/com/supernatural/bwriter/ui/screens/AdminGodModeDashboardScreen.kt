@@ -844,7 +844,7 @@ fun MasterBookIndexTab(
                 val editorEmail = selectedEditorEmail
                 if (book != null && editorEmail != null) {
                     val editorAddress = entries.firstOrNull {
-                        it.authorEmail.trim().lowercase() == editorEmail
+                        it.authorEmail.trim().lowercase() == editorEmail.trim().lowercase()
                     }?.authorAddress ?: ""
                     onAppointEditor(book.fileId, book.authorEmail, editorEmail, editorAddress)
                 }
