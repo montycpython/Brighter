@@ -33,6 +33,7 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 
 object AdsConfig {
     const val BANNER_AD_UNIT_ID = "ca-app-pub-8153915858493339/9228952828"
+    const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-8153915858493339/1281558898"
 
     // While empty, the "Ad-free 24h" button stays hidden.
     const val REWARDED_AD_UNIT_ID = "ca-app-pub-8153915858493339/3102160618"

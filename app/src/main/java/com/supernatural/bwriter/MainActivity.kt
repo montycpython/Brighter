@@ -1,5 +1,6 @@
 package com.supernatural.bwriter
 
+import android.app.Activity
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -54,6 +55,7 @@ import com.supernatural.bwriter.ui.theme.BwriterTheme
 import com.google.android.gms.ads.MobileAds
 import com.supernatural.bwriter.ui.ads.AdBannerBar
 import com.supernatural.bwriter.ui.ads.AdsFreeStore
+import com.supernatural.bwriter.ui.ads.InterstitialAds
 import com.supernatural.bwriter.ui.viewmodel.BwriterViewModel
 
 class MainActivity : ComponentActivity() {
@@ -185,6 +187,24 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     var adsFreeUntil by remember { mutableStateOf(adsFreeStore.adsFreeUntil()) }
     val showBanner = System.currentTimeMillis() >= adsFreeUntil &&
         currentRoute != "section_editor/{sectionId}"
+
+    val hostActivity = context as? Activity
+    var previousRoute by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        InterstitialAds.preload(context)
+    }
+    LaunchedEffect(currentRoute) {
+        val route = currentRoute
+        val previous = previousRoute
+        if (hostActivity != null && route != null && previous != null) {
+            val openedBook = previous == "manuscripts" && route == "manuscript_detail/{manuscriptId}"
+            val closedBook = previous == "manuscript_detail/{manuscriptId}" && route == "manuscripts"
+            if (openedBook || closedBook) {
+                InterstitialAds.showIfEligible(hostActivity)
+            }
+        }
+        if (route != null) previousRoute = route
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
