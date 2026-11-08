@@ -112,17 +112,33 @@ fun AdBannerBar(onRewardEarned: () -> Unit) {
 }
 
 private fun loadAndShowRewardedAd(activity: Activity, onDone: (Boolean) -> Unit) {
+    var answered = false
+    fun finish(earned: Boolean) {
+        if (!answered) {
+            answered = true
+            onDone(earned)
+        }
+    }
     RewardedAd.load(
         activity,
         AdsConfig.REWARDED_AD_UNIT_ID,
         AdRequest.Builder().build(),
         object : RewardedAdLoadCallback() {
             override fun onAdLoaded(ad: RewardedAd) {
-                ad.show(activity) { onDone(true) }
+                ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+                    override fun onAdDismissedFullScreenContent() {
+                        finish(false)
+                    }
+
+                    override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                        finish(false)
+                    }
+                }
+                ad.show(activity) { finish(true) }
             }
 
             override fun onAdFailedToLoad(error: LoadAdError) {
-                onDone(false)
+                finish(false)
             }
         }
     )
