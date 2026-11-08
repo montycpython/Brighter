@@ -267,6 +267,25 @@ object CmosFormatter {
         return ssb
     }
 
+    fun rawOffsetForStrippedOffset(text: String, strippedOffset: Int): Int {
+        if (strippedOffset <= 0) return 0
+        val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
+        val removed = BooleanArray(text.length)
+        for (match in regex.findAll(text)) {
+            val inner = (2..8).mapNotNull { match.groups[it] }.firstOrNull()
+            for (i in match.range) {
+                if (inner == null || i !in inner.range) removed[i] = true
+            }
+        }
+        var kept = 0
+        var raw = 0
+        while (raw < text.length && kept < strippedOffset) {
+            if (!removed[raw]) kept++
+            raw++
+        }
+        return raw
+    }
+
     // Preserves a 1:1 character index mapping so cursor position and typing never glitch.
     fun createMarkdownVisualTransformation(): VisualTransformation {
         return VisualTransformation { text ->

@@ -572,7 +572,8 @@ object CmosPdfExporter {
                     if (linesThatFit > 0) {
                         val endCharOffset = layout.getLineEnd(linesThatFit - 1)
                         val textForCurrentPage = spanned.subSequence(0, endCharOffset)
-                        val textForNextPage = currentTextToDraw.substring(endCharOffset).trimStart()
+                        val rawEndOffset = CmosFormatter.rawOffsetForStrippedOffset(currentTextToDraw, endCharOffset)
+                        val textForNextPage = currentTextToDraw.substring(rawEndOffset).trimStart()
 
                         val partialLayout = StaticLayout.Builder.obtain(textForCurrentPage, 0, textForCurrentPage.length, textPaint, printableWidth)
                             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
