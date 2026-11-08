@@ -68,6 +68,7 @@ fun SubscriptionPaywallDialog(
     recentTransactions: List<AiTokenTransaction> = emptyList(),
     creditBalance: Int = 0,
     unclaimedCredit: Int = 0,
+    claimFailed: Boolean = false,
     onClaimCredit: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
@@ -209,7 +210,7 @@ fun SubscriptionPaywallDialog(
                             )
                             if (unclaimedCredit > 0) {
                                 Text(
-                                    text = "Unclaimed: $unclaimedCredit \u2014 tap to mine",
+                                    text = if (claimFailed) "Mining did not finish \u2014 tap to retry" else "Unclaimed: $unclaimedCredit \u2014 tap to mine",
                                     fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = BookGoldLight,

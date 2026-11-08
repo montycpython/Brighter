@@ -682,9 +682,8 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun recordClaim(email: String, issuance: CreditIssuance, nonce: Long) = withContext(Dispatchers.IO) {
         try {
             val issuances = fetchIssuancesFor(email)
-            val index = issuances.indexOfFirst { it.issuanceHash == issuance.issuanceHash }
-            if (index < 0) return@withContext
-            val difficulty = CreditSchedule.difficultyBits(index)
+            if (issuances.none { it.issuanceHash == issuance.issuanceHash }) return@withContext
+            val difficulty = CreditSchedule.difficultyFor(issuances, issuance)
             if (!CreditChain.verifyClaim(issuance.issuanceHash, nonce, difficulty)) return@withContext
             db.collection(COL_CREDIT_CLAIMS).document(issuance.issuanceHash + "_" + nonce).set(
                 mapOf(

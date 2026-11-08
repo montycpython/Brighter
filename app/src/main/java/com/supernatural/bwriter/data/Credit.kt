@@ -13,8 +13,20 @@ object CreditSchedule {
         return maxOf(1, BASE_AMOUNT shr era)
     }
 
+    const val MAX_DIFFICULTY_BITS = 26
+
     fun difficultyBits(priorAuthorApprovals: Int): Int =
-        BASE_DIFFICULTY_BITS + (priorAuthorApprovals / HALVING_INTERVAL)
+        minOf(MAX_DIFFICULTY_BITS, BASE_DIFFICULTY_BITS + (priorAuthorApprovals / HALVING_INTERVAL))
+
+    fun difficultyFor(issuances: List<CreditIssuance>, target: CreditIssuance): Int {
+        val sorted = issuances.sortedWith(
+            compareBy<CreditIssuance> { it.issuedAtMillis }.thenBy { it.issuanceHash }
+        )
+        val priorAuthorApprovals = sorted
+            .takeWhile { it.issuanceHash != target.issuanceHash }
+            .count { it.kind == "AUTHOR" }
+        return difficultyBits(priorAuthorApprovals)
+    }
 }
 
 data class CreditIssuance(

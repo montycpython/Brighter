@@ -135,6 +135,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val showPaywall by viewModel.showPaywall.collectAsState()
     val creditBalance by viewModel.creditBalance.collectAsState()
     val unclaimedCredit by viewModel.unclaimedCredit.collectAsState()
+    val claimFailed by viewModel.claimFailed.collectAsState()
     val versionHistory by viewModel.versionHistory.collectAsState()
 
     var showNewWorkDialog by remember { mutableStateOf(false) }
@@ -628,6 +629,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             recentTransactions = tokenTransactions,
             creditBalance = creditBalance,
             unclaimedCredit = unclaimedCredit,
+            claimFailed = claimFailed,
             onClaimCredit = { viewModel.claimCredit() },
             onDismiss = { viewModel.dismissPaywall() }
         )

@@ -338,6 +338,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     val unclaimedCredit: StateFlow<Int> = _unclaimedCredit.asStateFlow()
 
     private val _isMiningCredit = MutableStateFlow(false)
+    private val _claimFailed = MutableStateFlow(false)
+    val claimFailed: StateFlow<Boolean> = _claimFailed.asStateFlow()
     val isMiningCredit: StateFlow<Boolean> = _isMiningCredit.asStateFlow()
 
     fun openPaywall() {
@@ -1005,15 +1007,17 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val email = _currentUser.value.email
                 val issuances = networkService.fetchIssuancesFor(email).sortedBy { it.issuedAtMillis }
                 val claimed = networkService.fetchClaimedIssuanceIds(email)
-                val index = issuances.indexOfFirst { !claimed.contains(it.issuanceHash) }
-                if (index >= 0) {
-                    val target = issuances[index]
-                    val difficulty = CreditSchedule.difficultyBits(index)
+                val target = issuances.firstOrNull { !claimed.contains(it.issuanceHash) }
+                if (target != null) {
+                    _claimFailed.value = false
+                    val difficulty = CreditSchedule.difficultyFor(issuances, target)
                     val nonce = withContext(Dispatchers.Default) {
                         CreditChain.mineClaim(target.issuanceHash, difficulty)
                     }
                     if (nonce != null) {
                         networkService.recordClaim(email, target, nonce)
+                    } else {
+                        _claimFailed.value = true
                     }
                 }
             } finally {
