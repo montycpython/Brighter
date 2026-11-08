@@ -202,7 +202,8 @@ fun SectionEditorScreen(
     val handleBackAndSave: () -> Unit = {
         focusManager.clearFocus()
         if (!isAuthorRoleBlocked) {
-            onSaveContent(section, contentValue.text)
+            if (isCollaboratorMode) onProposeRevision(section, contentValue.text)
+            else onSaveContent(section, contentValue.text)
             onSaveTitle(section, title, subtitle)
             onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
         }
@@ -404,7 +405,8 @@ fun SectionEditorScreen(
                     if (!isAuthorRoleBlocked) {
                     IconButton(
                         onClick = {
-                            onSaveContent(section, contentValue.text)
+                            if (isCollaboratorMode) onProposeRevision(section, contentValue.text)
+                            else onSaveContent(section, contentValue.text)
                             onSaveTitle(section, title, subtitle)
                             onSaveIllustrations(section, headerIllustrationUri, headerIllustrationCaption, tailIllustrationUri, tailIllustrationCaption)
                             coroutineScope.launch { snackbarHostState.showSnackbar("All changes saved.") }
