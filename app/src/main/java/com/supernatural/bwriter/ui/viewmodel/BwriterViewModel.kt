@@ -104,7 +104,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             name = if (name.isNotBlank()) name.trim() else "Author",
             penName = penName.trim(),
             email = _currentUser.value.email,
-            role = standingRoleFor(),
+            role = if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) WorkRole.EDITOR else role,
             organization = if (organization.isNotBlank()) organization.trim() else "Author Studio",
             preferredCmosEdition = preferredCmosEdition
         )

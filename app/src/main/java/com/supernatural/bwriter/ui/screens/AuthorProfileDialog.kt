@@ -92,7 +92,7 @@ fun AuthorProfileDialog(
     var legalName by remember { mutableStateOf(currentUser.name) }
     var penName by remember { mutableStateOf(currentUser.penName) }
     var email by remember { mutableStateOf(currentUser.email) }
-    val selectedRole = if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) WorkRole.EDITOR else WorkRole.AUTHOR
+    val selectedRole = if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) WorkRole.EDITOR else currentUser.role
     var organization by remember { mutableStateOf(currentUser.organization) }
     var cmosEdition by remember { mutableStateOf(currentUser.preferredCmosEdition) }
 
