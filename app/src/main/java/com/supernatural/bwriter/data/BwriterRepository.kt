@@ -1,5 +1,6 @@
 package com.supernatural.bwriter.data
 
+import androidx.room.withTransaction
 import com.supernatural.bwriter.cmos.CmosFormatter
 import com.supernatural.bwriter.model.ContributorCredit
 import com.supernatural.bwriter.model.EditorialCommentEntity
@@ -89,12 +90,14 @@ class BwriterRepository(private val database: BwriterDatabase) {
         manuscript: ManuscriptEntity,
         populateTemplate: Boolean = true
     ): Long = withContext(Dispatchers.IO) {
+        database.withTransaction {
         val manuscriptId = manuscriptDao.insertManuscript(manuscript)
 
         if (populateTemplate) {
             createTemplateSectionsForWork(manuscriptId, manuscript.workType, manuscript.authorName)
         }
         manuscriptId
+        }
     }
 
     private suspend fun createTemplateSectionsForWork(manuscriptId: Long, workType: WorkType, authorName: String) {
@@ -301,6 +304,7 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
         newContent: String,
         editorUser: UserProfile
     ) = withContext(Dispatchers.IO) {
+        database.withTransaction {
         val originalText = if (section.hasPendingRevision && section.originalAuthorContent.isNotBlank()) {
             section.originalAuthorContent
         } else {
@@ -363,9 +367,11 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
                 )
             )
         }
+        }
     }
 
     suspend fun acceptRevision(section: SectionEntity) = withContext(Dispatchers.IO) {
+        database.withTransaction {
         val mergedContent = if (section.pendingEditedContent.isNotBlank()) section.pendingEditedContent else section.content
         val wordCount = countWords(mergedContent)
 
@@ -391,9 +397,11 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
                 )
             )
         }
+        }
     }
 
     suspend fun rejectRevision(section: SectionEntity) = withContext(Dispatchers.IO) {
+        database.withTransaction {
         val restoredContent = if (section.originalAuthorContent.isNotBlank()) section.originalAuthorContent else section.content
         val wordCount = countWords(restoredContent)
 
@@ -418,6 +426,7 @@ suspend fun updateManuscript(manuscript: ManuscriptEntity) = withContext(Dispatc
                     updatedAt = System.currentTimeMillis()
                 )
             )
+        }
         }
     }
 
