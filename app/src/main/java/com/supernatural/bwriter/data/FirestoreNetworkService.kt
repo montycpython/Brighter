@@ -20,6 +20,8 @@ import com.supernatural.bwriter.model.UserProfile
 import com.supernatural.bwriter.model.WorkRole
 import com.supernatural.bwriter.model.WorkType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -55,6 +57,8 @@ data class SiteUser(
 )
 
 class FirestoreNetworkService(private val context: Context) {
+
+    private val issuanceLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
 
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -639,11 +643,9 @@ class FirestoreNetworkService(private val context: Context) {
         kind: String,
         entry: GlobalBookIndexEntry
     ) {
-        db.runTransaction { transaction ->
-            val snap = db.collection(COL_CREDIT_ISSUANCES)
-                .whereEqualTo("authorEmail", normEmail(recipientEmail))
-                .get().result
-            val recipientIssuances = snap.documents.mapNotNull { docToIssuance(it.data) }
+        val lock = issuanceLocks.getOrPut(normEmail(recipientEmail)) { Mutex() }
+        lock.withLock {
+            val recipientIssuances = fetchIssuancesFor(recipientEmail)
             val prevHash = recipientIssuances
                 .maxWithOrNull(compareBy<CreditIssuance> { it.issuedAtMillis }.thenBy { it.issuanceHash })
                 ?.issuanceHash ?: ""
@@ -662,9 +664,8 @@ class FirestoreNetworkService(private val context: Context) {
                 issuanceHash = hash,
                 signature = AuthorKeys.sign(context, hash)
             )
-            transaction.set(db.collection(COL_CREDIT_ISSUANCES).document(hash), issuanceToMap(issuance))
-            null
-        }.await()
+            db.collection(COL_CREDIT_ISSUANCES).document(hash).set(issuanceToMap(issuance)).await()
+        }
     }
 
     suspend fun fetchClaimedIssuanceIds(email: String): Set<String> = withContext(Dispatchers.IO) {
