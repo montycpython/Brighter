@@ -827,17 +827,17 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         launchGuarded {
             if (entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
                 onReady(entry.manuscriptId)
-                return@launch
+                return@launchGuarded
             }
             val savedId = registryCopyPrefs.getLong(entry.fileId, -1L)
             if (savedId > 0 && repository.getManuscriptByIdOnce(savedId) != null) {
                 onReady(savedId)
-                return@launch
+                return@launchGuarded
             }
             val fetched = networkService.fetchRegistryBook(entry.fileId)
             if (fetched == null) {
                 onReady(-1L)
-                return@launch
+                return@launchGuarded
             }
             val mId = insertRestoredBook(fetched)
             registryCopyPrefs.edit().putLong(entry.fileId, mId).apply()
@@ -1008,7 +1008,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                             syncError = driveError
                         )
                         onDone(Result.failure(Exception(driveError)))
-                        return@launch
+                        return@launchGuarded
                     }
                     _driveSyncStatus.value = _driveSyncStatus.value.copy(
                         isSyncing = false,
@@ -1040,7 +1040,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             if (email.isBlank()) {
                 _creditBalance.value = 0
                 _unclaimedCredit.value = 0
-                return@launch
+                return@launchGuarded
             }
             val issuances = networkService.fetchIssuancesFor(email)
             val claimed = networkService.fetchClaimedIssuanceIds(email)
@@ -1091,7 +1091,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 }
                 if (sealed.isBlank()) {
                     onDone(Result.failure(IllegalStateException("Could not seal the author key")))
-                    return@launch
+                    return@launchGuarded
                 }
                 googleDriveClient.accessToken(interactive = true).fold(
                     onSuccess = { token -> onDone(googleDriveClient.uploadKeyBackup(token, sealed)) },
@@ -1110,12 +1110,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 val tokenResult = googleDriveClient.accessToken(interactive = true)
                 if (tokenResult.isFailure) {
                     onDone(Result.failure(tokenResult.exceptionOrNull() ?: IllegalStateException("Google Drive access failed")))
-                    return@launch
+                    return@launchGuarded
                 }
                 val sealed = googleDriveClient.downloadKeyBackup(tokenResult.getOrThrow())
                 if (sealed == null) {
                     onDone(Result.failure(IllegalStateException("No key backup found")))
-                    return@launch
+                    return@launchGuarded
                 }
                 val restored = withContext(Dispatchers.Default) {
                     AuthorKeys.importEncrypted(appContext, sealed, passphrase)
