@@ -520,6 +520,7 @@ fun MasterBookIndexTab(
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
     var selectedBookFileId by remember { mutableStateOf<String?>(null) }
+    var regentInput by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -769,7 +770,6 @@ fun MasterBookIndexTab(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        var regentInput by remember { mutableStateOf("") }
         OutlinedTextField(
             value = regentInput,
             onValueChange = { regentInput = it },
