@@ -103,7 +103,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val updated = _currentUser.value.copy(
             name = if (name.isNotBlank()) name.trim() else "Author",
             penName = penName.trim(),
-            email = if (email.isNotBlank()) email.trim() else _currentUser.value.email,
+            email = _currentUser.value.email,
             role = standingRoleFor(),
             organization = if (organization.isNotBlank()) organization.trim() else "Author Studio",
             preferredCmosEdition = preferredCmosEdition
@@ -229,9 +229,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             list
         } else {
             list.filter { m ->
-                m.authorEmail.equals(user.email, ignoreCase = true) ||
-                (user.penName.isNotBlank() && m.authorPenName.equals(user.penName, ignoreCase = true)) ||
-                (user.name.isNotBlank() && user.name != "Author" && m.authorName.equals(user.name, ignoreCase = true))
+                m.authorEmail.equals(user.email, ignoreCase = true)
             }
         }
         if (filter == null) userBooks else userBooks.filter { it.workType == filter }
