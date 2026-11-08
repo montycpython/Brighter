@@ -69,6 +69,7 @@ fun SettingIntertextualityDialog(
     onInsertSetting: (StorySettingEntity) -> Unit
 ) {
     var editingSetting by remember { mutableStateOf<StorySettingEntity?>(null) }
+    var settingToDelete by remember { mutableStateOf<StorySettingEntity?>(null) }
     var isCreatingNew by remember { mutableStateOf(false) }
 
     Dialog(
@@ -194,13 +195,61 @@ fun SettingIntertextualityDialog(
                                 SettingCard(
                                     setting = set,
                                     onEdit = { editingSetting = set },
-                                    onDelete = { onDeleteSetting(set.id) },
+                                    onDelete = { settingToDelete = set },
                                     onInsert = {
                                         onInsertSetting(set)
                                         onDismiss()
                                     }
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    settingToDelete?.let { set ->
+        Dialog(onDismissRequest = { settingToDelete = null }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C26),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Delete this setting?",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 15.sp,
+                        color = BookGoldLight
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "\u2018${set.locationName}\u2019 and all its detail will be deleted. This cannot be undone.",
+                        fontSize = 12.5.sp,
+                        color = Color(0xFFC8C2B7)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { settingToDelete = null },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel", color = Color.LightGray)
+                        }
+                        Button(
+                            onClick = {
+                                onDeleteSetting(set.id)
+                                settingToDelete = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Delete", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
