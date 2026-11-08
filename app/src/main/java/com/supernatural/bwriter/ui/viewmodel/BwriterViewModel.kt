@@ -109,6 +109,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         organization: String = "Author Studio",
         preferredCmosEdition: String = "17th Edition"
     ) {
+        com.supernatural.bwriter.data.StudioStanding.isEditorInChief = false
+        _isRoot.value = false
         val effectiveEmail = if (email.isNotBlank()) email.trim() else _currentUser.value.email
         val effectiveName = if (name.isNotBlank()) name.trim() else (if (effectiveEmail.contains("@")) effectiveEmail.substringBefore("@").replace(".", " ").capitalizeWords() else "Author")
         val effectivePenName = penName.trim()
