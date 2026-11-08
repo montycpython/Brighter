@@ -231,9 +231,9 @@ fun SectionEditorScreen(
     var questionnaireSensory by remember(section.id) { mutableStateOf("") }
     var intertextualTouchstones by remember(section.id) { mutableStateOf("") }
     var customDirectives by remember(section.id) { mutableStateOf("") }
-    var selectedLiteraryDevices by remember { mutableStateOf(setOf<String>()) }
-    var selectedCharactersForPrompt by remember { mutableStateOf(setOf<CharacterEntity>()) }
-    var selectedSettingsForPrompt by remember { mutableStateOf(setOf<StorySettingEntity>()) }
+    var selectedLiteraryDevices by remember(section.id) { mutableStateOf(setOf<String>()) }
+    var selectedCharactersForPrompt by remember(section.id) { mutableStateOf(setOf<CharacterEntity>()) }
+    var selectedSettingsForPrompt by remember(section.id) { mutableStateOf(setOf<StorySettingEntity>()) }
 
     var selectedEditorTab by remember { mutableIntStateOf(0) }
     var isTitleExpanded by remember { mutableStateOf(false) }
