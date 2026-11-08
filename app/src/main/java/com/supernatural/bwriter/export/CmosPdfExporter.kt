@@ -936,7 +936,10 @@ object CmosPdfExporter {
         maxAllowedHeight: Float,
         captionPaint: TextPaint
     ): Float {
-        val bitmap = loadBitmap(context, uriString, ownBook)
+        val printScale = 300f / 72f
+        val reqWidthPx = (printableWidth * 0.85f * printScale).toInt().coerceAtLeast(64)
+        val reqHeightPx = (maxAllowedHeight * printScale).toInt().coerceAtLeast(64)
+        val bitmap = loadBitmap(context, uriString, ownBook, reqWidthPx, reqHeightPx)
         var totalDrawnHeight = 0f
 
         if (bitmap != null) {
@@ -967,11 +970,26 @@ object CmosPdfExporter {
                 canvas.restore()
                 totalDrawnHeight += capLayout.height + 6f
             }
+            bitmap.recycle()
         }
         return totalDrawnHeight
     }
 
-    private fun loadBitmap(context: Context, uriString: String, ownBook: Boolean): Bitmap? {
+    private fun sampleSizeFor(outWidth: Int, outHeight: Int, reqWidth: Int, reqHeight: Int): Int {
+        var sample = 1
+        while (outWidth / (sample * 2) >= reqWidth && outHeight / (sample * 2) >= reqHeight) {
+            sample *= 2
+        }
+        return sample
+    }
+
+    private fun loadBitmap(
+        context: Context,
+        uriString: String,
+        ownBook: Boolean,
+        reqWidth: Int,
+        reqHeight: Int
+    ): Bitmap? {
         if (!IllustrationUris.isLoadable(uriString, ownBook)) return null
         return try {
             when {
@@ -982,16 +1000,38 @@ object CmosPdfExporter {
                         "tailpiece" -> R.drawable.img_chapter_tailpiece_1786743439495
                         else -> 0
                     }
-                    if (resId != 0) BitmapFactory.decodeResource(context.resources, resId) else null
+                    if (resId != 0) {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeResource(context.resources, resId, bounds)
+                        val opts = BitmapFactory.Options().apply {
+                            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, reqWidth, reqHeight)
+                        }
+                        BitmapFactory.decodeResource(context.resources, resId, opts)
+                    } else null
                 }
                 uriString.startsWith("content://") || uriString.startsWith("file://") -> {
-                    context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
-                        BitmapFactory.decodeStream(input)
+                    val uri = Uri.parse(uriString)
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        BitmapFactory.decodeStream(input, null, bounds)
+                    }
+                    val opts = BitmapFactory.Options().apply {
+                        inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, reqWidth, reqHeight)
+                    }
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        BitmapFactory.decodeStream(input, null, opts)
                     }
                 }
                 else -> {
                     val file = File(uriString)
-                    if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+                    if (file.exists()) {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeFile(file.absolutePath, bounds)
+                        val opts = BitmapFactory.Options().apply {
+                            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, reqWidth, reqHeight)
+                        }
+                        BitmapFactory.decodeFile(file.absolutePath, opts)
+                    } else null
                 }
             }
         } catch (e: Exception) {
