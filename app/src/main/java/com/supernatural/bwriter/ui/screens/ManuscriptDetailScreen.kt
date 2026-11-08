@@ -1090,7 +1090,7 @@ fun ManuscriptSettingsDialog(
     var year by remember { mutableStateOf(manuscript.year) }
     var isbn by remember { mutableStateOf(manuscript.isbn) }
     var targetPageSize by remember { mutableStateOf(manuscript.targetPageSize) }
-    var copyrightText by remember { mutableStateOf(manuscript.effectiveCopyrightText) }
+    var copyrightText by remember { mutableStateOf(manuscript.copyrightText) }
     var dedication by remember { mutableStateOf(manuscript.dedication) }
     var epigraphText by remember { mutableStateOf(manuscript.epigraphText) }
     var epigraphAuthor by remember { mutableStateOf(manuscript.epigraphAuthor) }
@@ -1339,6 +1339,7 @@ fun ManuscriptSettingsDialog(
                                     )
                                 )
                             },
+                            enabled = title.isNotBlank(),
                             colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
                             modifier = Modifier.weight(1f)
                         ) {
