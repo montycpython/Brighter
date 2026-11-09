@@ -25,7 +25,7 @@ enum class WorkRole(
 }
 
 data class UserProfile(
-    val id: String = "user_google_1",
+    val id: String = "",
     val email: String = "",
     val name: String = "",
     val penName: String = "",

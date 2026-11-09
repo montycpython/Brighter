@@ -10,7 +10,7 @@ class UserPreferences(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("bwriter_user_prefs", Context.MODE_PRIVATE)
 
     fun getUserProfile(): UserProfile {
-        val id = prefs.getString(KEY_ID, "user_google_1") ?: "user_google_1"
+        val id = prefs.getString(KEY_ID, "") ?: ""
         val email = prefs.getString(KEY_EMAIL, "") ?: ""
         val name = prefs.getString(KEY_NAME, "") ?: ""
         val penName = prefs.getString(KEY_PEN_NAME, "") ?: ""
