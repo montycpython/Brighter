@@ -119,7 +119,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         email: String,
         name: String = "",
         penName: String = "",
-        role: WorkRole = WorkRole.AUTHOR,
         organization: String = "Author Studio",
         preferredCmosEdition: String = "17th Edition"
     ) {

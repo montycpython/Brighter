@@ -158,8 +158,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         AuthScreen(
             currentUser = currentUser,
             savedAccounts = savedGoogleAccounts,
-            onGoogleSignIn = { email, name, penName, role ->
-                viewModel.signInWithGoogleAccount(email, name, penName, role)
+            onGoogleSignIn = { email, name, penName ->
+                viewModel.signInWithGoogleAccount(email, name, penName)
                 Toast.makeText(context, "Signed in as $email", Toast.LENGTH_SHORT).show()
             },
             onRemoveSavedAccount = { email ->
@@ -224,8 +224,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             AuthScreen(
                 currentUser = currentUser,
                 savedAccounts = savedGoogleAccounts,
-                    onGoogleSignIn = { email, name, penName, role ->
-                    viewModel.signInWithGoogleAccount(email, name, penName, role)
+                    onGoogleSignIn = { email, name, penName ->
+                    viewModel.signInWithGoogleAccount(email, name, penName)
                     Toast.makeText(context, "Signed in as $email", Toast.LENGTH_SHORT).show()
                 },
                 onRemoveSavedAccount = { email ->

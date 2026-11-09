@@ -68,7 +68,7 @@ import java.util.Calendar
 fun AuthScreen(
     currentUser: UserProfile,
     savedAccounts: List<UserProfile> = emptyList(),
-    onGoogleSignIn: (email: String, name: String, penName: String, role: WorkRole) -> Unit,
+    onGoogleSignIn: (email: String, name: String, penName: String) -> Unit,
     onRemoveSavedAccount: (String) -> Unit = {},
     onContinue: () -> Unit = {}
 ) {
@@ -263,8 +263,7 @@ fun AuthScreen(
                                     sessionEmail = googleUser.email
                                     val bridgeResult = FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
                                     if (bridgeResult.isSuccess) {
-                                        val standingRole = WorkRole.AUTHOR
-                                        onGoogleSignIn(googleUser.email, authorName, penName, standingRole)
+                                        onGoogleSignIn(googleUser.email, authorName, penName)
                                         onContinue()
                                     } else {
                                         googleAuthError = bridgeResult.exceptionOrNull()?.localizedMessage ?: "Sign-in could not be completed. Please try again."
