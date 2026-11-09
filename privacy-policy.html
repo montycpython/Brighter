@@ -41,6 +41,7 @@
 <ul>
   <li>The app generates a cryptographic keypair on your device; the private key leaves the device only inside the passphrase-sealed backup you choose to store in your own Google Drive.</li>
   <li>The back room stores issuance and claim records — your author address (an identifier derived from your public key), credit amounts, the book's registry id, and timestamps. Issuance records are digitally signed by the Editor in Chief; claim records are bound to their issuance — the amount and the book's registry id are copied from it — and carry the proof of work that claimed them. These records cannot be altered after the fact.</li>
+  <li>If you send in-app credit to another author, the back room stores a transfer record — the sender's and recipient's account emails, the amount, and a timestamp, linked by a cryptographic hash to your previous transfer. A transfer record is visible to you, to the other party, and to the Editor in Chief.</li>
   <li>Your passphrase is never collected, transmitted, or stored.</li>
 </ul>
 
