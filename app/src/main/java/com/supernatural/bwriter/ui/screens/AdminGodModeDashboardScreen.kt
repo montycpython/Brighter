@@ -1272,7 +1272,7 @@ fun MailboxDispatcherTab(
     var subject by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("EDITORIAL_REVISION") }
-    var isSentFeedback by remember { mutableStateOf(false) }
+    var sentToRecipient by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -1311,7 +1311,7 @@ fun MailboxDispatcherTab(
                 }
                 FilterChip(
                     selected = selectedRecipient == email,
-                    onClick = { selectedRecipient = email },
+                    onClick = { selectedRecipient = email; sentToRecipient = null },
                     label = { Text(chipLabel, fontSize = 10.5.sp) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = BookGoldDark,
@@ -1354,7 +1354,7 @@ fun MailboxDispatcherTab(
 
         OutlinedTextField(
             value = subject,
-            onValueChange = { subject = it },
+            onValueChange = { subject = it; sentToRecipient = null },
             label = { Text("Subject", color = BookGoldLight) },
             modifier = Modifier.fillMaxWidth().testTag("input_admin_mail_subject"),
             textStyle = TextStyle(fontSize = 12.5.sp, color = Color(0xFFF3EFE6)),
@@ -1370,7 +1370,7 @@ fun MailboxDispatcherTab(
 
         OutlinedTextField(
             value = body,
-            onValueChange = { body = it },
+            onValueChange = { body = it; sentToRecipient = null },
             label = { Text("Message Body & Editorial Directives", color = BookGoldLight) },
             modifier = Modifier.fillMaxWidth().height(140.dp).testTag("input_admin_mail_body"),
             textStyle = TextStyle(fontSize = 12.5.sp, color = Color(0xFFF3EFE6)),
@@ -1399,7 +1399,7 @@ fun MailboxDispatcherTab(
                     )
                     subject = ""
                     body = ""
-                    isSentFeedback = true
+                    sentToRecipient = selectedRecipient
                 }
             },
             enabled = subject.isNotBlank() && body.isNotBlank(),
@@ -1414,10 +1414,10 @@ fun MailboxDispatcherTab(
             Text("Dispatch Message to Shared Drive Mailbox", fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
-        if (isSentFeedback) {
+        if (sentToRecipient != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "✓ Dispatched message successfully to $selectedRecipient.",
+                text = "✓ Dispatched message successfully to $sentToRecipient.",
                 color = Color(0xFF81C784),
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold
