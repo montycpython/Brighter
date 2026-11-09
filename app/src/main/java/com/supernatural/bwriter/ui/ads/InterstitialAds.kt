@@ -52,8 +52,11 @@ object InterstitialAds {
                 return
             }
             loadedAd = null
-            lastShownAt = now
             ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+                override fun onAdShowedFullScreenContent() {
+                    lastShownAt = System.currentTimeMillis()
+                }
+
                 override fun onAdDismissedFullScreenContent() {
                     preload(activity)
                 }
