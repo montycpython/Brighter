@@ -464,7 +464,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             val author = authorName.ifBlank { _currentUser.value.name }
             val pen = authorPenName.trim()
             val pub = publisher.ifBlank { "Bwriter Editions" }
-            val yr = year.ifBlank { "2026" }
+            val yr = year.ifBlank { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString() }
             val byline = if (pen.isNotBlank()) pen else author.ifBlank { "Author" }
             val dynamicCopyright = "Copyright © $yr by $byline.\nAll rights reserved under International and Pan-American Copyright Conventions.\nPublished by $pub in accordance with The Chicago Manual of Style.\nPrinted in the United States of America."
 

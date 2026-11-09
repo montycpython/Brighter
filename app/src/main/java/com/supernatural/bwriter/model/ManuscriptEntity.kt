@@ -16,7 +16,7 @@ data class ManuscriptEntity(
     val editorName: String = "",
     val publisher: String = "Bwriter Editions",
     val edition: String = "First Edition",
-    val year: String = "2026",
+    val year: String = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString(),
     val isbn: String = "",
     val birthId: String = "",
     val stampHash: String = "",
@@ -51,7 +51,7 @@ data class ManuscriptEntity(
                 return copyrightText
             }
             val byline = effectiveAuthorByline
-            val yr = year.ifBlank { "2026" }
+            val yr = year.ifBlank { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString() }
             val pub = publisher.ifBlank { "Bwriter Editions" }
             return "Copyright © $yr by $byline.\nAll rights reserved under International and Pan-American Copyright Conventions.\nPublished by $pub in accordance with The Chicago Manual of Style.\nPrinted in the United States of America."
         }

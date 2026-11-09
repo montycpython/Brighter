@@ -69,7 +69,7 @@ fun NewWorkDialog(
     var authorName by remember { mutableStateOf(initialAuthorName) }
     var authorPenName by remember { mutableStateOf(initialPenName) }
     var publisher by remember { mutableStateOf("Bwriter Editions") }
-    var year by remember { mutableStateOf("2026") }
+    var year by remember { mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString()) }
     var dedication by remember { mutableStateOf("") }
     var epigraph by remember { mutableStateOf("") }
 
@@ -279,7 +279,7 @@ fun NewWorkDialog(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Copyright © ${year.ifBlank { "2026" }} by $effectiveByline.\nAll rights reserved.\nPublished by ${publisher.ifBlank { "Bwriter Editions" }} in accordance with The Chicago Manual of Style.",
+                            text = "Copyright © ${year.ifBlank { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString() }} by $effectiveByline.\nAll rights reserved.\nPublished by ${publisher.ifBlank { "Bwriter Editions" }} in accordance with The Chicago Manual of Style.",
                             fontFamily = FontFamily.Serif,
                             fontSize = 11.sp,
                             lineHeight = 15.sp,
