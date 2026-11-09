@@ -34,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -70,6 +71,7 @@ fun SubscriptionPaywallDialog(
     unclaimedCredit: Int = 0,
     claimFailed: Boolean = false,
     onClaimCredit: () -> Unit = {},
+    onSendCredit: (String, Int) -> Unit = { _, _ -> },
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -216,6 +218,100 @@ fun SubscriptionPaywallDialog(
                                     color = BookGoldLight,
                                     modifier = Modifier.clickable { onClaimCredit() }
                                 )
+                            }
+                        }
+
+                        var showSendForm by remember { mutableStateOf(false) }
+                        var sendTo by remember { mutableStateOf("") }
+                        var sendAmount by remember { mutableStateOf("") }
+                        var showSendConfirm by remember { mutableStateOf(false) }
+                        val sendAmountValue = sendAmount.toIntOrNull()
+                        val canSend = sendTo.contains("@") && sendAmountValue != null && sendAmountValue in 1..creditBalance
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Send credit",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BookGoldLight,
+                            modifier = Modifier.clickable { showSendForm = !showSendForm }
+                        )
+                        if (showSendForm) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = sendTo,
+                                onValueChange = { sendTo = it },
+                                label = { Text("Recipient email", fontSize = 11.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = sendAmount,
+                                onValueChange = { sendAmount = it.filter { ch -> ch.isDigit() } },
+                                label = { Text("Amount", fontSize = 11.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = { showSendConfirm = true },
+                                enabled = canSend,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Review Send", fontSize = 11.sp)
+                            }
+                        }
+                        if (showSendConfirm) {
+                            Dialog(onDismissRequest = { showSendConfirm = false }) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFF1C1C26),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(18.dp)) {
+                                        Text(
+                                            text = "Send $sendAmountValue credits?",
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Serif,
+                                            fontSize = 15.sp,
+                                            color = BookGoldLight
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "$sendAmountValue credits will move from your claimed balance to $sendTo. This cannot be undone.",
+                                            fontSize = 12.5.sp,
+                                            color = Color(0xFFC8C2B7)
+                                        )
+                                        Spacer(modifier = Modifier.height(14.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = { showSendConfirm = false },
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Cancel", color = Color.LightGray)
+                                            }
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val amountToSend = sendAmountValue ?: 0
+                                                    showSendConfirm = false
+                                                    if (amountToSend > 0) {
+                                                        onSendCredit(sendTo.trim(), amountToSend)
+                                                        sendTo = ""
+                                                        sendAmount = ""
+                                                        showSendForm = false
+                                                    }
+                                                },
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Send", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

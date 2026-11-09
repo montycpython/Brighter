@@ -372,6 +372,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _creditBalance = MutableStateFlow(0)
     val creditBalance: StateFlow<Int> = _creditBalance.asStateFlow()
 
+    private val _creditTransfers = MutableStateFlow<List<CreditTransfer>>(emptyList())
+    val creditTransfers: StateFlow<List<CreditTransfer>> = _creditTransfers.asStateFlow()
+
     private val _unclaimedCredit = MutableStateFlow(0)
     val unclaimedCredit: StateFlow<Int> = _unclaimedCredit.asStateFlow()
 
@@ -1098,16 +1101,44 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             if (email.isBlank()) {
                 _creditBalance.value = 0
                 _unclaimedCredit.value = 0
+                _creditTransfers.value = emptyList()
                 return@launchGuarded
             }
             val issuancesResult = networkService.fetchIssuancesForResult(email)
             val claimedResult = networkService.fetchClaimedIssuanceIdsResult(email)
-            if (issuancesResult.isSuccess && claimedResult.isSuccess) {
+            val transfersResult = networkService.fetchTransfersForResult(email)
+            if (issuancesResult.isSuccess && claimedResult.isSuccess && transfersResult.isSuccess) {
                 val issuances = issuancesResult.getOrNull() ?: emptyList()
                 val claimed = claimedResult.getOrNull() ?: emptySet()
-                _creditBalance.value = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+                val transfers = transfersResult.getOrNull() ?: emptyList()
+                _creditTransfers.value = transfers
+                val claimedSum = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+                val sentSum = transfers.filter { it.fromEmail.equals(email, ignoreCase = true) }.sumOf { it.amount }
+                val receivedSum = transfers.filter { it.toEmail.equals(email, ignoreCase = true) }.sumOf { it.amount }
+                _creditBalance.value = (claimedSum - sentSum + receivedSum).coerceAtLeast(0)
                 _unclaimedCredit.value = issuances.filterNot { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
             }
+        }
+    }
+
+    fun sendCredit(toEmail: String, amount: Int, onDone: (Boolean) -> Unit = {}) {
+        launchGuarded {
+            val from = _currentUser.value
+            val result = networkService.sendTransfer(from.email, toEmail, amount)
+            if (result.isSuccess) {
+                val senderLabel = from.displayName.ifBlank { from.penName }
+                networkService.sendServerlessMail(
+                    ServerlessMailMessage(
+                        recipientEmail = toEmail.trim().lowercase(),
+                        senderEmail = from.email,
+                        senderName = senderLabel,
+                        subject = "In-app credit received",
+                        body = "$senderLabel sent you $amount in-app credits."
+                    )
+                )
+                refreshCredit()
+            }
+            onDone(result.isSuccess)
         }
     }
 

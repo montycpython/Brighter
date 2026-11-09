@@ -655,6 +655,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             unclaimedCredit = unclaimedCredit,
             claimFailed = claimFailed,
             onClaimCredit = { viewModel.claimCredit() },
+            onSendCredit = { email, amount ->
+                viewModel.sendCredit(email, amount) { ok ->
+                    Toast.makeText(context, if (ok) "Credit sent" else "Credit could not be sent", Toast.LENGTH_SHORT).show()
+                }
+            },
             onDismiss = { viewModel.dismissPaywall() }
         )
     }
