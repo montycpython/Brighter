@@ -353,7 +353,7 @@ fun ManuscriptDetailScreen(
         AlertDialog(
             onDismissRequest = { sectionPendingDeletion = null },
             title = { Text("Delete section?") },
-            text = { Text("\u2018${sectionPendingDeletion?.title}\u2019 and all its prose will be deleted. This cannot be undone.") },
+            text = { Text("\u2018${sections.firstOrNull { it.id == sectionPendingDeletion }?.title ?: "This section"}\u2019 and all its prose will be deleted. This cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
                     sectionPendingDeletion?.let { onDeleteSection(it) }
