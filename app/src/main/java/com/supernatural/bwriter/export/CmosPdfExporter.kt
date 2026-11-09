@@ -656,7 +656,8 @@ object CmosPdfExporter {
             textSize = 15f
             letterSpacing = 0.1f
         }
-        val layout = StaticLayout.Builder.obtain(title.uppercase(), 0, title.length, paint, width)
+        val upperTitle = title.uppercase()
+        val layout = StaticLayout.Builder.obtain(upperTitle, 0, upperTitle.length, paint, width)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .build()
 
