@@ -148,7 +148,7 @@ object GeminiProseGenerator {
         }
 
         try {
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
             val jsonBody = JSONObject().apply {
                 val contents = JSONArray().apply {
@@ -172,6 +172,7 @@ object GeminiProseGenerator {
 
             val request = Request.Builder()
                 .url(url)
+                .header("X-Goog-Api-Key", apiKey)
                 .post(requestBody)
                 .build()
 
