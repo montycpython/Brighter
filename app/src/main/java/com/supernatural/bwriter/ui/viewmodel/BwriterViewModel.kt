@@ -333,6 +333,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     val versionHistory: StateFlow<List<BookVersionSnapshot>> = _versionHistory.asStateFlow()
 
     fun loadVersionHistory(manuscriptId: Long) {
+        _versionHistory.value = emptyList()
         launchGuarded {
             _versionHistory.value = networkService.getVersionHistory(manuscriptId, _currentUser.value.email)
         }
@@ -702,11 +703,15 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun exportActiveManuscriptToPdf(context: Context, onComplete: (com.supernatural.bwriter.export.CmosPdfExporter.ExportResult) -> Unit) {
         val m = activeManuscript.value ?: return
-        val s = activeSections.value
         _isExporting.value = true
         _exportFailed.value = false
         launchGuarded {
             try {
+                val s = repository.getSectionsForManuscriptOnce(m.id)
+                if (s.isEmpty()) {
+                    _exportFailed.value = true
+                    return@launchGuarded
+                }
                 val result = com.supernatural.bwriter.export.CmosPdfExporter.exportToPdf(
                     context, m, s,
                     ownBook = IllustrationUris.isOwnBook(m.authorEmail, _currentUser.value.email)
