@@ -380,12 +380,19 @@ object CmosPdfExporter {
 
         val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
         val safeTitle = manuscript.title.replace(Regex("""[^a-zA-Z0-9_-]"""), "_").take(30)
-        val file = File(exportDir, "${safeTitle}_CMOS_${trimSize.id}.pdf")
+        val bookKey = if (manuscript.birthId.isNotBlank()) manuscript.birthId.take(10) else manuscript.id.toString()
+        val file = File(exportDir, "${safeTitle}_${bookKey}_CMOS_${trimSize.id}.pdf")
 
-        FileOutputStream(file).use { out ->
-            pdfDocument.writeTo(out)
+        try {
+            FileOutputStream(file).use { out ->
+                pdfDocument.writeTo(out)
+            }
+        } catch (e: Exception) {
+            file.delete()
+            throw e
+        } finally {
+            pdfDocument.close()
         }
-        pdfDocument.close()
 
         return ExportResult(
             file = file,
