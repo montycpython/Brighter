@@ -185,7 +185,7 @@ object CmosFormatter {
                 }
                 full.startsWith("[^") && full.endsWith("]") -> {
                     builder.pushStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8C6D23)))
-                    builder.append(full)
+                    builder.append(full.substring(2, full.length - 1))
                     builder.pop()
                 }
                 else -> {
