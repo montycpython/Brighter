@@ -72,10 +72,9 @@ fun AuthScreen(
     onRemoveSavedAccount: (String) -> Unit = {},
     onContinue: () -> Unit = {}
 ) {
-    var selectedEmail by remember { mutableStateOf(currentUser.email) }
-    var authorName by remember { mutableStateOf(currentUser.name) }
-    var penName by remember { mutableStateOf(currentUser.penName) }
-    var sessionEmail by remember { mutableStateOf<String?>(null) }
+    var selectedEmail by remember(currentUser.email) { mutableStateOf(currentUser.email) }
+    var authorName by remember(currentUser.email) { mutableStateOf(currentUser.name) }
+    var penName by remember(currentUser.email) { mutableStateOf(currentUser.penName) }
     val sessionIsEditorInChief = false
     val selectedRole = WorkRole.AUTHOR
     var isAuthenticatingGoogle by remember { mutableStateOf(false) }
@@ -179,7 +178,6 @@ fun AuthScreen(
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     selectedEmail = account.email
-                                    sessionEmail = account.email
                                     authorName = account.name
                                     penName = account.penName
                                 }
@@ -261,7 +259,6 @@ fun AuthScreen(
                                         authorName = googleUser.displayName
                                     }
                                     selectedEmail = googleUser.email
-                                    sessionEmail = googleUser.email
                                     val bridgeResult = FirebaseAuthBridge.signInWithGoogleIdToken(googleUser.idToken)
                                     if (bridgeResult.isSuccess) {
                                         onGoogleSignIn(googleUser.email, authorName, penName)
