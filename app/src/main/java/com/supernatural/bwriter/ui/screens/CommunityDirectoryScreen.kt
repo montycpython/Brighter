@@ -227,7 +227,7 @@ fun CommunityDirectoryScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(filteredBooks, key = { it.fileId }) { book ->
+                    items(filteredBooks.distinctBy { it.fileId }, key = { it.fileId }) { book ->
                         val isMyBook = book.authorEmail.equals(currentUser.email, ignoreCase = true)
                         val isEditorInChiefBook = book.editorInChief
 
