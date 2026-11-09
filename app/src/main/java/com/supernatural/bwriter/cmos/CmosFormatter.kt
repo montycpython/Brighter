@@ -339,6 +339,28 @@ object CmosFormatter {
                         builder.append("*")
                         builder.pop()
                     }
+                    full.startsWith("___") && full.endsWith("___") -> {
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("___")
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
+                        builder.append(full.substring(3, full.length - 3))
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("___")
+                        builder.pop()
+                    }
+                    full.startsWith("__") && full.endsWith("__") -> {
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("__")
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                        builder.append(full.substring(2, full.length - 2))
+                        builder.pop()
+                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
+                        builder.append("__")
+                        builder.pop()
+                    }
                     full.startsWith("_") && full.endsWith("_") -> {
                         builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
                         builder.append("_")
