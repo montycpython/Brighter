@@ -201,8 +201,10 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         val route = currentRoute
         val previous = previousRoute
         if (hostActivity != null && route != null && previous != null) {
-            val openedBook = previous == "manuscripts" && route == "manuscript_detail/{manuscriptId}"
-            val closedBook = previous == "manuscript_detail/{manuscriptId}" && route == "manuscripts"
+            val openedBook = previous == "manuscripts" &&
+                (route == "manuscript_detail/{manuscriptId}" || route == "leaf_reader/{manuscriptId}")
+            val closedBook = (previous == "manuscript_detail/{manuscriptId}" ||
+                previous == "leaf_reader/{manuscriptId}") && route == "manuscripts"
             val openedRegistryBook = previous == "community_directory" &&
                 (route == "manuscript_detail/{manuscriptId}" || route == "leaf_reader/{manuscriptId}")
             val closedRegistryBook = (previous == "manuscript_detail/{manuscriptId}" ||
