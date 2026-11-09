@@ -166,7 +166,7 @@ fun ManuscriptDetailScreen(
             )
         },
         floatingActionButton = {
-            if (selectedTab != 3) {
+            if (selectedTab in 0..2) {
                 FloatingActionButton(
                     onClick = { showAddSectionDialog = true },
                     containerColor = BookGoldDark,
