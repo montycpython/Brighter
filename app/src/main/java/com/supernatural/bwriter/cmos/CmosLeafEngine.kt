@@ -697,6 +697,8 @@ object CmosLeafEngine {
                     currentPageParagraphs.clear()
                     currentPageLines = 0
                     currentPageMaxLines = maxLinesContinuation
+                    currentPageParagraphs.add("")
+                    currentPageLines += 1
                 } else {
                     currentPageParagraphs.add("")
                     currentPageLines += 1
