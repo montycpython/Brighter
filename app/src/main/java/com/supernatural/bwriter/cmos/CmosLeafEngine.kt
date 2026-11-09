@@ -22,9 +22,10 @@ object CmosLeafEngine {
         var frontMatterPage = 1
         var bodyPage = 1
 
-        val frontSections = sections.filter { it.matterType == MatterType.FRONT_MATTER }
-        val bodySections = sections.filter { it.matterType == MatterType.TEXT_BODY }
-        val backSections = sections.filter { it.matterType == MatterType.BACK_MATTER }
+        val orderedSections = sections.sortedBy { it.orderIndex }
+        val frontSections = orderedSections.filter { it.matterType == MatterType.FRONT_MATTER }
+        val bodySections = orderedSections.filter { it.matterType == MatterType.TEXT_BODY }
+        val backSections = orderedSections.filter { it.matterType == MatterType.BACK_MATTER }
 
         leaves.add(
             CalculatedLeaf(
