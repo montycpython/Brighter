@@ -10,6 +10,7 @@ import com.supernatural.bwriter.data.AuthorKeys
 import com.supernatural.bwriter.data.BookStamp
 import com.supernatural.bwriter.data.CreditChain
 import com.supernatural.bwriter.data.CreditSchedule
+import com.supernatural.bwriter.data.CreditTransfer
 import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.data.BwriterDatabase
