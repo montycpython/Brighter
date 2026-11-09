@@ -947,7 +947,11 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
             val assignmentsForMe = networkService.fetchEditorAssignmentsForEditor(_currentUser.value.email)
             _myAssignments.value = assignmentsForMe
-            _assignedBooks.value = assignmentsForMe.mapNotNull { networkService.fetchRegistryEntryById(it.fileId) }
+            val assignedEntries = mutableListOf<GlobalBookIndexEntry>()
+            for (assignment in assignmentsForMe) {
+                networkService.fetchRegistryEntryById(assignment.fileId)?.let { assignedEntries.add(it) }
+            }
+            _assignedBooks.value = assignedEntries
 
             val mailResult = networkService.fetchMailboxMessages(_currentUser.value.email)
             if (mailResult.isSuccess) {
