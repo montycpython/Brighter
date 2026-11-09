@@ -928,7 +928,7 @@ fun SectionEditorScreen(
                                 coroutineScope.launch { snackbarHostState.showSnackbar("Copied section text.") }
                             },
                             onPaste = {
-                                val item = clipboardManager.primaryClip?.getItemAt(0)
+                                val item = clipboardManager.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
                                 if (item != null) {
                                     val pasteText = item.text?.toString() ?: ""
                                     val min = contentValue.selection.min
