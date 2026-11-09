@@ -76,6 +76,7 @@ class FirestoreNetworkService(private val context: Context) {
         private val VOLATILE_PAYLOAD_KEYS = setOf("updatedAt", "timestamp", "stampHash", "prevStampHash", "stampSignature", "revisionTimestamp")
         private const val COL_CREDIT_CLAIMS = "creditClaims"
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
+        private const val COL_EDITOR_ACCESS = "editorAccess"
         private const val COL_USERS = "users"
     }
 
@@ -754,6 +755,48 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchApprovedEditorAssignments(fileId: String): List<EditorAssignment> =
         fetchEditorAssignmentsForBook(fileId).filter { it.status == "APPROVED" }
 
+    suspend fun fetchEditorAssignmentsForEditor(email: String): List<EditorAssignment> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_EDITOR_ASSIGNMENTS)
+                .whereEqualTo("editorEmail", normEmail(email))
+                .whereEqualTo("status", "APPROVED").get().await()
+            snap.documents.mapNotNull { docToAssignment(it.data) }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch editor assignments for editor failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchRegistryEntryById(fileId: String): GlobalBookIndexEntry? = withContext(Dispatchers.IO) {
+        try {
+            val doc = db.collection(COL_REGISTRY).document(fileId).get().await()
+            if (doc.exists()) docToRegistry(doc.data) else null
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch registry entry failed", e)
+            null
+        }
+    }
+
+    private suspend fun syncEditorAccess(assignment: EditorAssignment, approved: Boolean) {
+        try {
+            val accessId = assignment.fileId + "_" + normEmail(assignment.editorEmail)
+            val ref = db.collection(COL_EDITOR_ACCESS).document(accessId)
+            if (approved) {
+                ref.set(
+                    mapOf(
+                        "fileId" to assignment.fileId,
+                        "editorEmail" to normEmail(assignment.editorEmail),
+                        "status" to "APPROVED"
+                    )
+                ).await()
+            } else {
+                ref.delete().await()
+            }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Sync editor access failed", e)
+        }
+    }
+
     suspend fun fetchPendingEditorAssignments(): List<EditorAssignment> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_EDITOR_ASSIGNMENTS)
@@ -771,6 +814,7 @@ class FirestoreNetworkService(private val context: Context) {
             val storedStatus = if (StudioStanding.isEditorInChief) assignment.status else "PENDING"
             val stored = assignment.copy(id = id, editorEmail = normEmail(assignment.editorEmail), status = storedStatus)
             db.collection(COL_EDITOR_ASSIGNMENTS).document(id).set(assignmentToMap(stored)).await()
+            if (stored.status == "APPROVED") syncEditorAccess(stored, true)
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Create editor assignment failed", e)
         }
@@ -779,7 +823,10 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun setEditorAssignmentStatus(id: String, status: String) = withContext(Dispatchers.IO) {
         if (!StudioStanding.isEditorInChief) return@withContext
         try {
+            val existing = db.collection(COL_EDITOR_ASSIGNMENTS).document(id).get().await()
+            val assignment = existing.data?.let { docToAssignment(it) }
             db.collection(COL_EDITOR_ASSIGNMENTS).document(id).update("status", status).await()
+            if (assignment != null) syncEditorAccess(assignment, status == "APPROVED")
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Set editor assignment status failed", e)
         }
