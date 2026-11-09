@@ -386,21 +386,19 @@ fun AdminGodModeDashboardScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    val rawJson = """
-{
-  "fileId": "${entry.fileId}",
-  "manuscriptId": ${entry.manuscriptId},
-  "title": "${entry.title}",
-  "subtitle": "${entry.subtitle}",
-  "authorName": "${entry.authorName}",
-  "authorEmail": "${entry.authorEmail}",
-  "workType": "${entry.workType}",
-  "wordCount": ${entry.wordCount},
-  "totalLeaves": ${entry.totalLeaves},
-  "lastSynced": ${entry.lastSyncedTimestamp},
-  "isPublicInCommunity": ${entry.isPublicInCommunity},
-}
-                    """.trimIndent()
+                    val rawJson = org.json.JSONObject()
+                        .put("fileId", entry.fileId)
+                        .put("manuscriptId", entry.manuscriptId)
+                        .put("title", entry.title)
+                        .put("subtitle", entry.subtitle)
+                        .put("authorName", entry.authorName)
+                        .put("authorEmail", entry.authorEmail)
+                        .put("workType", entry.workType)
+                        .put("wordCount", entry.wordCount)
+                        .put("totalLeaves", entry.totalLeaves)
+                        .put("lastSynced", entry.lastSyncedTimestamp)
+                        .put("isPublicInCommunity", entry.isPublicInCommunity)
+                        .toString(2)
 
                     Surface(
                         modifier = Modifier
