@@ -307,7 +307,7 @@ fun MailboxInboxScreen(
                                 color = Color(0xFFF3EFE6)
                             )
                             Text(
-                                text = "From: ${msg.senderName} (${msg.senderEmail})",
+                                text = "From: ${msg.senderName}",
                                 fontSize = 11.sp,
                                 color = BookGoldLight
                             )
