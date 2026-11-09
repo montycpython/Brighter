@@ -167,6 +167,7 @@ fun SectionEditorScreen(
     onGenerateAiDraft: (SectionEntity, String, (String) -> Unit) -> Unit = { _, _, _ -> },
     isGeneratingAi: Boolean = false,
     aiGenerationFailed: Boolean = false,
+    isAssignedEditor: Boolean = false,
     subscription: com.supernatural.bwriter.model.UserAiSubscription? = null,
     onOpenSubscription: () -> Unit = {},
     onSaveAssignment: (SectionEntity, String, WorkRole, String) -> Unit = { _, _, _, _ -> },
@@ -183,8 +184,8 @@ fun SectionEditorScreen(
                          com.supernatural.bwriter.data.StudioStanding.isEditorInChief
 
     val isNonAuthorMode = !isAuthorOfBook
-    val isAuthorRoleBlocked = isNonAuthorMode && currentUser.role == WorkRole.AUTHOR
-    val isCollaboratorMode = isNonAuthorMode && (currentUser.role == WorkRole.EDITOR || currentUser.role == WorkRole.CONTRIBUTOR)
+    val isAuthorRoleBlocked = isNonAuthorMode && currentUser.role == WorkRole.AUTHOR && !isAssignedEditor
+    val isCollaboratorMode = isNonAuthorMode && (currentUser.role == WorkRole.EDITOR || currentUser.role == WorkRole.CONTRIBUTOR || isAssignedEditor)
 
     var title by remember(section.id) { mutableStateOf(section.title) }
     var subtitle by remember(section.id) { mutableStateOf(section.subtitle) }

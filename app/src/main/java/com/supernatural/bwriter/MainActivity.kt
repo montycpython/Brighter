@@ -137,6 +137,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val unclaimedCredit by viewModel.unclaimedCredit.collectAsState()
     val claimFailed by viewModel.claimFailed.collectAsState()
     val aiGenerationFailed by viewModel.aiGenerationFailed.collectAsState()
+    val assignedBooks by viewModel.assignedBooks.collectAsState()
     val exportFailed by viewModel.exportFailed.collectAsState()
     val versionHistory by viewModel.versionHistory.collectAsState()
 
@@ -415,6 +416,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     },
                     isGeneratingAi = isGeneratingAiProse,
                     aiGenerationFailed = aiGenerationFailed,
+                    isAssignedEditor = activeManuscript?.let { viewModel.isAssignedEditor(it) } ?: false,
                     subscription = userSubscription,
                     onOpenSubscription = { viewModel.openPaywall() },
                     onSaveAssignment = { sec, author, role, notes ->
@@ -530,6 +532,17 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     }
                 },
                 onOpenManuscript = { entry ->
+                    viewModel.openCommunityBook(entry) { localId ->
+                        if (localId > 0) {
+                            viewModel.selectManuscript(localId)
+                            navController.navigate("manuscript_detail/$localId")
+                        } else {
+                            Toast.makeText(context, "Book unavailable", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                assignedBooks = assignedBooks,
+                onOpenAssigned = { entry ->
                     viewModel.openCommunityBook(entry) { localId ->
                         if (localId > 0) {
                             viewModel.selectManuscript(localId)

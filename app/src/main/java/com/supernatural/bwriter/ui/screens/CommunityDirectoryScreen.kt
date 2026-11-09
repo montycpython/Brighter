@@ -83,7 +83,9 @@ fun CommunityDirectoryScreen(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onOpenReader: (GlobalBookIndexEntry) -> Unit = {},
-    onOpenManuscript: (GlobalBookIndexEntry) -> Unit = {}
+    onOpenManuscript: (GlobalBookIndexEntry) -> Unit = {},
+    assignedBooks: List<GlobalBookIndexEntry> = emptyList(),
+    onOpenAssigned: (GlobalBookIndexEntry) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -227,6 +229,43 @@ fun CommunityDirectoryScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    if (assignedBooks.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Assigned to You",
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = BookGoldLight
+                            )
+                        }
+                        items(assignedBooks, key = { "assigned_" + it.fileId }) { book ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenAssigned(book) },
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                                border = BorderStroke(1.dp, BookGoldDark),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        text = book.title,
+                                        fontFamily = FontFamily.Serif,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = Color(0xFFF3EFE6)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "By ${book.authorName} \u2014 assigned to you as editor",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFB0A89C)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     items(filteredBooks.distinctBy { it.fileId }, key = { it.fileId }) { book ->
                         val isMyBook = book.authorEmail.equals(currentUser.email, ignoreCase = true)
                         val isEditorInChiefBook = book.editorInChief

@@ -191,6 +191,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _unclaimedCredit.value = 0
         _mailboxMessages.value = emptyList()
         _globalBookIndex.value = emptyList()
+        _myAssignments.value = emptyList()
+        _assignedBooks.value = emptyList()
         _suspendedUsers.value = emptyList()
         _pendingBooks.value = emptyList()
         _pendingEditorAssignments.value = emptyList()
@@ -740,6 +742,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _pendingEditorAssignments = MutableStateFlow<List<EditorAssignment>>(emptyList())
     val pendingEditorAssignments: StateFlow<List<EditorAssignment>> = _pendingEditorAssignments.asStateFlow()
 
+    private val _myAssignments = MutableStateFlow<List<EditorAssignment>>(emptyList())
+    val myAssignments: StateFlow<List<EditorAssignment>> = _myAssignments.asStateFlow()
+
+    private val _assignedBooks = MutableStateFlow<List<GlobalBookIndexEntry>>(emptyList())
+    val assignedBooks: StateFlow<List<GlobalBookIndexEntry>> = _assignedBooks.asStateFlow()
+
     private val _registryAuthors = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val registryAuthors: StateFlow<List<Pair<String, String>>> = _registryAuthors.asStateFlow()
 
@@ -839,6 +847,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         getApplication<Application>().getSharedPreferences("bwriter_registry_copies", Context.MODE_PRIVATE)
     }
 
+    fun isAssignedEditor(manuscript: ManuscriptEntity): Boolean {
+        if (manuscript.birthId.isBlank() || manuscript.authorAddress.isBlank()) return false
+        val fileId = "book_" + CreditChain.sha256Hex(manuscript.authorAddress + "|" + manuscript.birthId).take(48)
+        return _myAssignments.value.any { it.fileId == fileId }
+    }
+
     fun openCommunityBook(entry: GlobalBookIndexEntry, onReady: (Long) -> Unit) {
         launchGuarded {
             if (entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
@@ -890,6 +904,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 lastRefreshEmail = userNow.email
                 _mailboxMessages.value = emptyList()
                 _globalBookIndex.value = emptyList()
+                _myAssignments.value = emptyList()
+                _assignedBooks.value = emptyList()
             }
             if (!provenStanding) {
                 _suspendedUsers.value = emptyList()
@@ -924,6 +940,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             if (indexResult.isSuccess) {
                 _globalBookIndex.value = indexResult.getOrNull() ?: emptyList()
             }
+
+            val assignmentsForMe = networkService.fetchEditorAssignmentsForEditor(_currentUser.value.email)
+            _myAssignments.value = assignmentsForMe
+            _assignedBooks.value = assignmentsForMe.mapNotNull { networkService.fetchRegistryEntryById(it.fileId) }
 
             val mailResult = networkService.fetchMailboxMessages(_currentUser.value.email)
             if (mailResult.isSuccess) {
