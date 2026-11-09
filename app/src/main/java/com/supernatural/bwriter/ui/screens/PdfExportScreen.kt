@@ -167,14 +167,15 @@ fun PdfExportScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    SpecRow(label = "Trim Size", value = "Standard Trade 6\" × 9\" (432 × 648 pt)")
+                    val trim = com.supernatural.bwriter.model.BookTrimSize.fromTargetString(manuscript.targetPageSize)
+                    SpecRow(label = "Trim Size", value = "${trim.displayName} (${trim.widthPt} × ${trim.heightPt} pt)")
                     SpecRow(label = "Binding Gutter", value = "0.75 in (54 pt) Inner Margin")
                     SpecRow(label = "Outer Margin", value = "0.58 in (42 pt)")
                     SpecRow(label = "Typeface", value = "Serif (Chicago Proportional Regular/Italic)")
                     SpecRow(label = "Paragraph Indent", value = "0.5 in First-Line (CMOS §2.12)")
                     SpecRow(label = "Front Matter Foliation", value = "Lower-case Roman (i, ii, iii...)")
                     SpecRow(label = "Text Body Foliation", value = "Arabic (1, 2, 3...) from Recto Chapter 1")
-                    SpecRow(label = "Calculated Physical Leaves", value = "${calculatedLeaves.size} pages (${(calculatedLeaves.size + 1)/2} leaves)")
+                    SpecRow(label = "Calculated Physical Leaves", value = "${calculatedLeaves.size} leaves")
                     SpecRow(label = "Total Word Count", value = "${sections.sumOf { it.wordCount }} words")
                 }
             }
