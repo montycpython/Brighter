@@ -248,7 +248,7 @@ fun NewWorkDialog(
                 ) {
                     OutlinedTextField(
                         value = year,
-                        onValueChange = { year = it },
+                        onValueChange = { year = it.filter { ch -> ch.isDigit() }.take(4) },
                         label = { Text("Publication Year") },
                         singleLine = true,
                         modifier = Modifier.weight(0.8f)

@@ -1176,7 +1176,7 @@ fun ManuscriptSettingsDialog(
                         )
                         OutlinedTextField(
                             value = year,
-                            onValueChange = { year = it },
+                            onValueChange = { year = it.filter { ch -> ch.isDigit() }.take(4) },
                             label = { Text("Year") },
                             modifier = Modifier.weight(1f)
                         )
