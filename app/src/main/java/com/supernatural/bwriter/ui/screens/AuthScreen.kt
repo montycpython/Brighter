@@ -80,6 +80,7 @@ fun AuthScreen(
     val selectedRole = WorkRole.AUTHOR
     var isAuthenticatingGoogle by remember { mutableStateOf(false) }
     var googleAuthError by remember { mutableStateOf<String?>(null) }
+    var accountToRemove by remember { mutableStateOf<UserProfile?>(null) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -231,7 +232,7 @@ fun AuthScreen(
                                     )
                                 } else if (displayAccounts.size > 1) {
                                     IconButton(
-                                        onClick = { onRemoveSavedAccount(account.email) },
+                                        onClick = { accountToRemove = account },
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
@@ -438,6 +439,54 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Spacer(modifier = Modifier.height(20.dp))
+        }
+    }
+
+    accountToRemove?.let { account ->
+        androidx.compose.ui.window.Dialog(onDismissRequest = { accountToRemove = null }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C26),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Remove this saved account?",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 15.sp,
+                        color = BookGoldLight
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "${account.email} will be removed from the account picker. Signing back in requires a full Google sign-in.",
+                        fontSize = 12.5.sp,
+                        color = Color(0xFFC8C2B7)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { accountToRemove = null },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel", color = Color.LightGray)
+                        }
+                        Button(
+                            onClick = {
+                                onRemoveSavedAccount(account.email)
+                                accountToRemove = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Remove", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
         }
     }
 }
