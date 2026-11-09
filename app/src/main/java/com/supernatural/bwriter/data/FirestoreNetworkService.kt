@@ -59,6 +59,7 @@ data class SiteUser(
 class FirestoreNetworkService(private val context: Context) {
 
     private val issuanceLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
+    private val transferLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
 
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -73,6 +74,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_VERSIONS = "versionSnapshots"
         private const val COL_STUDIO_CONFIG = "studioConfig"
         private const val COL_CREDIT_ISSUANCES = "creditIssuances"
+        private const val COL_CREDIT_TRANSFERS = "creditTransfers"
         private val VOLATILE_PAYLOAD_KEYS = setOf("updatedAt", "timestamp", "stampHash", "prevStampHash", "stampSignature", "revisionTimestamp")
         private const val COL_CREDIT_CLAIMS = "creditClaims"
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
@@ -738,6 +740,89 @@ class FirestoreNetworkService(private val context: Context) {
         "prevIssuanceHash" to i.prevIssuanceHash,
         "issuanceHash" to i.issuanceHash,
         "signature" to i.signature
+    )
+
+
+    suspend fun fetchTransfersForResult(email: String): Result<List<CreditTransfer>> = withContext(Dispatchers.IO) {
+        try {
+            val normalized = normEmail(email)
+            val sent = db.collection(COL_CREDIT_TRANSFERS)
+                .whereEqualTo("fromEmail", normalized).get().await()
+                .documents.mapNotNull { docToTransfer(it.data) }
+            val received = db.collection(COL_CREDIT_TRANSFERS)
+                .whereEqualTo("toEmail", normalized).get().await()
+                .documents.mapNotNull { docToTransfer(it.data) }
+            Result.success((sent + received).distinctBy { it.transferHash })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchTransfersFor(email: String): List<CreditTransfer> =
+        fetchTransfersForResult(email).getOrDefault(emptyList())
+
+    suspend fun sendTransfer(fromEmail: String, toEmail: String, amount: Int): Result<Unit> = withContext(Dispatchers.IO) {
+        val from = normEmail(fromEmail)
+        val to = normEmail(toEmail)
+        if (from.isBlank() || to.isBlank() || from == to || amount <= 0) {
+            return@withContext Result.failure(IllegalArgumentException("Invalid transfer"))
+        }
+        val lock = transferLocks.getOrPut(from) { Mutex() }
+        lock.withLock {
+            try {
+                val issuances = fetchIssuancesFor(from)
+                val claimed = fetchClaimedIssuanceIds(from)
+                val transfers = fetchTransfersFor(from)
+                val claimedSum = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+                val balance = claimedSum -
+                    transfers.filter { it.fromEmail == from }.sumOf { it.amount } +
+                    transfers.filter { it.toEmail == from }.sumOf { it.amount }
+                if (amount > balance) {
+                    return@withLock Result.failure(IllegalStateException("Insufficient claimed credit"))
+                }
+                val prev = transfers.filter { it.fromEmail == from }
+                    .maxWithOrNull(compareBy<CreditTransfer> { it.createdAtMillis }.thenBy { it.transferHash })
+                val now = System.currentTimeMillis()
+                val hash = CreditChain.transferHashFor(prev?.transferHash ?: "", from, to, amount, now)
+                val transfer = CreditTransfer(
+                    id = hash,
+                    fromEmail = from,
+                    toEmail = to,
+                    amount = amount,
+                    createdAtMillis = now,
+                    prevTransferHash = prev?.transferHash ?: "",
+                    transferHash = hash
+                )
+                db.collection(COL_CREDIT_TRANSFERS).document(hash).set(transferToMap(transfer)).await()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    private fun docToTransfer(data: Map<String, Any>?): CreditTransfer? {
+        if (data == null) return null
+        val hash = data["transferHash"] as? String ?: return null
+        return CreditTransfer(
+            id = data["id"] as? String ?: hash,
+            fromEmail = data["fromEmail"] as? String ?: "",
+            toEmail = data["toEmail"] as? String ?: "",
+            amount = (data["amount"] as? Number)?.toInt() ?: 0,
+            createdAtMillis = (data["createdAtMillis"] as? Number)?.toLong() ?: 0L,
+            prevTransferHash = data["prevTransferHash"] as? String ?: "",
+            transferHash = hash
+        )
+    }
+
+    private fun transferToMap(t: CreditTransfer): Map<String, Any> = mapOf(
+        "id" to t.id,
+        "fromEmail" to t.fromEmail,
+        "toEmail" to t.toEmail,
+        "amount" to t.amount,
+        "createdAtMillis" to t.createdAtMillis,
+        "prevTransferHash" to t.prevTransferHash,
+        "transferHash" to t.transferHash
     )
 
 

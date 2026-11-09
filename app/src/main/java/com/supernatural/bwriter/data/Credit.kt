@@ -43,6 +43,16 @@ data class CreditIssuance(
     val signature: String = ""
 )
 
+data class CreditTransfer(
+    val id: String = "",
+    val fromEmail: String = "",
+    val toEmail: String = "",
+    val amount: Int = 0,
+    val createdAtMillis: Long = 0L,
+    val prevTransferHash: String = "",
+    val transferHash: String = ""
+)
+
 data class EditorAssignment(
     val id: String = "",
     val fileId: String = "",
@@ -58,6 +68,14 @@ object CreditChain {
         val digest = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it) }
     }
+
+    fun transferHashFor(
+        prevHash: String,
+        fromEmail: String,
+        toEmail: String,
+        amount: Int,
+        createdAtMillis: Long
+    ): String = sha256Hex("$prevHash|$fromEmail|$toEmail|$amount|$createdAtMillis")
 
     fun issuanceHashFor(
         prevHash: String,
