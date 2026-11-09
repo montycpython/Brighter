@@ -285,7 +285,7 @@ fun ManuscriptDetailScreen(
                 Tab(
                     selected = selectedTab == 4,
                     onClick = { selectedTab = 4 },
-                    text = { Text("Versions (${versionSnapshots.size.coerceAtLeast(1)})", fontWeight = FontWeight.SemiBold) },
+                    text = { Text("Versions (${versionSnapshots.size})", fontWeight = FontWeight.SemiBold) },
                     modifier = Modifier.testTag("tab_version_history")
                 )
             }
