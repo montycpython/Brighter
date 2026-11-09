@@ -61,7 +61,7 @@ fun LeafBadge(
         else -> VersoBadgeColor
     }
     val label = when {
-        isBlank -> "Blank Verso"
+        isBlank -> if (side == LeafSide.RECTO) "Blank Recto" else "Blank Verso"
         side == LeafSide.RECTO -> if (pageNumber.isNotBlank()) "Recto (p. $pageNumber)" else "Recto"
         else -> if (pageNumber.isNotBlank()) "Verso (p. $pageNumber)" else "Verso"
     }
