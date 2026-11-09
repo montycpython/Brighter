@@ -101,11 +101,16 @@ enum class BookTrimSize(
     companion object {
         fun fromTargetString(target: String?): BookTrimSize {
             if (target.isNullOrBlank()) return TRADE_6X9
-            return values().firstOrNull { 
+            val match = values().firstOrNull {
                 it.displayName.equals(target, ignoreCase = true) ||
                 it.id.equals(target, ignoreCase = true) ||
-                target.contains(it.displayName, ignoreCase = true)
-            } ?: TRADE_6X9
+                target.contains(it.displayName, ignoreCase = true) ||
+                target.contains(it.id, ignoreCase = true)
+            }
+            if (match == null) {
+                android.util.Log.w("BookTrimSize", "Unrecognized trim size; using Trade 6x9")
+            }
+            return match ?: TRADE_6X9
         }
     }
 }
