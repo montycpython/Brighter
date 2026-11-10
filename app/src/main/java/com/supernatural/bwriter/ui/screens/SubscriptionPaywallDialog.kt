@@ -54,6 +54,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.supernatural.bwriter.data.PayoutMethods
+import com.supernatural.bwriter.data.PayoutRequest
 import com.supernatural.bwriter.model.AiTokenTransaction
 import com.supernatural.bwriter.model.SubscriptionPlan
 import com.supernatural.bwriter.model.UserAiSubscription
@@ -79,6 +81,9 @@ fun SubscriptionPaywallDialog(
     onBuyAdFree: () -> Unit = {},
     onBuyTokens: () -> Unit = {},
     onBuyTokens100: () -> Unit = {},
+    payoutValueCents: Long = 0L,
+    myPayoutRequests: List<PayoutRequest> = emptyList(),
+    onRequestPayout: (String, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -321,6 +326,67 @@ fun SubscriptionPaywallDialog(
                                 }
                             }
                         }
+                        if (payoutValueCents > 0L) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            HorizontalDivider(color = Color(0xFF2C2C3C))
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Payout",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BookGoldLight
+                            )
+                            Text(
+                                text = "Share value: ${formatCents(payoutValueCents)}",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFFB0A89C)
+                            )
+                            var payoutDestination by remember { mutableStateOf("") }
+                            var payoutMethod by remember { mutableStateOf(PayoutMethods.PAYPAL) }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(
+                                    text = "PayPal",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (payoutMethod == PayoutMethods.PAYPAL) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (payoutMethod == PayoutMethods.PAYPAL) BookGoldLight else Color(0xFFB0A89C),
+                                    modifier = Modifier.clickable { payoutMethod = PayoutMethods.PAYPAL }
+                                )
+                                Text(
+                                    text = "Stripe",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (payoutMethod == PayoutMethods.STRIPE) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (payoutMethod == PayoutMethods.STRIPE) BookGoldLight else Color(0xFFB0A89C),
+                                    modifier = Modifier.clickable { payoutMethod = PayoutMethods.STRIPE }
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = payoutDestination,
+                                onValueChange = { payoutDestination = it },
+                                label = { Text("Payout destination", fontSize = 11.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    onRequestPayout(payoutMethod, payoutDestination.trim())
+                                    payoutDestination = ""
+                                },
+                                enabled = payoutDestination.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Request Payout", fontSize = 11.sp)
+                            }
+                            myPayoutRequests.forEach { request ->
+                                Text(
+                                    text = "${request.method} \u00b7 ${formatCents(request.amountCents)} \u00b7 ${request.status}",
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFFB0A89C)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -518,4 +584,10 @@ private fun TokenTransactionRow(tx: AiTokenTransaction) {
             }
         }
     }
+}
+
+private fun formatCents(cents: Long): String {
+    val sign = if (cents < 0L) "-" else ""
+    val abs = kotlin.math.abs(cents)
+    return "${sign}\$${abs / 100}.${(abs % 100).toString().padStart(2, '0')}"
 }

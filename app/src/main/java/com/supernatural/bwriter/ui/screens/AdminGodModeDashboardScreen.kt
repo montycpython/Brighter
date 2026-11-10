@@ -40,6 +40,8 @@ import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.data.PoolEntry
 import com.supernatural.bwriter.data.PoolTotals
+import com.supernatural.bwriter.data.PayoutRequest
+import com.supernatural.bwriter.data.PayoutStatuses
 import com.supernatural.bwriter.data.UnitChain
 import com.supernatural.bwriter.data.UnitGrant
 import com.supernatural.bwriter.data.UnitRoles
@@ -141,6 +143,8 @@ fun AdminGodModeDashboardScreen(
     poolTotals: PoolTotals = PoolTotals(),
     allUnits: List<UnitGrant> = emptyList(),
     approvalUnitsMessage: String? = null,
+    allPayoutRequests: List<PayoutRequest> = emptyList(),
+    onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -297,7 +301,9 @@ fun AdminGodModeDashboardScreen(
                     poolEntries = poolEntries,
                     poolTotals = poolTotals,
                     allUnits = allUnits,
-                    approvalUnitsMessage = approvalUnitsMessage
+                    approvalUnitsMessage = approvalUnitsMessage,
+                    allPayoutRequests = allPayoutRequests,
+                    onSetPayoutRequestStatus = onSetPayoutRequestStatus
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -600,7 +606,9 @@ fun MasterBookIndexTab(
     poolEntries: List<PoolEntry> = emptyList(),
     poolTotals: PoolTotals = PoolTotals(),
     allUnits: List<UnitGrant> = emptyList(),
-    approvalUnitsMessage: String? = null
+    approvalUnitsMessage: String? = null,
+    allPayoutRequests: List<PayoutRequest> = emptyList(),
+    onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> }
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
@@ -982,6 +990,81 @@ fun MasterBookIndexTab(
                             fontSize = 11.5.sp,
                             color = Color(0xFFB0A89C)
                         )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Payout Requests",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (allPayoutRequests.isEmpty()) {
+            Text(
+                text = "No payout requests.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+        } else {
+            allPayoutRequests.forEach { request ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .testTag("admin_payout_request_card_${request.requestHash}"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                    border = BorderStroke(1.dp, BookGoldDark)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = request.requesterEmail,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Text(
+                            text = "${request.units} units \u00b7 ${formatCents(request.amountCents)}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = "${request.method} \u00b7 ${request.destination}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = request.status,
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        if (request.status == PayoutStatuses.PENDING) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { onSetPayoutRequestStatus(request, PayoutStatuses.SENT) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.testTag("btn_payout_sent_${request.requestHash}")
+                                ) {
+                                    Text("Mark Sent", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                }
+                                OutlinedButton(
+                                    onClick = { onSetPayoutRequestStatus(request, PayoutStatuses.REJECTED) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.testTag("btn_payout_reject_${request.requestHash}")
+                                ) {
+                                    Text("Reject", fontSize = 12.5.sp)
+                                }
+                            }
+                        }
                     }
                 }
             }

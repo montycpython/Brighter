@@ -62,6 +62,7 @@ class FirestoreNetworkService(private val context: Context) {
     private val transferLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
     private val poolChainLock = Mutex()
     private val unitChainLock = Mutex()
+    private val payoutChainLock = Mutex()
 
     @Volatile
     var lastApprovalUnitsResult: ApprovalUnitsResult? = null
@@ -88,6 +89,9 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_POOL_ENTRIES = "poolEntries"
         private const val COL_SHARE_UNITS = "shareUnits"
         private const val COL_PURCHASES = "purchases"
+        private const val COL_PAYOUT_REQUESTS = "payoutRequests"
+        private const val COL_STUDIO_TOTALS = "studioTotals"
+        private const val DOC_STUDIO_TOTALS_CURRENT = "current"
         private const val COL_USERS = "users"
     }
 
@@ -736,6 +740,38 @@ class FirestoreNetworkService(private val context: Context) {
         PoolChain.totalsFor(fetchPoolEntries())
     }
 
+    suspend fun publishStudioTotals(): Boolean = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext false
+        try {
+            val totals = fetchPoolTotals()
+            val settled = totals.balanceCents - totals.unsettledCents
+            val totalVestedUnits = fetchAllUnits().count { it.vested }
+            val published = StudioTotals(
+                settledBalanceCents = settled,
+                totalVestedUnits = totalVestedUnits,
+                unitValueCents = UnitChain.unitValueCents(settled, totalVestedUnits),
+                updatedAtMillis = System.currentTimeMillis()
+            )
+            db.collection(COL_STUDIO_TOTALS).document(DOC_STUDIO_TOTALS_CURRENT)
+                .set(studioTotalsToMap(published)).await()
+            true
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Publish studio totals failed", e)
+            false
+        }
+    }
+
+    suspend fun fetchStudioTotals(): StudioTotals = withContext(Dispatchers.IO) {
+        try {
+            val data = db.collection(COL_STUDIO_TOTALS).document(DOC_STUDIO_TOTALS_CURRENT)
+                .get().await().data
+            docToStudioTotals(data)
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch studio totals failed", e)
+            StudioTotals()
+        }
+    }
+
     suspend fun recordVerifiedPurchase(
         productId: String,
         orderId: String,
@@ -911,6 +947,138 @@ class FirestoreNetworkService(private val context: Context) {
             false
         }
     }
+
+    suspend fun createPayoutRequest(method: String, destination: String): PayoutRequestOutcome =
+        withContext(Dispatchers.IO) {
+            val caller = normEmail(
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: ""
+            )
+            if (caller.isBlank()) {
+                return@withContext PayoutRequestOutcome(null, PayoutRequestResult.NOT_SIGNED_IN)
+            }
+            if (destination.isBlank()) {
+                return@withContext PayoutRequestOutcome(null, PayoutRequestResult.FAILED)
+            }
+            payoutChainLock.withLock {
+                try {
+                    val mine = fetchPayoutRequestsFor(caller)
+                    mine.firstOrNull { it.status == PayoutStatuses.PENDING }?.let {
+                        return@withLock PayoutRequestOutcome(it, PayoutRequestResult.EXISTING_PENDING)
+                    }
+                    val myVestedUnits = fetchUnitsFor(caller).count { it.vested }
+                    if (myVestedUnits == 0) {
+                        return@withLock PayoutRequestOutcome(null, PayoutRequestResult.NO_VESTED_UNITS)
+                    }
+                    val totals = fetchPoolTotals()
+                    val settled = totals.balanceCents - totals.unsettledCents
+                    val totalVestedUnits = fetchAllUnits().count { it.vested }
+                    var amountCents = myVestedUnits.toLong() *
+                        UnitChain.unitValueCents(settled, totalVestedUnits)
+                    if (amountCents <= 0L && !StudioStanding.isEditorInChief) {
+                        amountCents = myVestedUnits.toLong() *
+                            fetchStudioTotals().unitValueCents
+                    }
+                    if (amountCents <= 0L) {
+                        return@withLock PayoutRequestOutcome(null, PayoutRequestResult.NO_VALUE)
+                    }
+                    val now = System.currentTimeMillis()
+                    val prevHash = mine
+                        .maxWithOrNull(compareBy<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
+                        ?.requestHash ?: ""
+                    val cleanMethod =
+                        if (method == PayoutMethods.STRIPE) PayoutMethods.STRIPE else PayoutMethods.PAYPAL
+                    val hash = PayoutChain.requestHashFor(
+                        prevHash, caller, myVestedUnits, amountCents, cleanMethod, now
+                    )
+                    val request = PayoutRequest(
+                        id = hash,
+                        requesterEmail = caller,
+                        units = myVestedUnits,
+                        amountCents = amountCents,
+                        method = cleanMethod,
+                        destination = destination.trim(),
+                        status = PayoutStatuses.PENDING,
+                        createdAtMillis = now,
+                        paidAtMillis = 0L,
+                        prevRequestHash = prevHash,
+                        requestHash = hash
+                    )
+                    db.collection(COL_PAYOUT_REQUESTS).document(hash)
+                        .set(payoutRequestToMap(request)).await()
+                    PayoutRequestOutcome(request, PayoutRequestResult.CREATED)
+                } catch (e: Exception) {
+                    Log.e("FirestoreNetwork", "Create payout request failed", e)
+                    PayoutRequestOutcome(null, PayoutRequestResult.FAILED)
+                }
+            }
+        }
+
+    private suspend fun fetchPayoutRequestsFor(email: String): List<PayoutRequest> {
+        return try {
+            val snap = db.collection(COL_PAYOUT_REQUESTS)
+                .whereEqualTo("requesterEmail", normEmail(email)).get().await()
+            snap.documents.mapNotNull { docToPayoutRequest(it.data) }
+                .sortedWith(compareByDescending<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch payout requests failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchMyPayoutRequests(): List<PayoutRequest> = withContext(Dispatchers.IO) {
+        val caller = normEmail(
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: ""
+        )
+        if (caller.isBlank()) emptyList() else fetchPayoutRequestsFor(caller)
+    }
+
+    suspend fun fetchAllPayoutRequests(): List<PayoutRequest> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptyList()
+        try {
+            val snap = db.collection(COL_PAYOUT_REQUESTS).get().await()
+            snap.documents.mapNotNull { docToPayoutRequest(it.data) }
+                .sortedWith(compareByDescending<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all payout requests failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun setPayoutRequestStatus(request: PayoutRequest, status: String): Boolean =
+        withContext(Dispatchers.IO) {
+            if (!StudioStanding.isEditorInChief) return@withContext false
+            if (status != PayoutStatuses.SENT && status != PayoutStatuses.REJECTED) {
+                return@withContext false
+            }
+            try {
+                val updates = mutableMapOf<String, Any>("status" to status)
+                if (status == PayoutStatuses.SENT) {
+                    updates["paidAtMillis"] = System.currentTimeMillis()
+                }
+                db.collection(COL_PAYOUT_REQUESTS).document(request.requestHash)
+                    .update(updates).await()
+                if (status == PayoutStatuses.SENT) {
+                    val recorded = recordPoolEntry(
+                        PoolEntry(
+                            kind = PoolKinds.PAYOUT,
+                            amountCents = -request.amountCents,
+                            note = request.id,
+                            actorEmail = request.requesterEmail
+                        )
+                    )
+                    if (!recorded) {
+                        Log.e(
+                            "FirestoreNetwork",
+                            "Payout marked sent but pool entry failed for ${request.id}"
+                        )
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Set payout request status failed", e)
+                false
+            }
+        }
 
     suspend fun previewApprovalCredit(entry: GlobalBookIndexEntry): ApprovalCreditPreview {
         if (!StudioStanding.isEditorInChief) return ApprovalCreditPreview(fileId = entry.fileId)
@@ -1105,6 +1273,53 @@ class FirestoreNetworkService(private val context: Context) {
         "settledAtMillis" to e.settledAtMillis,
         "prevEntryHash" to e.prevEntryHash,
         "entryHash" to e.entryHash
+    )
+
+
+    private fun docToPayoutRequest(data: Map<String, Any>?): PayoutRequest? {
+        if (data == null) return null
+        val hash = data["requestHash"] as? String ?: return null
+        return PayoutRequest(
+            id = data["id"] as? String ?: hash,
+            requesterEmail = data["requesterEmail"] as? String ?: "",
+            units = (data["units"] as? Number)?.toInt() ?: 0,
+            amountCents = (data["amountCents"] as? Number)?.toLong() ?: 0L,
+            method = data["method"] as? String ?: "",
+            destination = data["destination"] as? String ?: "",
+            status = data["status"] as? String ?: PayoutStatuses.PENDING,
+            createdAtMillis = (data["createdAtMillis"] as? Number)?.toLong() ?: 0L,
+            paidAtMillis = (data["paidAtMillis"] as? Number)?.toLong() ?: 0L,
+            prevRequestHash = data["prevRequestHash"] as? String ?: "",
+            requestHash = hash
+        )
+    }
+
+    private fun payoutRequestToMap(r: PayoutRequest): Map<String, Any> = mapOf(
+        "id" to r.id,
+        "requesterEmail" to r.requesterEmail,
+        "units" to r.units,
+        "amountCents" to r.amountCents,
+        "method" to r.method,
+        "destination" to r.destination,
+        "status" to r.status,
+        "createdAtMillis" to r.createdAtMillis,
+        "paidAtMillis" to r.paidAtMillis,
+        "prevRequestHash" to r.prevRequestHash,
+        "requestHash" to r.requestHash
+    )
+
+    private fun docToStudioTotals(data: Map<String, Any>?): StudioTotals = StudioTotals(
+        settledBalanceCents = (data?.get("settledBalanceCents") as? Number)?.toLong() ?: 0L,
+        totalVestedUnits = (data?.get("totalVestedUnits") as? Number)?.toInt() ?: 0,
+        unitValueCents = (data?.get("unitValueCents") as? Number)?.toLong() ?: 0L,
+        updatedAtMillis = (data?.get("updatedAtMillis") as? Number)?.toLong() ?: 0L
+    )
+
+    private fun studioTotalsToMap(t: StudioTotals): Map<String, Any> = mapOf(
+        "settledBalanceCents" to t.settledBalanceCents,
+        "totalVestedUnits" to t.totalVestedUnits,
+        "unitValueCents" to t.unitValueCents,
+        "updatedAtMillis" to t.updatedAtMillis
     )
 
 

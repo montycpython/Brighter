@@ -27,6 +27,9 @@ import com.supernatural.bwriter.data.FirestoreNetworkService
 import com.supernatural.bwriter.data.BillingManager
 import com.supernatural.bwriter.data.BillingProducts
 import com.supernatural.bwriter.data.BillingPurchase
+import com.supernatural.bwriter.data.PayoutRequest
+import com.supernatural.bwriter.data.StudioTotals
+import com.supernatural.bwriter.data.UnitChain
 import com.supernatural.bwriter.data.RestoredBook
 import com.supernatural.bwriter.data.GoogleDriveClient
 import com.supernatural.bwriter.data.IllustrationUris
@@ -219,6 +222,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _allUnits.value = emptyList()
         _myUnits.value = emptyList()
         _approvalUnitsMessage.value = null
+        _myPayoutRequests.value = emptyList()
+        _allPayoutRequests.value = emptyList()
+        _myPayoutValueCents.value = 0L
+        _studioTotals.value = StudioTotals()
         _adFreeEntitled.value = false
         _billingMessage.value = null
         _selectedManuscriptId.value = null
@@ -488,6 +495,36 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             val email = _currentUser.value.email
             _adFreeEntitled.value = email.isNotBlank() &&
                 networkService.isAdFreeEntitled(email)
+        }
+    }
+
+    private fun recomputeMyPayoutValue() {
+        val myVestedUnits = _myUnits.value.count { it.vested }
+        _myPayoutValueCents.value =
+            if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) {
+                val totalVestedUnits = _allUnits.value.count { it.vested }
+                val totals = _poolTotals.value
+                val settled = totals.balanceCents - totals.unsettledCents
+                myVestedUnits.toLong() * UnitChain.unitValueCents(settled, totalVestedUnits)
+            } else {
+                myVestedUnits.toLong() * _studioTotals.value.unitValueCents
+            }
+    }
+
+    fun requestPayout(method: String, destination: String) {
+        launchGuarded {
+            networkService.createPayoutRequest(method, destination)
+            if (_currentUser.value.email.isNotBlank()) {
+                _myPayoutRequests.value = networkService.fetchMyPayoutRequests()
+            }
+        }
+    }
+
+    fun setPayoutRequestStatus(request: PayoutRequest, status: String) {
+        launchGuarded {
+            if (networkService.setPayoutRequestStatus(request, status)) {
+                refreshNetwork()
+            }
         }
     }
 
@@ -885,6 +922,18 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _approvalUnitsMessage = MutableStateFlow<String?>(null)
     val approvalUnitsMessage: StateFlow<String?> = _approvalUnitsMessage.asStateFlow()
 
+    private val _myPayoutRequests = MutableStateFlow<List<PayoutRequest>>(emptyList())
+    val myPayoutRequests: StateFlow<List<PayoutRequest>> = _myPayoutRequests.asStateFlow()
+
+    private val _allPayoutRequests = MutableStateFlow<List<PayoutRequest>>(emptyList())
+    val allPayoutRequests: StateFlow<List<PayoutRequest>> = _allPayoutRequests.asStateFlow()
+
+    private val _myPayoutValueCents = MutableStateFlow(0L)
+    val myPayoutValueCents: StateFlow<Long> = _myPayoutValueCents.asStateFlow()
+
+    private val _studioTotals = MutableStateFlow(StudioTotals())
+    val studioTotals: StateFlow<StudioTotals> = _studioTotals.asStateFlow()
+
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
@@ -1049,6 +1098,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _poolTotals.value = PoolTotals()
                 _allUnits.value = emptyList()
                 _approvalUnitsMessage.value = null
+                _allPayoutRequests.value = emptyList()
             }
             if (provenStanding && userNow.role != WorkRole.EDITOR) {
                 val corrected = userNow.copy(role = WorkRole.EDITOR, organization = "Bwriter Editorial Board")
@@ -1077,6 +1127,19 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             } else {
                 emptyList()
             }
+
+            _studioTotals.value = if (_currentUser.value.email.isNotBlank()) {
+                networkService.fetchStudioTotals()
+            } else {
+                StudioTotals()
+            }
+
+            _myPayoutRequests.value = if (_currentUser.value.email.isNotBlank()) {
+                networkService.fetchMyPayoutRequests()
+            } else {
+                emptyList()
+            }
+            recomputeMyPayoutValue()
 
             val indexResult = networkService.fetchGlobalBookIndex(_currentUser.value)
             if (indexResult.isSuccess) {
@@ -1109,6 +1172,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _poolEntries.value = networkService.fetchPoolEntries()
                 _poolTotals.value = networkService.fetchPoolTotals()
                 _allUnits.value = networkService.fetchAllUnits()
+                networkService.publishStudioTotals()
+                _studioTotals.value = networkService.fetchStudioTotals()
+                _allPayoutRequests.value = networkService.fetchAllPayoutRequests()
+                recomputeMyPayoutValue()
                 _regentEmail.value = networkService.fetchRegentEmail()
                 _isRoot.value = _currentUser.value.email.isNotBlank() &&
                     (_regentEmail.value.isBlank() ||

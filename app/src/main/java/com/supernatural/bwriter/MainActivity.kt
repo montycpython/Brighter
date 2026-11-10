@@ -56,6 +56,7 @@ import com.google.android.gms.ads.MobileAds
 import com.supernatural.bwriter.ui.ads.AdBannerBar
 import com.supernatural.bwriter.data.BillingManager
 import com.supernatural.bwriter.data.BillingProducts
+import com.supernatural.bwriter.data.PayoutStatuses
 import com.supernatural.bwriter.ui.ads.AdsFreeStore
 import com.supernatural.bwriter.ui.ads.InterstitialAds
 import com.supernatural.bwriter.ui.viewmodel.BwriterViewModel
@@ -134,6 +135,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val poolTotals by viewModel.poolTotals.collectAsState()
     val allUnits by viewModel.allUnits.collectAsState()
     val approvalUnitsMessage by viewModel.approvalUnitsMessage.collectAsState()
+    val myPayoutRequests by viewModel.myPayoutRequests.collectAsState()
+    val allPayoutRequests by viewModel.allPayoutRequests.collectAsState()
+    val myPayoutValueCents by viewModel.myPayoutValueCents.collectAsState()
     val regentEmail by viewModel.regentEmail.collectAsState()
     val isRoot by viewModel.isRoot.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
@@ -646,6 +650,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 poolTotals = poolTotals,
                 allUnits = allUnits,
                 approvalUnitsMessage = approvalUnitsMessage,
+                allPayoutRequests = allPayoutRequests,
+                onSetPayoutRequestStatus = { request, status ->
+                    viewModel.setPayoutRequestStatus(request, status)
+                    Toast.makeText(context, if (status == PayoutStatuses.SENT) "Payout marked sent" else "Payout request updated", Toast.LENGTH_SHORT).show()
+                },
                 onDecideEditorAssignment = { assignment, approve ->
                     viewModel.decideEditorAssignment(assignment, approve)
                     Toast.makeText(context, if (approve) "Editor approved" else "Editor declined", Toast.LENGTH_SHORT).show()
@@ -704,6 +713,12 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             onBuyAdFree = { hostActivity?.let { viewModel.buyAdFree(it) } },
             onBuyTokens = { hostActivity?.let { viewModel.buyTokens(it) } },
             onBuyTokens100 = { hostActivity?.let { viewModel.buyTokens100(it) } },
+            payoutValueCents = myPayoutValueCents,
+            myPayoutRequests = myPayoutRequests,
+            onRequestPayout = { method, destination ->
+                viewModel.requestPayout(method, destination)
+                Toast.makeText(context, "Payout requested", Toast.LENGTH_SHORT).show()
+            },
             onClaimCredit = { viewModel.claimCredit() },
             onSendCredit = { email, amount ->
                 viewModel.sendCredit(email, amount) { ok ->
