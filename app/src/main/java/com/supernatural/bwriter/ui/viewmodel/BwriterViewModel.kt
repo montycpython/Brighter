@@ -8,7 +8,9 @@ import androidx.lifecycle.viewModelScope
 import com.supernatural.bwriter.cmos.CmosLeafEngine
 import com.supernatural.bwriter.data.AuthorKeys
 import com.supernatural.bwriter.data.BookStamp
+import com.supernatural.bwriter.data.ApprovalCreditPreview
 import com.supernatural.bwriter.data.CreditChain
+import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.CreditSchedule
 import com.supernatural.bwriter.data.CreditTransfer
 import com.supernatural.bwriter.data.EditorAssignment
@@ -200,6 +202,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _siteUsers.value = emptyList()
         _registryAuthors.value = emptyList()
         _regentEmail.value = ""
+        _allIssuances.value = emptyList()
+        _claimedIssuanceIds.value = emptySet()
+        _allEditorAssignments.value = emptyList()
+        _approvalPreview.value = null
         _selectedManuscriptId.value = null
         lastRefreshEmail = ""
         _driveSyncStatus.value = DriveSyncStatus()
@@ -763,6 +769,18 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _isRoot = MutableStateFlow(false)
     val isRoot: StateFlow<Boolean> = _isRoot.asStateFlow()
 
+    private val _allIssuances = MutableStateFlow<List<CreditIssuance>>(emptyList())
+    val allIssuances: StateFlow<List<CreditIssuance>> = _allIssuances.asStateFlow()
+
+    private val _claimedIssuanceIds = MutableStateFlow<Set<String>>(emptySet())
+    val claimedIssuanceIds: StateFlow<Set<String>> = _claimedIssuanceIds.asStateFlow()
+
+    private val _allEditorAssignments = MutableStateFlow<List<EditorAssignment>>(emptyList())
+    val allEditorAssignments: StateFlow<List<EditorAssignment>> = _allEditorAssignments.asStateFlow()
+
+    private val _approvalPreview = MutableStateFlow<ApprovalCreditPreview?>(null)
+    val approvalPreview: StateFlow<ApprovalCreditPreview?> = _approvalPreview.asStateFlow()
+
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
@@ -919,6 +937,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _registryAuthors.value = emptyList()
                 _regentEmail.value = ""
                 _isRoot.value = false
+                _allIssuances.value = emptyList()
+                _claimedIssuanceIds.value = emptySet()
+                _allEditorAssignments.value = emptyList()
+                _approvalPreview.value = null
             }
             if (provenStanding && userNow.role != WorkRole.EDITOR) {
                 val corrected = userNow.copy(role = WorkRole.EDITOR, organization = "Bwriter Editorial Board")
@@ -965,6 +987,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
                 _pendingEditorAssignments.value = networkService.fetchPendingEditorAssignments()
                 _siteUsers.value = networkService.fetchSiteUsers()
+                _allIssuances.value = networkService.fetchAllIssuances()
+                _claimedIssuanceIds.value = networkService.fetchAllClaimedIssuanceIds()
+                _allEditorAssignments.value = networkService.fetchAllEditorAssignments()
                 _regentEmail.value = networkService.fetchRegentEmail()
                 _isRoot.value = _currentUser.value.email.isNotBlank() &&
                     (_regentEmail.value.isBlank() ||
@@ -1288,6 +1313,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             )
             if (result.isSuccess) refreshNetwork()
             onDone(result.isSuccess)
+        }
+    }
+
+    fun previewApprovalCredit(entry: GlobalBookIndexEntry) {
+        _approvalPreview.value = null
+        launchGuarded {
+            _approvalPreview.value = networkService.previewApprovalCredit(entry)
         }
     }
 

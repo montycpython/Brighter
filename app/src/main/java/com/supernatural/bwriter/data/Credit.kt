@@ -43,6 +43,14 @@ data class CreditIssuance(
     val signature: String = ""
 )
 
+data class ApprovalCreditPreview(
+    val fileId: String = "",
+    val amount: Int = 0,
+    val authorEmail: String = "",
+    val authorIssuancePending: Boolean = false,
+    val editorEmails: List<String> = emptyList()
+)
+
 data class CreditTransfer(
     val id: String = "",
     val fromEmail: String = "",

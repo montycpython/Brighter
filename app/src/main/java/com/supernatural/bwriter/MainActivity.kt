@@ -124,6 +124,10 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val pendingEditorAssignments by viewModel.pendingEditorAssignments.collectAsState()
     val registryAuthors by viewModel.registryAuthors.collectAsState()
     val siteUsers by viewModel.siteUsers.collectAsState()
+    val allIssuances by viewModel.allIssuances.collectAsState()
+    val claimedIssuanceIds by viewModel.claimedIssuanceIds.collectAsState()
+    val allEditorAssignments by viewModel.allEditorAssignments.collectAsState()
+    val approvalPreview by viewModel.approvalPreview.collectAsState()
     val regentEmail by viewModel.regentEmail.collectAsState()
     val isRoot by viewModel.isRoot.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
@@ -602,6 +606,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 pendingEditorAssignments = pendingEditorAssignments,
                 registryAuthors = registryAuthors,
                 siteUsers = siteUsers,
+                allIssuances = allIssuances,
+                claimedIssuanceIds = claimedIssuanceIds,
+                allEditorAssignments = allEditorAssignments,
+                approvalPreview = approvalPreview,
+                onPreviewApproval = { entry -> viewModel.previewApprovalCredit(entry) },
                 onDecideEditorAssignment = { assignment, approve ->
                     viewModel.decideEditorAssignment(assignment, approve)
                     Toast.makeText(context, if (approve) "Editor approved" else "Editor declined", Toast.LENGTH_SHORT).show()

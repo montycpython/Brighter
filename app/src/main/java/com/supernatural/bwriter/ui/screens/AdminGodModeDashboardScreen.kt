@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderShared
+import com.supernatural.bwriter.data.ApprovalCreditPreview
+import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.model.WorkRole
@@ -125,6 +127,11 @@ fun AdminGodModeDashboardScreen(
     isRoot: Boolean = false,
     onSetRegent: (String) -> Unit = {},
     onClearRegent: () -> Unit = {},
+    allIssuances: List<CreditIssuance> = emptyList(),
+    claimedIssuanceIds: Set<String> = emptySet(),
+    allEditorAssignments: List<EditorAssignment> = emptyList(),
+    approvalPreview: ApprovalCreditPreview? = null,
+    onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -271,7 +278,13 @@ fun AdminGodModeDashboardScreen(
                     regentEmail = regentEmail,
                     isRoot = isRoot,
                     onSetRegent = onSetRegent,
-                    onClearRegent = onClearRegent
+                    onClearRegent = onClearRegent,
+                    suspendedCount = suspendedUsers.size,
+                    allIssuances = allIssuances,
+                    claimedIssuanceIds = claimedIssuanceIds,
+                    allEditorAssignments = allEditorAssignments,
+                    approvalPreview = approvalPreview,
+                    onPreviewApproval = onPreviewApproval
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -564,7 +577,13 @@ fun MasterBookIndexTab(
     regentEmail: String = "",
     isRoot: Boolean = false,
     onSetRegent: (String) -> Unit = {},
-    onClearRegent: () -> Unit = {}
+    onClearRegent: () -> Unit = {},
+    suspendedCount: Int = 0,
+    allIssuances: List<CreditIssuance> = emptyList(),
+    claimedIssuanceIds: Set<String> = emptySet(),
+    allEditorAssignments: List<EditorAssignment> = emptyList(),
+    approvalPreview: ApprovalCreditPreview? = null,
+    onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {}
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
@@ -598,6 +617,33 @@ fun MasterBookIndexTab(
                         color = Color(0xFFC8C2B7)
                     )
                     Spacer(modifier = Modifier.height(14.dp))
+                    val preview = approvalPreview?.takeIf { it.fileId == entry.fileId && it.amount > 0 }
+                    if (approve && preview != null) {
+                        Text(
+                            text = "Credit issued: ${preview.amount}",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BookGoldLight
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (preview.authorIssuancePending) {
+                                "Author ${preview.authorEmail}: ${preview.amount}"
+                            } else {
+                                "Author ${preview.authorEmail}: already issued"
+                            },
+                            fontSize = 12.sp,
+                            color = Color(0xFFC8C2B7)
+                        )
+                        preview.editorEmails.forEach { editorEmail ->
+                            Text(
+                                text = "Editor $editorEmail: ${preview.amount}",
+                                fontSize = 12.sp,
+                                color = Color(0xFFC8C2B7)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -632,6 +678,26 @@ fun MasterBookIndexTab(
             .padding(14.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        Text(
+            text = "Totals",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TotalChip("Users", siteUsers.size, Modifier.weight(1f))
+            TotalChip("Books", entries.size, Modifier.weight(1f))
+            TotalChip("Pending", pendingBooks.size, Modifier.weight(1f))
+            TotalChip("Suspended", suspendedCount, Modifier.weight(1f))
+            TotalChip("Assignments", allEditorAssignments.count { it.status == "APPROVED" }, Modifier.weight(1f))
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -694,7 +760,7 @@ fun MasterBookIndexTab(
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                onClick = { decidingBook = entry to true },
+                                onClick = { onPreviewApproval(entry); decidingBook = entry to true },
                                 colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.testTag("btn_approve_${entry.fileId}")
@@ -714,6 +780,59 @@ fun MasterBookIndexTab(
             }
             Spacer(modifier = Modifier.height(14.dp))
         }
+
+        Text(
+            text = "Credit (${allIssuances.size})",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (allIssuances.isEmpty()) {
+            Text(
+                text = "No credit issued.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+        } else {
+            allIssuances.forEach { issuance ->
+                val bookTitle = (entries + pendingBooks).firstOrNull { it.fileId == issuance.fileId }?.title
+                    ?: issuance.fileId
+                val claimed = claimedIssuanceIds.contains(issuance.issuanceHash)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .testTag("admin_issuance_card_${issuance.issuanceHash}"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                    border = BorderStroke(1.dp, BookGoldDark)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = issuance.authorEmail,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Text(
+                            text = "$bookTitle \u00b7 ${issuance.kind}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = "${issuance.amount} \u00b7 ${if (claimed) "Claimed" else "Unclaimed"}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         Text(
             text = "Editor Assignments",
@@ -1494,3 +1613,31 @@ fun DriveHealthTab(
     }
 }
 
+
+@Composable
+private fun TotalChip(label: String, count: Int, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+        border = BorderStroke(1.dp, BookGoldDark)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "$count",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = Color(0xFFF3EFE6)
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                color = Color(0xFFB0A89C)
+            )
+        }
+    }
+}

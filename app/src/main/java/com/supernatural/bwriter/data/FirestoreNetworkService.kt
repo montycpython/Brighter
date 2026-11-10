@@ -643,6 +643,76 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    suspend fun fetchAllIssuances(): List<CreditIssuance> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptyList()
+        try {
+            val snap = db.collection(COL_CREDIT_ISSUANCES).get().await()
+            snap.documents.mapNotNull { docToIssuance(it.data) }
+                .sortedByDescending { it.issuedAtMillis }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all credit issuances failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchAllClaimedIssuanceIds(): Set<String> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptySet()
+        try {
+            val snap = db.collection(COL_CREDIT_CLAIMS).get().await()
+            snap.documents.mapNotNull { it.getString("issuanceHash") }.toSet()
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all credit claims failed", e)
+            emptySet()
+        }
+    }
+
+    suspend fun fetchAllEditorAssignments(): List<EditorAssignment> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_EDITOR_ASSIGNMENTS).get().await()
+            snap.documents.mapNotNull { docToAssignment(it.data) }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all editor assignments failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun previewApprovalCredit(entry: GlobalBookIndexEntry): ApprovalCreditPreview {
+        return try {
+            val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
+                .whereEqualTo("fileId", entry.fileId).get().await()
+                .documents.mapNotNull { docToIssuance(it.data) }
+            val existingAuthorIssuance = existingForBook.firstOrNull {
+                it.kind == "AUTHOR" && it.authorEmail == normEmail(entry.authorEmail)
+            }
+            val amount = existingAuthorIssuance?.amount
+                ?: CreditSchedule.amountForApproval(
+                    fetchIssuancesFor(entry.authorEmail).count { it.kind == "AUTHOR" }
+                )
+            val editorEmails = mutableListOf<String>()
+            fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
+                if (existingForBook.any { it.kind == "EDITOR" && it.authorEmail == normEmail(assignment.editorEmail) }) return@forEach
+                val editorAddress = assignment.editorAddress.ifBlank {
+                    db.collection(COL_REGISTRY)
+                        .whereEqualTo("authorEmailLower", normEmail(assignment.editorEmail)).get().await()
+                        .documents.mapNotNull { docToRegistry(it.data) }
+                        .firstOrNull { it.authorAddress.isNotBlank() }
+                        ?.authorAddress.orEmpty()
+                }
+                if (editorAddress.isNotBlank()) editorEmails.add(normEmail(assignment.editorEmail))
+            }
+            ApprovalCreditPreview(
+                fileId = entry.fileId,
+                amount = amount,
+                authorEmail = normEmail(entry.authorEmail),
+                authorIssuancePending = existingAuthorIssuance == null && entry.authorAddress.isNotBlank(),
+                editorEmails = editorEmails
+            )
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Preview approval credit failed", e)
+            ApprovalCreditPreview(fileId = entry.fileId)
+        }
+    }
+
     private suspend fun writeIssuance(
         recipientEmail: String,
         recipientAddress: String,
