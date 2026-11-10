@@ -40,6 +40,9 @@ import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.data.PoolEntry
 import com.supernatural.bwriter.data.PoolTotals
+import com.supernatural.bwriter.data.UnitChain
+import com.supernatural.bwriter.data.UnitGrant
+import com.supernatural.bwriter.data.UnitRoles
 import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.model.WorkRole
 import androidx.compose.material.icons.filled.Gavel
@@ -136,6 +139,8 @@ fun AdminGodModeDashboardScreen(
     onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
     poolEntries: List<PoolEntry> = emptyList(),
     poolTotals: PoolTotals = PoolTotals(),
+    allUnits: List<UnitGrant> = emptyList(),
+    approvalUnitsMessage: String? = null,
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -290,7 +295,9 @@ fun AdminGodModeDashboardScreen(
                     approvalPreview = approvalPreview,
                     onPreviewApproval = onPreviewApproval,
                     poolEntries = poolEntries,
-                    poolTotals = poolTotals
+                    poolTotals = poolTotals,
+                    allUnits = allUnits,
+                    approvalUnitsMessage = approvalUnitsMessage
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -591,13 +598,19 @@ fun MasterBookIndexTab(
     approvalPreview: ApprovalCreditPreview? = null,
     onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
     poolEntries: List<PoolEntry> = emptyList(),
-    poolTotals: PoolTotals = PoolTotals()
+    poolTotals: PoolTotals = PoolTotals(),
+    allUnits: List<UnitGrant> = emptyList(),
+    approvalUnitsMessage: String? = null
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
     var selectedBookFileId by remember { mutableStateOf<String?>(null) }
     var regentInput by remember { mutableStateOf("") }
     var decidingBook by remember { mutableStateOf<Pair<GlobalBookIndexEntry, Boolean>?>(null) }
+    val currentSeasonYear = UnitChain.seasonYearFor(System.currentTimeMillis())
+    val seasonCapReached = allUnits.count {
+        it.role == UnitRoles.AUTHOR && it.seasonYear == currentSeasonYear
+    } >= UnitChain.SEASON_AUTHOR_CAP
 
     decidingBook?.let { (entry, approve) ->
         Dialog(onDismissRequest = { decidingBook = null }) {
@@ -650,6 +663,24 @@ fun MasterBookIndexTab(
                                 color = Color(0xFFC8C2B7)
                             )
                         }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                    if (approve) {
+                        val unitsRecorded = allUnits.any {
+                            it.fileId == entry.fileId && it.role == UnitRoles.AUTHOR
+                        }
+                        val editorUnitCount = allEditorAssignments.count {
+                            it.fileId == entry.fileId && it.status == "APPROVED"
+                        }
+                        Text(
+                            text = when {
+                                unitsRecorded -> "Units: already recorded for this book"
+                                seasonCapReached -> "Units: season cap reached, none issued"
+                                else -> "Units: Author +1, Editor +1 \u00d7$editorUnitCount, Chair +1"
+                            },
+                            fontSize = 12.sp,
+                            color = Color(0xFFC8C2B7)
+                        )
                         Spacer(modifier = Modifier.height(14.dp))
                     }
                     Row(
@@ -705,6 +736,15 @@ fun MasterBookIndexTab(
             TotalChip("Assignments", allEditorAssignments.count { it.status == "APPROVED" }, Modifier.weight(1f))
         }
         Spacer(modifier = Modifier.height(14.dp))
+
+        approvalUnitsMessage?.let { message ->
+            Text(
+                text = message,
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -886,6 +926,28 @@ fun MasterBookIndexTab(
             fontSize = 11.5.sp,
             color = Color(0xFFB0A89C)
         )
+        val vestedUnits = allUnits.filter { it.vested }
+        val settledCents = poolTotals.balanceCents - poolTotals.unsettledCents
+        Text(
+            text = "Total units (vested) ${vestedUnits.size}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Unit value ${formatCents(UnitChain.unitValueCents(settledCents, vestedUnits.size))}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        UnitChain.totalsByHolder(vestedUnits).entries
+            .sortedByDescending { it.value }
+            .take(10)
+            .forEach { (holderEmail, count) ->
+                Text(
+                    text = "$holderEmail \u2014 $count units",
+                    fontSize = 11.5.sp,
+                    color = Color(0xFFB0A89C)
+                )
+            }
         Spacer(modifier = Modifier.height(8.dp))
 
         if (poolEntries.isEmpty()) {

@@ -130,6 +130,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val approvalPreview by viewModel.approvalPreview.collectAsState()
     val poolEntries by viewModel.poolEntries.collectAsState()
     val poolTotals by viewModel.poolTotals.collectAsState()
+    val allUnits by viewModel.allUnits.collectAsState()
+    val approvalUnitsMessage by viewModel.approvalUnitsMessage.collectAsState()
     val regentEmail by viewModel.regentEmail.collectAsState()
     val isRoot by viewModel.isRoot.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
@@ -615,6 +617,8 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onPreviewApproval = { entry -> viewModel.previewApprovalCredit(entry) },
                 poolEntries = poolEntries,
                 poolTotals = poolTotals,
+                allUnits = allUnits,
+                approvalUnitsMessage = approvalUnitsMessage,
                 onDecideEditorAssignment = { assignment, approve ->
                     viewModel.decideEditorAssignment(assignment, approve)
                     Toast.makeText(context, if (approve) "Editor approved" else "Editor declined", Toast.LENGTH_SHORT).show()

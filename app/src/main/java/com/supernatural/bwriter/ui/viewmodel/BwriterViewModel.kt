@@ -14,8 +14,10 @@ import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.CreditSchedule
 import com.supernatural.bwriter.data.CreditTransfer
 import com.supernatural.bwriter.data.EditorAssignment
+import com.supernatural.bwriter.data.ApprovalUnitsResult
 import com.supernatural.bwriter.data.PoolEntry
 import com.supernatural.bwriter.data.PoolTotals
+import com.supernatural.bwriter.data.UnitGrant
 import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
@@ -210,6 +212,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _approvalPreview.value = null
         _poolEntries.value = emptyList()
         _poolTotals.value = PoolTotals()
+        _allUnits.value = emptyList()
+        _myUnits.value = emptyList()
+        _approvalUnitsMessage.value = null
         _selectedManuscriptId.value = null
         lastRefreshEmail = ""
         _driveSyncStatus.value = DriveSyncStatus()
@@ -791,6 +796,15 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _poolTotals = MutableStateFlow(PoolTotals())
     val poolTotals: StateFlow<PoolTotals> = _poolTotals.asStateFlow()
 
+    private val _allUnits = MutableStateFlow<List<UnitGrant>>(emptyList())
+    val allUnits: StateFlow<List<UnitGrant>> = _allUnits.asStateFlow()
+
+    private val _myUnits = MutableStateFlow<List<UnitGrant>>(emptyList())
+    val myUnits: StateFlow<List<UnitGrant>> = _myUnits.asStateFlow()
+
+    private val _approvalUnitsMessage = MutableStateFlow<String?>(null)
+    val approvalUnitsMessage: StateFlow<String?> = _approvalUnitsMessage.asStateFlow()
+
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
@@ -953,6 +967,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _approvalPreview.value = null
                 _poolEntries.value = emptyList()
                 _poolTotals.value = PoolTotals()
+                _allUnits.value = emptyList()
+                _approvalUnitsMessage.value = null
             }
             if (provenStanding && userNow.role != WorkRole.EDITOR) {
                 val corrected = userNow.copy(role = WorkRole.EDITOR, organization = "Bwriter Editorial Board")
@@ -973,6 +989,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             checkAccountSuspension()
 
             refreshCredit()
+
+            _myUnits.value = if (_currentUser.value.email.isNotBlank()) {
+                networkService.fetchUnitsFor(_currentUser.value.email)
+            } else {
+                emptyList()
+            }
 
             val indexResult = networkService.fetchGlobalBookIndex(_currentUser.value)
             if (indexResult.isSuccess) {
@@ -1004,6 +1026,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _allEditorAssignments.value = networkService.fetchAllEditorAssignments()
                 _poolEntries.value = networkService.fetchPoolEntries()
                 _poolTotals.value = networkService.fetchPoolTotals()
+                _allUnits.value = networkService.fetchAllUnits()
                 _regentEmail.value = networkService.fetchRegentEmail()
                 _isRoot.value = _currentUser.value.email.isNotBlank() &&
                     (_regentEmail.value.isBlank() ||
@@ -1097,7 +1120,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief && entry != null &&
                         entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)
                     ) {
-                        networkService.issueCredit(entry)
+                        if (networkService.issueCredit(entry)) {
+                            networkService.recordApprovalUnits(entry)
+                        }
                     }
                     val payload = networkService.buildPayloadJson(
                         fullyStamped, sections, characters, settings, comments, _currentUser.value, isPublicInCommunity
@@ -1325,7 +1350,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 adminEmail = _currentUser.value.email,
                 fileId = fileId
             )
-            if (result.isSuccess) refreshNetwork()
+            if (result.isSuccess) {
+                if (networkService.lastApprovalUnitsResult == ApprovalUnitsResult.SEASON_CAP_REACHED) {
+                    _approvalUnitsMessage.value =
+                        "Season unit cap reached: this approval issued no new units."
+                }
+                refreshNetwork()
+            }
             onDone(result.isSuccess)
         }
     }

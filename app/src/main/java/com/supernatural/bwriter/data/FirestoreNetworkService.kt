@@ -61,6 +61,11 @@ class FirestoreNetworkService(private val context: Context) {
     private val issuanceLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
     private val transferLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
     private val poolChainLock = Mutex()
+    private val unitChainLock = Mutex()
+
+    @Volatile
+    var lastApprovalUnitsResult: ApprovalUnitsResult? = null
+        private set
 
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -81,6 +86,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
         private const val COL_EDITOR_ACCESS = "editorAccess"
         private const val COL_POOL_ENTRIES = "poolEntries"
+        private const val COL_SHARE_UNITS = "shareUnits"
         private const val COL_USERS = "users"
     }
 
@@ -530,6 +536,7 @@ class FirestoreNetworkService(private val context: Context) {
                     IllegalStateException("Credit issuance failed; approval not completed. Try again.")
                 )
             }
+            lastApprovalUnitsResult = recordApprovalUnits(entry)
             val batch = db.batch()
             batch.set(db.collection(COL_REGISTRY).document(fileId), registryToMap(entry))
             if (contentSnap.exists()) {
@@ -728,6 +735,102 @@ class FirestoreNetworkService(private val context: Context) {
         PoolChain.totalsFor(fetchPoolEntries())
     }
 
+    suspend fun recordApprovalUnits(entry: GlobalBookIndexEntry): ApprovalUnitsResult {
+        if (!StudioStanding.isEditorInChief) return ApprovalUnitsResult.NOT_EDITOR_IN_CHIEF
+        return try {
+            val chairEmail = normEmail(
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: ""
+            )
+            if (chairEmail.isBlank()) return ApprovalUnitsResult.FAILED
+            val existingForBook = db.collection(COL_SHARE_UNITS)
+                .whereEqualTo("fileId", entry.fileId).get().await()
+                .documents.mapNotNull { docToUnitGrant(it.data) }
+            if (existingForBook.any { it.role == UnitRoles.AUTHOR }) {
+                return ApprovalUnitsResult.ALREADY_RECORDED
+            }
+            val now = System.currentTimeMillis()
+            val seasonYear = UnitChain.seasonYearFor(now)
+            val grants = mutableListOf<Pair<String, String>>()
+            grants.add(normEmail(entry.authorEmail) to UnitRoles.AUTHOR)
+            fetchApprovedEditorAssignments(entry.fileId)
+                .map { normEmail(it.editorEmail) }
+                .distinct()
+                .forEach { grants.add(it to UnitRoles.EDITOR) }
+            grants.add(chairEmail to UnitRoles.CHAIR)
+            unitChainLock.withLock {
+                val allUnits = fetchAllUnits()
+                val seasonAuthorGrants = allUnits.count {
+                    it.role == UnitRoles.AUTHOR && it.seasonYear == seasonYear
+                }
+                if (seasonAuthorGrants >= UnitChain.SEASON_AUTHOR_CAP) {
+                    return@withLock ApprovalUnitsResult.SEASON_CAP_REACHED
+                }
+                var prevHash = allUnits
+                    .maxWithOrNull(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
+                    ?.grantHash ?: ""
+                for ((holderEmail, role) in grants) {
+                    val hash = UnitChain.grantHashFor(prevHash, holderEmail, role, entry.fileId, now)
+                    val grant = UnitGrant(
+                        id = hash,
+                        holderEmail = holderEmail,
+                        role = role,
+                        fileId = entry.fileId,
+                        seasonYear = seasonYear,
+                        issuedAtMillis = now,
+                        vested = false,
+                        prevGrantHash = prevHash,
+                        grantHash = hash
+                    )
+                    db.collection(COL_SHARE_UNITS).document(hash).set(unitGrantToMap(grant)).await()
+                    prevHash = hash
+                }
+                ApprovalUnitsResult.WRITTEN
+            }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Record approval units failed", e)
+            ApprovalUnitsResult.FAILED
+        }
+    }
+
+    suspend fun fetchAllUnits(): List<UnitGrant> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptyList()
+        try {
+            val snap = db.collection(COL_SHARE_UNITS).get().await()
+            snap.documents.mapNotNull { docToUnitGrant(it.data) }
+                .sortedWith(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all share units failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchUnitsFor(email: String): List<UnitGrant> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_SHARE_UNITS)
+                .whereEqualTo("holderEmail", normEmail(email)).get().await()
+            snap.documents.mapNotNull { docToUnitGrant(it.data) }
+                .sortedWith(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch share units failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun vestSeasonUnits(seasonYear: Int): Boolean = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext false
+        try {
+            val unvested = fetchAllUnits().filter { it.seasonYear == seasonYear && !it.vested }
+            for (grant in unvested) {
+                db.collection(COL_SHARE_UNITS).document(grant.grantHash)
+                    .update("vested", true).await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Vest season units failed", e)
+            false
+        }
+    }
+
     suspend fun previewApprovalCredit(entry: GlobalBookIndexEntry): ApprovalCreditPreview {
         return try {
             val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
@@ -880,6 +983,34 @@ class FirestoreNetworkService(private val context: Context) {
             entryHash = hash
         )
     }
+
+    private fun docToUnitGrant(data: Map<String, Any>?): UnitGrant? {
+        if (data == null) return null
+        val hash = data["grantHash"] as? String ?: return null
+        return UnitGrant(
+            id = data["id"] as? String ?: hash,
+            holderEmail = data["holderEmail"] as? String ?: "",
+            role = data["role"] as? String ?: "",
+            fileId = data["fileId"] as? String ?: "",
+            seasonYear = (data["seasonYear"] as? Number)?.toInt() ?: 0,
+            issuedAtMillis = (data["issuedAtMillis"] as? Number)?.toLong() ?: 0L,
+            vested = data["vested"] as? Boolean ?: false,
+            prevGrantHash = data["prevGrantHash"] as? String ?: "",
+            grantHash = hash
+        )
+    }
+
+    private fun unitGrantToMap(g: UnitGrant): Map<String, Any> = mapOf(
+        "id" to g.id,
+        "holderEmail" to g.holderEmail,
+        "role" to g.role,
+        "fileId" to g.fileId,
+        "seasonYear" to g.seasonYear,
+        "issuedAtMillis" to g.issuedAtMillis,
+        "vested" to g.vested,
+        "prevGrantHash" to g.prevGrantHash,
+        "grantHash" to g.grantHash
+    )
 
     private fun poolEntryToMap(e: PoolEntry): Map<String, Any> = mapOf(
         "id" to e.id,
