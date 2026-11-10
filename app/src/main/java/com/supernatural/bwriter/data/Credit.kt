@@ -48,6 +48,7 @@ data class ApprovalCreditPreview(
     val amount: Int = 0,
     val authorEmail: String = "",
     val authorIssuancePending: Boolean = false,
+    val authorAlreadyIssued: Boolean = false,
     val editorEmails: List<String> = emptyList()
 )
 

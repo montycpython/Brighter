@@ -742,12 +742,6 @@ class FirestoreNetworkService(private val context: Context) {
                 com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: ""
             )
             if (chairEmail.isBlank()) return ApprovalUnitsResult.FAILED
-            val existingForBook = db.collection(COL_SHARE_UNITS)
-                .whereEqualTo("fileId", entry.fileId).get().await()
-                .documents.mapNotNull { docToUnitGrant(it.data) }
-            if (existingForBook.any { it.role == UnitRoles.AUTHOR }) {
-                return ApprovalUnitsResult.ALREADY_RECORDED
-            }
             val now = System.currentTimeMillis()
             val seasonYear = UnitChain.seasonYearFor(now)
             val grants = mutableListOf<Pair<String, String>>()
@@ -759,16 +753,26 @@ class FirestoreNetworkService(private val context: Context) {
             grants.add(chairEmail to UnitRoles.CHAIR)
             unitChainLock.withLock {
                 val allUnits = fetchAllUnits()
-                val seasonAuthorGrants = allUnits.count {
-                    it.role == UnitRoles.AUTHOR && it.seasonYear == seasonYear
+                val recordedKeys = allUnits
+                    .filter { it.fileId == entry.fileId }
+                    .map { it.holderEmail to it.role }
+                    .toSet()
+                val missing = grants.filter { it !in recordedKeys }
+                if (missing.isEmpty()) {
+                    return@withLock ApprovalUnitsResult.ALREADY_RECORDED
                 }
-                if (seasonAuthorGrants >= UnitChain.SEASON_AUTHOR_CAP) {
-                    return@withLock ApprovalUnitsResult.SEASON_CAP_REACHED
+                if (missing.any { it.second == UnitRoles.AUTHOR }) {
+                    val seasonAuthorGrants = allUnits.count {
+                        it.role == UnitRoles.AUTHOR && it.seasonYear == seasonYear
+                    }
+                    if (seasonAuthorGrants >= UnitChain.SEASON_AUTHOR_CAP) {
+                        return@withLock ApprovalUnitsResult.SEASON_CAP_REACHED
+                    }
                 }
                 var prevHash = allUnits
                     .maxWithOrNull(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
                     ?.grantHash ?: ""
-                for ((holderEmail, role) in grants) {
+                for ((holderEmail, role) in missing) {
                     val hash = UnitChain.grantHashFor(prevHash, holderEmail, role, entry.fileId, now)
                     val grant = UnitGrant(
                         id = hash,
@@ -832,6 +836,7 @@ class FirestoreNetworkService(private val context: Context) {
     }
 
     suspend fun previewApprovalCredit(entry: GlobalBookIndexEntry): ApprovalCreditPreview {
+        if (!StudioStanding.isEditorInChief) return ApprovalCreditPreview(fileId = entry.fileId)
         return try {
             val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
                 .whereEqualTo("fileId", entry.fileId).get().await()
@@ -860,6 +865,7 @@ class FirestoreNetworkService(private val context: Context) {
                 amount = amount,
                 authorEmail = normEmail(entry.authorEmail),
                 authorIssuancePending = existingAuthorIssuance == null && entry.authorAddress.isNotBlank(),
+                authorAlreadyIssued = existingAuthorIssuance != null,
                 editorEmails = editorEmails
             )
         } catch (e: Exception) {

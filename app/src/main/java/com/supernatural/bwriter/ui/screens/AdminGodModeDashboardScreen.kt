@@ -640,8 +640,9 @@ fun MasterBookIndexTab(
                     Spacer(modifier = Modifier.height(14.dp))
                     val preview = approvalPreview?.takeIf { it.fileId == entry.fileId && it.amount > 0 }
                     if (approve && preview != null) {
+                        val recipientCount = (if (preview.authorIssuancePending) 1 else 0) + preview.editorEmails.size
                         Text(
-                            text = "Credit issued: ${preview.amount}",
+                            text = "Credit issued: ${preview.amount * recipientCount}",
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = BookGoldLight
@@ -650,8 +651,10 @@ fun MasterBookIndexTab(
                         Text(
                             text = if (preview.authorIssuancePending) {
                                 "Author ${preview.authorEmail}: ${preview.amount}"
-                            } else {
+                            } else if (preview.authorAlreadyIssued) {
                                 "Author ${preview.authorEmail}: already issued"
+                            } else {
+                                "Author ${preview.authorEmail}: no address on file"
                             },
                             fontSize = 12.sp,
                             color = Color(0xFFC8C2B7)
