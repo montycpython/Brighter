@@ -1,5 +1,6 @@
 package com.supernatural.bwriter.ui.viewmodel
 
+import android.app.Activity
 import android.app.Application
 import android.util.Log
 import android.content.Context
@@ -23,6 +24,9 @@ import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
 import com.supernatural.bwriter.data.UserPreferences
 import com.supernatural.bwriter.data.FirestoreNetworkService
+import com.supernatural.bwriter.data.BillingManager
+import com.supernatural.bwriter.data.BillingProducts
+import com.supernatural.bwriter.data.BillingPurchase
 import com.supernatural.bwriter.data.RestoredBook
 import com.supernatural.bwriter.data.GoogleDriveClient
 import com.supernatural.bwriter.data.IllustrationUris
@@ -215,6 +219,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _allUnits.value = emptyList()
         _myUnits.value = emptyList()
         _approvalUnitsMessage.value = null
+        _adFreeEntitled.value = false
+        _billingMessage.value = null
         _selectedManuscriptId.value = null
         lastRefreshEmail = ""
         _driveSyncStatus.value = DriveSyncStatus()
@@ -409,6 +415,80 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
     fun dismissPaywall() {
         _showPaywall.value = false
+    }
+
+    private val _adFreeEntitled = MutableStateFlow(false)
+    val adFreeEntitled: StateFlow<Boolean> = _adFreeEntitled.asStateFlow()
+
+    private val _billingPrices = MutableStateFlow<Map<String, String>>(emptyMap())
+    val billingPrices: StateFlow<Map<String, String>> = _billingPrices.asStateFlow()
+
+    private val _billingMessage = MutableStateFlow<String?>(null)
+    val billingMessage: StateFlow<String?> = _billingMessage.asStateFlow()
+
+    var billingManager: BillingManager? = null
+
+    fun clearBillingMessage() {
+        _billingMessage.value = null
+    }
+
+    fun onBillingPrices(prices: Map<String, String>) {
+        _billingPrices.value = prices
+    }
+
+    fun buyAdFree(activity: Activity) {
+        launchBillingPurchase(activity, BillingProducts.AD_FREE_PRODUCT_ID)
+    }
+
+    fun buyTokens(activity: Activity) {
+        launchBillingPurchase(activity, BillingProducts.TOKENS_PRODUCT_ID)
+    }
+
+    fun buyTokens100(activity: Activity) {
+        launchBillingPurchase(activity, BillingProducts.TOKENS_100_PRODUCT_ID)
+    }
+
+    private fun launchBillingPurchase(activity: Activity, productId: String) {
+        val manager = billingManager
+        if (manager == null || !manager.launch(activity, productId)) {
+            _billingMessage.value = "Google Play is not ready yet."
+        }
+    }
+
+    fun onBillingPurchase(purchase: BillingPurchase) {
+        launchGuarded {
+            val email = _currentUser.value.email
+            if (email.isBlank()) return@launchGuarded
+            networkService.recordVerifiedPurchase(
+                purchase.productId,
+                purchase.orderId,
+                purchase.purchaseToken,
+                email
+            )
+            if (!networkService.isPurchaseRecorded(purchase.orderId)) return@launchGuarded
+            val tokensInPack = BillingProducts.tokensPerPackFor(purchase.productId)
+            when {
+                tokensInPack > 0 -> {
+                    _userAiSubscription.value = userPreferences.getUserSubscription(email)
+                    billingManager?.acknowledge(purchase)
+                    billingManager?.consume(purchase)
+                    _billingMessage.value = "$tokensInPack tokens added."
+                }
+                purchase.productId == BillingProducts.AD_FREE_PRODUCT_ID -> {
+                    _adFreeEntitled.value = networkService.isAdFreeEntitled(email)
+                    billingManager?.acknowledge(purchase)
+                    _billingMessage.value = "Ad-free is on."
+                }
+            }
+        }
+    }
+
+    fun refreshAdFreeEntitlement() {
+        launchGuarded {
+            val email = _currentUser.value.email
+            _adFreeEntitled.value = email.isNotBlank() &&
+                networkService.isAdFreeEntitled(email)
+        }
     }
 
     fun generateAiDraftFromPrompt(
@@ -989,6 +1069,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             checkAccountSuspension()
 
             refreshCredit()
+
+            refreshAdFreeEntitlement()
 
             _myUnits.value = if (_currentUser.value.email.isNotBlank()) {
                 networkService.fetchUnitsFor(_currentUser.value.email)

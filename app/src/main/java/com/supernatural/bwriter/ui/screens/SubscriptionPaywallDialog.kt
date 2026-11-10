@@ -73,6 +73,12 @@ fun SubscriptionPaywallDialog(
     claimFailed: Boolean = false,
     onClaimCredit: () -> Unit = {},
     onSendCredit: (String, Int) -> Unit = { _, _ -> },
+    adFreePrice: String = "",
+    tokenPackPrice: String = "",
+    tokenBulkPrice: String = "",
+    onBuyAdFree: () -> Unit = {},
+    onBuyTokens: () -> Unit = {},
+    onBuyTokens100: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -348,7 +354,7 @@ fun SubscriptionPaywallDialog(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Coming in the next update.",
+                            text = "Billed through Google Play.",
                             fontFamily = FontFamily.Serif,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
@@ -356,19 +362,36 @@ fun SubscriptionPaywallDialog(
                         )
 
                         Text(
-                            text = "Go ad-free for $2.99, billed through Google Play. AI generations run on prepaid tokens — 20 for $0.99, credited to your account by the Editor in Chief. A token is spent only when you generate. Nothing is charged in this version.",
+                            text = "Go ad-free, billed through Google Play. AI generations run on prepaid tokens, credited to your account when your purchase lands. A token is spent only when you generate.",
                             fontSize = 11.5.sp,
                             color = Color(0xFFC8C2B7)
                         )
 
-                        ComingSoonCard(
-                            title = "Ad-Free — $2.99",
-                            detail = "No ads anywhere in the app."
+                        val tokenBalanceLabel = if (subscription.plan == SubscriptionPlan.SUPERUSER_UNLIMITED) {
+                            "Balance: unlimited"
+                        } else {
+                            "Balance: ${subscription.creditsRemaining} generations"
+                        }
+
+                        PurchaseCard(
+                            title = "Ad-Free",
+                            detail = "No ads anywhere in the app.",
+                            price = adFreePrice.ifBlank { "$2.99" },
+                            onBuy = onBuyAdFree
                         )
 
-                        ComingSoonCard(
-                            title = "AI Tokens — 20 for $0.99",
-                            detail = "Prepaid generations, credited by the Editor in Chief."
+                        PurchaseCard(
+                            title = "AI Tokens — 20",
+                            detail = "Prepaid generations. $tokenBalanceLabel",
+                            price = tokenPackPrice.ifBlank { "$0.99" },
+                            onBuy = onBuyTokens
+                        )
+
+                        PurchaseCard(
+                            title = "AI Tokens — 100",
+                            detail = "Prepaid generations, bulk pack. $tokenBalanceLabel",
+                            price = tokenBulkPrice.ifBlank { "$3.99" },
+                            onBuy = onBuyTokens100
                         )
                     }
                 } else {
@@ -405,9 +428,11 @@ fun SubscriptionPaywallDialog(
 }
 
 @Composable
-private fun ComingSoonCard(
+private fun PurchaseCard(
     title: String,
-    detail: String
+    detail: String,
+    price: String,
+    onBuy: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -433,6 +458,15 @@ private fun ComingSoonCard(
                 fontSize = 10.5.sp,
                 color = Color(0xFFC8C2B7)
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = onBuy,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Buy — $price", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

@@ -85,6 +85,7 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+  implementation("com.android.billingclient:billing:8.0.0")
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)

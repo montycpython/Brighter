@@ -87,6 +87,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_EDITOR_ACCESS = "editorAccess"
         private const val COL_POOL_ENTRIES = "poolEntries"
         private const val COL_SHARE_UNITS = "shareUnits"
+        private const val COL_PURCHASES = "purchases"
         private const val COL_USERS = "users"
     }
 
@@ -733,6 +734,82 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun fetchPoolTotals(): PoolTotals = withContext(Dispatchers.IO) {
         PoolChain.totalsFor(fetchPoolEntries())
+    }
+
+    suspend fun recordVerifiedPurchase(
+        productId: String,
+        orderId: String,
+        purchaseToken: String,
+        buyerEmail: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (orderId.isBlank()) return@withContext false
+        try {
+            val buyer = normEmail(buyerEmail)
+            val ref = db.collection(COL_PURCHASES).document(orderId)
+            if (ref.get().await().exists()) return@withContext false
+            val priceCents = BillingProducts.priceCentsFor(productId)
+            ref.set(
+                mapOf(
+                    "productId" to productId,
+                    "orderId" to orderId,
+                    "purchaseToken" to purchaseToken,
+                    "buyerEmail" to buyer,
+                    "priceCents" to priceCents,
+                    "recordedAtMillis" to System.currentTimeMillis(),
+                    "refunded" to false
+                )
+            ).await()
+            if (priceCents > 0L) {
+                recordPoolEntry(
+                    PoolEntry(
+                        kind = PoolKinds.PURCHASE,
+                        amountCents = priceCents,
+                        note = productId,
+                        actorEmail = buyer
+                    )
+                )
+            }
+            val tokensInPack = BillingProducts.tokensPerPackFor(productId)
+            if (tokensInPack > 0) {
+                try {
+                    val prefs = UserPreferences(context)
+                    val current = prefs.getUserSubscription(buyer)
+                    prefs.saveUserSubscription(
+                        current.copy(
+                            creditsRemaining = current.creditsRemaining + tokensInPack
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e("FirestoreNetwork", "Raise token balance failed", e)
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Record verified purchase failed", e)
+            false
+        }
+    }
+
+    suspend fun isPurchaseRecorded(orderId: String): Boolean = withContext(Dispatchers.IO) {
+        if (orderId.isBlank()) return@withContext false
+        try {
+            db.collection(COL_PURCHASES).document(orderId).get().await().exists()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun isAdFreeEntitled(email: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_PURCHASES)
+                .whereEqualTo("buyerEmail", normEmail(email))
+                .whereEqualTo("productId", BillingProducts.AD_FREE_PRODUCT_ID)
+                .get().await()
+            snap.documents.any { it.getBoolean("refunded") != true }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Check ad-free entitlement failed", e)
+            false
+        }
     }
 
     suspend fun recordApprovalUnits(entry: GlobalBookIndexEntry): ApprovalUnitsResult {

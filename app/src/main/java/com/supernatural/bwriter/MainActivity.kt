@@ -54,6 +54,8 @@ import com.supernatural.bwriter.ui.screens.UserAgreementScreen
 import com.supernatural.bwriter.ui.theme.BwriterTheme
 import com.google.android.gms.ads.MobileAds
 import com.supernatural.bwriter.ui.ads.AdBannerBar
+import com.supernatural.bwriter.data.BillingManager
+import com.supernatural.bwriter.data.BillingProducts
 import com.supernatural.bwriter.ui.ads.AdsFreeStore
 import com.supernatural.bwriter.ui.ads.InterstitialAds
 import com.supernatural.bwriter.ui.viewmodel.BwriterViewModel
@@ -144,6 +146,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val creditBalance by viewModel.creditBalance.collectAsState()
     val unclaimedCredit by viewModel.unclaimedCredit.collectAsState()
     val claimFailed by viewModel.claimFailed.collectAsState()
+    val adFreeEntitled by viewModel.adFreeEntitled.collectAsState()
+    val billingPrices by viewModel.billingPrices.collectAsState()
+    val billingMessage by viewModel.billingMessage.collectAsState()
     val aiGenerationFailed by viewModel.aiGenerationFailed.collectAsState()
     val assignedBooks by viewModel.assignedBooks.collectAsState()
     val exportFailed by viewModel.exportFailed.collectAsState()
@@ -198,8 +203,30 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val currentRoute = navBackStackEntry?.destination?.route
     val adsFreeStore = remember { AdsFreeStore(context) }
     var adsFreeUntil by remember { mutableStateOf(adsFreeStore.adsFreeUntil()) }
-    val showBanner = System.currentTimeMillis() >= adsFreeUntil &&
+    val showBanner = !adsFreeStore.isAdsFree() &&
         currentRoute != "section_editor/{sectionId}"
+
+    val billingManager = remember {
+        BillingManager(
+            context.applicationContext,
+            onPurchase = { purchase -> viewModel.onBillingPurchase(purchase) },
+            onPrices = { prices -> viewModel.onBillingPrices(prices) }
+        )
+    }
+    LaunchedEffect(billingManager) {
+        viewModel.billingManager = billingManager
+        billingManager.connect()
+    }
+    LaunchedEffect(adFreeEntitled) {
+        adsFreeStore.setPurchasedAdFree(adFreeEntitled)
+    }
+    LaunchedEffect(billingMessage) {
+        val message = billingMessage
+        if (message != null) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            viewModel.clearBillingMessage()
+        }
+    }
 
     val hostActivity = context as? Activity
     var previousRoute by remember { mutableStateOf<String?>(null) }
@@ -671,6 +698,12 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             creditBalance = creditBalance,
             unclaimedCredit = unclaimedCredit,
             claimFailed = claimFailed,
+            adFreePrice = billingPrices[BillingProducts.AD_FREE_PRODUCT_ID] ?: "",
+            tokenPackPrice = billingPrices[BillingProducts.TOKENS_PRODUCT_ID] ?: "",
+            tokenBulkPrice = billingPrices[BillingProducts.TOKENS_100_PRODUCT_ID] ?: "",
+            onBuyAdFree = { hostActivity?.let { viewModel.buyAdFree(it) } },
+            onBuyTokens = { hostActivity?.let { viewModel.buyTokens(it) } },
+            onBuyTokens100 = { hostActivity?.let { viewModel.buyTokens100(it) } },
             onClaimCredit = { viewModel.claimCredit() },
             onSendCredit = { email, amount ->
                 viewModel.sendCredit(email, amount) { ok ->
