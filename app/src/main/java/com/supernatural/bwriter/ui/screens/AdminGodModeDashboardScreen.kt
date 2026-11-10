@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.FolderShared
 import com.supernatural.bwriter.data.ApprovalCreditPreview
 import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.EditorAssignment
+import com.supernatural.bwriter.data.PoolEntry
+import com.supernatural.bwriter.data.PoolTotals
 import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.model.WorkRole
 import androidx.compose.material.icons.filled.Gavel
@@ -132,6 +134,8 @@ fun AdminGodModeDashboardScreen(
     allEditorAssignments: List<EditorAssignment> = emptyList(),
     approvalPreview: ApprovalCreditPreview? = null,
     onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
+    poolEntries: List<PoolEntry> = emptyList(),
+    poolTotals: PoolTotals = PoolTotals(),
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -284,7 +288,9 @@ fun AdminGodModeDashboardScreen(
                     claimedIssuanceIds = claimedIssuanceIds,
                     allEditorAssignments = allEditorAssignments,
                     approvalPreview = approvalPreview,
-                    onPreviewApproval = onPreviewApproval
+                    onPreviewApproval = onPreviewApproval,
+                    poolEntries = poolEntries,
+                    poolTotals = poolTotals
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -583,7 +589,9 @@ fun MasterBookIndexTab(
     claimedIssuanceIds: Set<String> = emptySet(),
     allEditorAssignments: List<EditorAssignment> = emptyList(),
     approvalPreview: ApprovalCreditPreview? = null,
-    onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {}
+    onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
+    poolEntries: List<PoolEntry> = emptyList(),
+    poolTotals: PoolTotals = PoolTotals()
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
@@ -824,6 +832,88 @@ fun MasterBookIndexTab(
                         )
                         Text(
                             text = "${issuance.amount} \u00b7 ${if (claimed) "Claimed" else "Unclaimed"}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Pool",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Receipts ${formatCents(poolTotals.receiptsCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Expenses ${formatCents(poolTotals.expensesCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Refunds ${formatCents(poolTotals.refundsCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Fees ${formatCents(poolTotals.feesCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Paid out ${formatCents(poolTotals.payoutsCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Balance ${formatCents(poolTotals.balanceCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Settled ${formatCents(poolTotals.balanceCents - poolTotals.unsettledCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (poolEntries.isEmpty()) {
+            Text(
+                text = "No pool entries.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+        } else {
+            poolEntries.takeLast(5).reversed().forEach { entry ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .testTag("admin_pool_entry_card_${entry.entryHash}"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                    border = BorderStroke(1.dp, BookGoldDark)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = entry.kind,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Text(
+                            text = "${formatCents(entry.amountCents)} \u00b7 ${entry.note}",
                             fontSize = 11.5.sp,
                             color = Color(0xFFB0A89C)
                         )
@@ -1613,6 +1703,12 @@ fun DriveHealthTab(
     }
 }
 
+
+private fun formatCents(cents: Long): String {
+    val sign = if (cents < 0L) "-" else ""
+    val abs = kotlin.math.abs(cents)
+    return "${sign}\$${abs / 100}.${(abs % 100).toString().padStart(2, '0')}"
+}
 
 @Composable
 private fun TotalChip(label: String, count: Int, modifier: Modifier = Modifier) {

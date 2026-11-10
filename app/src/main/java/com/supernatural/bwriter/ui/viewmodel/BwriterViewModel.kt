@@ -14,6 +14,8 @@ import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.CreditSchedule
 import com.supernatural.bwriter.data.CreditTransfer
 import com.supernatural.bwriter.data.EditorAssignment
+import com.supernatural.bwriter.data.PoolEntry
+import com.supernatural.bwriter.data.PoolTotals
 import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.data.BwriterDatabase
 import com.supernatural.bwriter.data.BwriterRepository
@@ -206,6 +208,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _claimedIssuanceIds.value = emptySet()
         _allEditorAssignments.value = emptyList()
         _approvalPreview.value = null
+        _poolEntries.value = emptyList()
+        _poolTotals.value = PoolTotals()
         _selectedManuscriptId.value = null
         lastRefreshEmail = ""
         _driveSyncStatus.value = DriveSyncStatus()
@@ -781,6 +785,12 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _approvalPreview = MutableStateFlow<ApprovalCreditPreview?>(null)
     val approvalPreview: StateFlow<ApprovalCreditPreview?> = _approvalPreview.asStateFlow()
 
+    private val _poolEntries = MutableStateFlow<List<PoolEntry>>(emptyList())
+    val poolEntries: StateFlow<List<PoolEntry>> = _poolEntries.asStateFlow()
+
+    private val _poolTotals = MutableStateFlow(PoolTotals())
+    val poolTotals: StateFlow<PoolTotals> = _poolTotals.asStateFlow()
+
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
@@ -941,6 +951,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _claimedIssuanceIds.value = emptySet()
                 _allEditorAssignments.value = emptyList()
                 _approvalPreview.value = null
+                _poolEntries.value = emptyList()
+                _poolTotals.value = PoolTotals()
             }
             if (provenStanding && userNow.role != WorkRole.EDITOR) {
                 val corrected = userNow.copy(role = WorkRole.EDITOR, organization = "Bwriter Editorial Board")
@@ -990,6 +1002,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _allIssuances.value = networkService.fetchAllIssuances()
                 _claimedIssuanceIds.value = networkService.fetchAllClaimedIssuanceIds()
                 _allEditorAssignments.value = networkService.fetchAllEditorAssignments()
+                _poolEntries.value = networkService.fetchPoolEntries()
+                _poolTotals.value = networkService.fetchPoolTotals()
                 _regentEmail.value = networkService.fetchRegentEmail()
                 _isRoot.value = _currentUser.value.email.isNotBlank() &&
                     (_regentEmail.value.isBlank() ||

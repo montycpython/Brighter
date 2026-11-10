@@ -60,6 +60,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     private val issuanceLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
     private val transferLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
+    private val poolChainLock = Mutex()
 
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -79,6 +80,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_CREDIT_CLAIMS = "creditClaims"
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
         private const val COL_EDITOR_ACCESS = "editorAccess"
+        private const val COL_POOL_ENTRIES = "poolEntries"
         private const val COL_USERS = "users"
     }
 
@@ -676,6 +678,56 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    suspend fun recordPoolEntry(entry: PoolEntry): Boolean = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext false
+        poolChainLock.withLock {
+            try {
+                val prevHash = fetchPoolEntries()
+                    .maxWithOrNull(compareBy<PoolEntry> { it.createdAtMillis }.thenBy { it.entryHash })
+                    ?.entryHash ?: ""
+                val createdAt = if (entry.createdAtMillis > 0L) entry.createdAtMillis else System.currentTimeMillis()
+                val amount = when (entry.kind) {
+                    PoolKinds.EXPENSE, PoolKinds.REFUND, PoolKinds.FEE, PoolKinds.PAYOUT ->
+                        -kotlin.math.abs(entry.amountCents)
+                    else -> kotlin.math.abs(entry.amountCents)
+                }
+                val actor = normEmail(entry.actorEmail)
+                val hash = PoolChain.entryHashFor(prevHash, entry.kind, amount, actor, createdAt)
+                val recorded = entry.copy(
+                    id = hash,
+                    amountCents = amount,
+                    actorEmail = actor,
+                    createdAtMillis = createdAt,
+                    settledAtMillis = if (entry.settledAtMillis > 0L) entry.settledAtMillis
+                        else PoolChain.settledAtFor(createdAt),
+                    prevEntryHash = prevHash,
+                    entryHash = hash
+                )
+                db.collection(COL_POOL_ENTRIES).document(hash).set(poolEntryToMap(recorded)).await()
+                true
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Record pool entry failed", e)
+                false
+            }
+        }
+    }
+
+    suspend fun fetchPoolEntries(): List<PoolEntry> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptyList()
+        try {
+            val snap = db.collection(COL_POOL_ENTRIES).get().await()
+            snap.documents.mapNotNull { docToPoolEntry(it.data) }
+                .sortedBy { it.createdAtMillis }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch pool entries failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchPoolTotals(): PoolTotals = withContext(Dispatchers.IO) {
+        PoolChain.totalsFor(fetchPoolEntries())
+    }
+
     suspend fun previewApprovalCredit(entry: GlobalBookIndexEntry): ApprovalCreditPreview {
         return try {
             val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
@@ -810,6 +862,35 @@ class FirestoreNetworkService(private val context: Context) {
         "prevIssuanceHash" to i.prevIssuanceHash,
         "issuanceHash" to i.issuanceHash,
         "signature" to i.signature
+    )
+
+
+    private fun docToPoolEntry(data: Map<String, Any>?): PoolEntry? {
+        if (data == null) return null
+        val hash = data["entryHash"] as? String ?: return null
+        return PoolEntry(
+            id = data["id"] as? String ?: hash,
+            kind = data["kind"] as? String ?: "",
+            amountCents = (data["amountCents"] as? Number)?.toLong() ?: 0L,
+            note = data["note"] as? String ?: "",
+            actorEmail = data["actorEmail"] as? String ?: "",
+            createdAtMillis = (data["createdAtMillis"] as? Number)?.toLong() ?: 0L,
+            settledAtMillis = (data["settledAtMillis"] as? Number)?.toLong() ?: 0L,
+            prevEntryHash = data["prevEntryHash"] as? String ?: "",
+            entryHash = hash
+        )
+    }
+
+    private fun poolEntryToMap(e: PoolEntry): Map<String, Any> = mapOf(
+        "id" to e.id,
+        "kind" to e.kind,
+        "amountCents" to e.amountCents,
+        "note" to e.note,
+        "actorEmail" to e.actorEmail,
+        "createdAtMillis" to e.createdAtMillis,
+        "settledAtMillis" to e.settledAtMillis,
+        "prevEntryHash" to e.prevEntryHash,
+        "entryHash" to e.entryHash
     )
 
 
