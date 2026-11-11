@@ -81,6 +81,7 @@ fun SubscriptionPaywallDialog(
     onBuyAdFree: () -> Unit = {},
     onBuyTokens: () -> Unit = {},
     onBuyTokens100: () -> Unit = {},
+    onBuyAdFreeWithCredit: () -> Unit = {},
     payoutValueCents: Long = 0L,
     myPayoutRequests: List<PayoutRequest> = emptyList(),
     onRequestPayout: (String, String) -> Unit = { _, _ -> },
@@ -231,6 +232,17 @@ fun SubscriptionPaywallDialog(
                                     modifier = Modifier.clickable { onClaimCredit() }
                                 )
                             }
+                        }
+
+                        if (creditBalance >= 5) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Ad-free 24h \u2014 5 credits",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BookGoldLight,
+                                modifier = Modifier.clickable { onBuyAdFreeWithCredit() }
+                            )
                         }
 
                         var showSendForm by remember { mutableStateOf(false) }
@@ -429,6 +441,12 @@ fun SubscriptionPaywallDialog(
 
                         Text(
                             text = "Go ad-free, billed through Google Play. AI generations run on prepaid tokens, credited to your account when your purchase lands. A token is spent only when you generate.",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFC8C2B7)
+                        )
+
+                        Text(
+                            text = "Generations also accept in-app credit.",
                             fontSize = 11.5.sp,
                             color = Color(0xFFC8C2B7)
                         )

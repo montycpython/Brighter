@@ -28,6 +28,8 @@ import com.supernatural.bwriter.data.BillingManager
 import com.supernatural.bwriter.data.BillingProducts
 import com.supernatural.bwriter.data.BillingPurchase
 import com.supernatural.bwriter.data.PayoutRequest
+import com.supernatural.bwriter.data.SpendCosts
+import com.supernatural.bwriter.data.SpendPurposes
 import com.supernatural.bwriter.data.StudioTotals
 import com.supernatural.bwriter.data.StudioSystemConfig
 import com.supernatural.bwriter.data.SystemAiConfig
@@ -515,6 +517,20 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun buyAdFreeWithCredit(adsFreeStore: com.supernatural.bwriter.ui.ads.AdsFreeStore) {
+        if (_visitingAdmin.value) return
+        val email = _currentUser.value.email
+        if (email.isBlank() || _creditBalance.value < SpendCosts.AD_FREE_COST) return
+        launchGuarded {
+            val spent = networkService.spendCredit(email, SpendCosts.AD_FREE_COST, SpendPurposes.AD_FREE)
+            if (spent) {
+                adsFreeStore.grantAdsFree24Hours()
+                refreshCredit()
+                _billingMessage.value = "Ad-free for 24 hours."
+            }
+        }
+    }
+
     private fun recomputeMyPayoutValue() {
         val myVestedUnits = _myUnits.value.count { it.vested }
         _myPayoutValueCents.value =
@@ -605,7 +621,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         val currentSub = _userAiSubscription.value
         val isEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
 
-        if (!isEditorInChief && currentSub.creditsRemaining <= 0) {
+        if (!isEditorInChief && currentSub.creditsRemaining <= 0 &&
+            _creditBalance.value < SpendCosts.GENERATION_COST
+        ) {
             onRequiresUpgrade()
             return
         }
@@ -631,16 +649,25 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     val totalTokens = aiResult.totalTokens
                     val modelUsed = aiResult.modelUsed
 
-                    val updatedSub = userPreferences.recordTokenUsage(
-                        email = _currentUser.value.email,
-                        sectionTitle = section.title,
-                        promptTokens = promptTokens,
-                        completionTokens = compTokens,
-                        totalTokens = totalTokens,
-                        modelUsed = modelUsed
-                    )
-                    _userAiSubscription.value = updatedSub
-                    _tokenTransactions.value = userPreferences.getTokenTransactions(_currentUser.value.email)
+                    if (currentSub.creditsRemaining > 0) {
+                        val updatedSub = userPreferences.recordTokenUsage(
+                            email = _currentUser.value.email,
+                            sectionTitle = section.title,
+                            promptTokens = promptTokens,
+                            completionTokens = compTokens,
+                            totalTokens = totalTokens,
+                            modelUsed = modelUsed
+                        )
+                        _userAiSubscription.value = updatedSub
+                        _tokenTransactions.value = userPreferences.getTokenTransactions(_currentUser.value.email)
+                    } else if (!isEditorInChief) {
+                        networkService.spendCredit(
+                            _currentUser.value.email,
+                            SpendCosts.GENERATION_COST,
+                            SpendPurposes.GENERATION
+                        )
+                        refreshCredit()
+                    }
 
                     onGenerated(generatedText)
                 } else {
@@ -1471,15 +1498,18 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             val issuancesResult = networkService.fetchIssuancesForResult(email)
             val claimedResult = networkService.fetchClaimedIssuanceIdsResult(email)
             val transfersResult = networkService.fetchTransfersForResult(email)
-            if (issuancesResult.isSuccess && claimedResult.isSuccess && transfersResult.isSuccess) {
+            val spendsResult = networkService.fetchSpendsForResult(email)
+            if (issuancesResult.isSuccess && claimedResult.isSuccess && transfersResult.isSuccess && spendsResult.isSuccess) {
                 val issuances = issuancesResult.getOrNull() ?: emptyList()
                 val claimed = claimedResult.getOrNull() ?: emptySet()
                 val transfers = transfersResult.getOrNull() ?: emptyList()
+                val spends = spendsResult.getOrNull() ?: emptyList()
                 _creditTransfers.value = transfers
                 val claimedSum = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
                 val sentSum = transfers.filter { it.fromEmail.equals(email, ignoreCase = true) }.sumOf { it.amount }
                 val receivedSum = transfers.filter { it.toEmail.equals(email, ignoreCase = true) }.sumOf { it.amount }
-                _creditBalance.value = (claimedSum - sentSum + receivedSum).coerceAtLeast(0)
+                val spentSum = spends.sumOf { it.amount }
+                _creditBalance.value = (claimedSum - sentSum + receivedSum - spentSum).coerceAtLeast(0)
                 _unclaimedCredit.value = issuances.filterNot { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
             }
         }

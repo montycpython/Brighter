@@ -87,6 +87,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_STUDIO_CONFIG = "studioConfig"
         private const val COL_CREDIT_ISSUANCES = "creditIssuances"
         private const val COL_CREDIT_TRANSFERS = "creditTransfers"
+        private const val COL_CREDIT_SPENDS = "creditSpends"
         private val VOLATILE_PAYLOAD_KEYS = setOf("updatedAt", "timestamp", "stampHash", "prevStampHash", "stampSignature", "revisionTimestamp")
         private const val COL_CREDIT_CLAIMS = "creditClaims"
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
@@ -97,7 +98,6 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_PAYOUT_REQUESTS = "payoutRequests"
         private const val COL_STUDIO_TOTALS = "studioTotals"
         private const val DOC_STUDIO_TOTALS_CURRENT = "current"
-        private const val DOC_STUDIO_SYSTEM = "system"
         private const val COL_USERS = "users"
     }
 
@@ -778,38 +778,6 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
-    suspend fun fetchSystemConfig(): StudioSystemConfig = withContext(Dispatchers.IO) {
-        try {
-            val data = db.collection(COL_STUDIO_CONFIG).document(DOC_STUDIO_SYSTEM)
-                .get().await().data
-            val config = docToSystemConfig(data)
-            SystemAiConfig.update(config)
-            config
-        } catch (e: Exception) {
-            Log.e("FirestoreNetwork", "Fetch system config failed", e)
-            StudioSystemConfig()
-        }
-    }
-
-    suspend fun updateSystemConfig(apiKey: String, model: String): Boolean =
-        withContext(Dispatchers.IO) {
-            try {
-                val current = fetchSystemConfig()
-                val updated = StudioSystemConfig(
-                    geminiApiKey = apiKey.trim().ifBlank { current.geminiApiKey },
-                    geminiModel = model.trim().ifBlank { current.geminiModel },
-                    updatedAtMillis = System.currentTimeMillis()
-                )
-                db.collection(COL_STUDIO_CONFIG).document(DOC_STUDIO_SYSTEM)
-                    .set(systemConfigToMap(updated)).await()
-                SystemAiConfig.update(updated)
-                true
-            } catch (e: Exception) {
-                Log.e("FirestoreNetwork", "Update system config failed", e)
-                false
-            }
-        }
-
     suspend fun recordVerifiedPurchase(
         productId: String,
         orderId: String,
@@ -1462,21 +1430,6 @@ class FirestoreNetworkService(private val context: Context) {
         "updatedAtMillis" to t.updatedAtMillis
     )
 
-    private fun docToSystemConfig(data: Map<String, Any>?): StudioSystemConfig =
-        StudioSystemConfig(
-            geminiApiKey = data?.get("geminiApiKey") as? String ?: "",
-            geminiModel = (data?.get("geminiModel") as? String)
-                ?.ifBlank { StudioSystemConfig.DEFAULT_MODEL }
-                ?: StudioSystemConfig.DEFAULT_MODEL,
-            updatedAtMillis = (data?.get("updatedAtMillis") as? Number)?.toLong() ?: 0L
-        )
-
-    private fun systemConfigToMap(c: StudioSystemConfig): Map<String, Any> = mapOf(
-        "geminiApiKey" to c.geminiApiKey,
-        "geminiModel" to c.geminiModel,
-        "updatedAtMillis" to c.updatedAtMillis
-    )
-
 
     suspend fun fetchTransfersForResult(email: String): Result<List<CreditTransfer>> = withContext(Dispatchers.IO) {
         try {
@@ -1508,10 +1461,12 @@ class FirestoreNetworkService(private val context: Context) {
                 val issuances = fetchIssuancesFor(from)
                 val claimed = fetchClaimedIssuanceIds(from)
                 val transfers = fetchTransfersFor(from)
+                val spends = fetchSpendsFor(from)
                 val claimedSum = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
                 val balance = claimedSum -
                     transfers.filter { it.fromEmail == from }.sumOf { it.amount } +
-                    transfers.filter { it.toEmail == from }.sumOf { it.amount }
+                    transfers.filter { it.toEmail == from }.sumOf { it.amount } -
+                    spends.sumOf { it.amount }
                 if (amount > balance) {
                     return@withLock Result.failure(IllegalStateException("Insufficient claimed credit"))
                 }
@@ -1558,6 +1513,94 @@ class FirestoreNetworkService(private val context: Context) {
         "createdAtMillis" to t.createdAtMillis,
         "prevTransferHash" to t.prevTransferHash,
         "transferHash" to t.transferHash
+    )
+
+    suspend fun fetchSpendsFor(email: String): List<CreditSpend> = withContext(Dispatchers.IO) {
+        try {
+            db.collection(COL_CREDIT_SPENDS)
+                .whereEqualTo("fromEmail", normEmail(email)).get().await()
+                .documents.mapNotNull { docToSpend(it.data) }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch credit spends failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchSpendsForResult(email: String): Result<List<CreditSpend>> = withContext(Dispatchers.IO) {
+        try {
+            val spends = db.collection(COL_CREDIT_SPENDS)
+                .whereEqualTo("fromEmail", normEmail(email)).get().await()
+                .documents.mapNotNull { docToSpend(it.data) }
+            Result.success(spends.distinctBy { it.spendHash })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Spends serialize on the same per-sender lock as transfers: one balance,
+    // one lock, so a send and a spend can never race the same credit twice.
+    suspend fun spendCredit(fromEmail: String, amount: Int, purpose: String): Boolean = withContext(Dispatchers.IO) {
+        val from = normEmail(fromEmail)
+        if (from.isBlank() || amount <= 0) return@withContext false
+        if (purpose != SpendPurposes.GENERATION && purpose != SpendPurposes.AD_FREE) return@withContext false
+        val lock = transferLocks.getOrPut(from) { Mutex() }
+        lock.withLock {
+            try {
+                val issuances = fetchIssuancesFor(from)
+                val claimed = fetchClaimedIssuanceIds(from)
+                val transfers = fetchTransfersFor(from)
+                val spends = fetchSpendsFor(from)
+                val claimedSum = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+                val balance = claimedSum -
+                    transfers.filter { it.fromEmail == from }.sumOf { it.amount } +
+                    transfers.filter { it.toEmail == from }.sumOf { it.amount } -
+                    spends.sumOf { it.amount }
+                if (amount > balance) return@withLock false
+                val prev = spends.maxWithOrNull(
+                    compareBy<CreditSpend> { it.createdAtMillis }.thenBy { it.spendHash }
+                )
+                val now = System.currentTimeMillis()
+                val hash = SpendChain.spendHashFor(prev?.spendHash ?: "", from, amount, purpose, now)
+                val spend = CreditSpend(
+                    id = hash,
+                    fromEmail = from,
+                    amount = amount,
+                    purpose = purpose,
+                    createdAtMillis = now,
+                    prevSpendHash = prev?.spendHash ?: "",
+                    spendHash = hash
+                )
+                db.collection(COL_CREDIT_SPENDS).document(hash).set(spendToMap(spend)).await()
+                true
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Credit spend failed", e)
+                false
+            }
+        }
+    }
+
+    private fun docToSpend(data: Map<String, Any>?): CreditSpend? {
+        if (data == null) return null
+        val hash = data["spendHash"] as? String ?: return null
+        return CreditSpend(
+            id = data["id"] as? String ?: hash,
+            fromEmail = data["fromEmail"] as? String ?: "",
+            amount = (data["amount"] as? Number)?.toInt() ?: 0,
+            purpose = data["purpose"] as? String ?: "",
+            createdAtMillis = (data["createdAtMillis"] as? Number)?.toLong() ?: 0L,
+            prevSpendHash = data["prevSpendHash"] as? String ?: "",
+            spendHash = hash
+        )
+    }
+
+    private fun spendToMap(s: CreditSpend): Map<String, Any> = mapOf(
+        "id" to s.id,
+        "fromEmail" to s.fromEmail,
+        "amount" to s.amount,
+        "purpose" to s.purpose,
+        "createdAtMillis" to s.createdAtMillis,
+        "prevSpendHash" to s.prevSpendHash,
+        "spendHash" to s.spendHash
     )
 
 

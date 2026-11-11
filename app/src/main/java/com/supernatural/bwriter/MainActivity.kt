@@ -743,6 +743,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             onBuyAdFree = { hostActivity?.let { viewModel.buyAdFree(it) } },
             onBuyTokens = { hostActivity?.let { viewModel.buyTokens(it) } },
             onBuyTokens100 = { hostActivity?.let { viewModel.buyTokens100(it) } },
+            onBuyAdFreeWithCredit = { viewModel.buyAdFreeWithCredit(adsFreeStore) },
             payoutValueCents = myPayoutValueCents,
             myPayoutRequests = myPayoutRequests,
             onRequestPayout = { method, destination ->
