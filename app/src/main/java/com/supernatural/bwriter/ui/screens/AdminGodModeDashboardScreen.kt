@@ -39,6 +39,7 @@ import com.supernatural.bwriter.data.ApprovalCreditPreview
 import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.data.PoolEntry
+import com.supernatural.bwriter.data.PoolKinds
 import com.supernatural.bwriter.data.PoolTotals
 import com.supernatural.bwriter.data.PayoutRequest
 import com.supernatural.bwriter.data.PayoutStatuses
@@ -145,6 +146,8 @@ fun AdminGodModeDashboardScreen(
     approvalUnitsMessage: String? = null,
     allPayoutRequests: List<PayoutRequest> = emptyList(),
     onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
+    onVestCurrentSeason: () -> Unit = {},
+    onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> },
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -303,7 +306,9 @@ fun AdminGodModeDashboardScreen(
                     allUnits = allUnits,
                     approvalUnitsMessage = approvalUnitsMessage,
                     allPayoutRequests = allPayoutRequests,
-                    onSetPayoutRequestStatus = onSetPayoutRequestStatus
+                    onSetPayoutRequestStatus = onSetPayoutRequestStatus,
+                    onVestCurrentSeason = onVestCurrentSeason,
+                    onRecordPoolEntry = onRecordPoolEntry
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -608,13 +613,19 @@ fun MasterBookIndexTab(
     allUnits: List<UnitGrant> = emptyList(),
     approvalUnitsMessage: String? = null,
     allPayoutRequests: List<PayoutRequest> = emptyList(),
-    onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> }
+    onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
+    onVestCurrentSeason: () -> Unit = {},
+    onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> }
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
     var selectedBookFileId by remember { mutableStateOf<String?>(null) }
     var regentInput by remember { mutableStateOf("") }
     var decidingBook by remember { mutableStateOf<Pair<GlobalBookIndexEntry, Boolean>?>(null) }
+    var showVestConfirm by remember { mutableStateOf(false) }
+    var poolEntryKind by remember { mutableStateOf(PoolKinds.EXPENSE) }
+    var poolEntryAmount by remember { mutableStateOf("") }
+    var poolEntryNote by remember { mutableStateOf("") }
     val currentSeasonYear = UnitChain.seasonYearFor(System.currentTimeMillis())
     val seasonCapReached = allUnits.count {
         it.role == UnitRoles.AUTHOR && it.seasonYear == currentSeasonYear
@@ -715,6 +726,56 @@ fun MasterBookIndexTab(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(if (approve) "Approve" else "Reject", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showVestConfirm) {
+        Dialog(onDismissRequest = { showVestConfirm = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C26),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Vest $currentSeasonYear units?",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 15.sp,
+                        color = BookGoldLight
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Vesting makes this season's units payable. This cannot be undone.",
+                        fontSize = 12.5.sp,
+                        color = Color(0xFFC8C2B7)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showVestConfirm = false },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel", color = Color.LightGray)
+                        }
+                        Button(
+                            onClick = {
+                                onVestCurrentSeason()
+                                showVestConfirm = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = BookGoldDark
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Vest", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -949,6 +1010,18 @@ fun MasterBookIndexTab(
             fontSize = 11.5.sp,
             color = Color(0xFFB0A89C)
         )
+        Text(
+            text = "Season $currentSeasonYear",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Button(
+            onClick = { showVestConfirm = true },
+            colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark)
+        ) {
+            Text("Vest $currentSeasonYear Units", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
         UnitChain.totalsByHolder(vestedUnits).entries
             .sortedByDescending { it.value }
             .take(10)
@@ -993,6 +1066,79 @@ fun MasterBookIndexTab(
                     }
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Record Entry",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            listOf(
+                PoolKinds.EXPENSE to "Expense",
+                PoolKinds.REFUND to "Refund",
+                PoolKinds.FEE to "Fee",
+                PoolKinds.AD_RETURN to "Ad Return"
+            ).forEach { (kind, label) ->
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    fontWeight = if (poolEntryKind == kind) FontWeight.Bold else FontWeight.Normal,
+                    color = if (poolEntryKind == kind) BookGoldLight else Color(0xFFB0A89C),
+                    modifier = Modifier.clickable { poolEntryKind = kind }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        val recordAmountCents = poolEntryAmount.trim().toDoubleOrNull()
+            ?.let { kotlin.math.roundToLong(it * 100) }
+        OutlinedTextField(
+            value = poolEntryAmount,
+            onValueChange = { input ->
+                if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                    poolEntryAmount = input
+                }
+            },
+            label = { Text("Amount (USD)", color = BookGoldLight) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = BookGoldDark,
+                unfocusedBorderColor = Color(0xFF444455),
+                focusedContainerColor = Color(0xFF1B1B24),
+                unfocusedContainerColor = Color(0xFF16161E)
+            )
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = poolEntryNote,
+            onValueChange = { poolEntryNote = it },
+            label = { Text("Note", color = BookGoldLight) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = BookGoldDark,
+                unfocusedBorderColor = Color(0xFF444455),
+                focusedContainerColor = Color(0xFF1B1B24),
+                unfocusedContainerColor = Color(0xFF16161E)
+            )
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                onRecordPoolEntry(poolEntryKind, recordAmountCents ?: 0L, poolEntryNote.trim())
+                poolEntryAmount = ""
+                poolEntryNote = ""
+            },
+            enabled = recordAmountCents != null && recordAmountCents > 0L,
+            colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark)
+        ) {
+            Text("Record", fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(14.dp))

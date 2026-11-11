@@ -655,6 +655,13 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     viewModel.setPayoutRequestStatus(request, status)
                     Toast.makeText(context, if (status == PayoutStatuses.SENT) "Payout marked sent" else "Payout request updated", Toast.LENGTH_SHORT).show()
                 },
+                onVestCurrentSeason = {
+                    viewModel.vestCurrentSeason()
+                },
+                onRecordPoolEntry = { kind, cents, note ->
+                    viewModel.recordManualPoolEntry(kind, cents, note)
+                    Toast.makeText(context, "Entry recorded", Toast.LENGTH_SHORT).show()
+                },
                 onDecideEditorAssignment = { assignment, approve ->
                     viewModel.decideEditorAssignment(assignment, approve)
                     Toast.makeText(context, if (approve) "Editor approved" else "Editor declined", Toast.LENGTH_SHORT).show()

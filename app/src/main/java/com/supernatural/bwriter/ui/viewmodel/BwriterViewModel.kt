@@ -528,6 +528,46 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun vestCurrentSeason() {
+        launchGuarded {
+            val seasonYear = UnitChain.seasonYearFor(System.currentTimeMillis())
+            if (networkService.vestSeasonUnits(seasonYear)) {
+                _allUnits.value = networkService.fetchAllUnits()
+                _myUnits.value = if (_currentUser.value.email.isNotBlank()) {
+                    networkService.fetchUnitsFor(_currentUser.value.email)
+                } else {
+                    emptyList()
+                }
+                networkService.publishStudioTotals()
+                _studioTotals.value = networkService.fetchStudioTotals()
+                recomputeMyPayoutValue()
+                _approvalUnitsMessage.value = "Season $seasonYear units vested."
+            } else {
+                _approvalUnitsMessage.value = "Vesting season $seasonYear failed."
+            }
+        }
+    }
+
+    fun recordManualPoolEntry(kind: String, amountCents: Long, note: String) {
+        launchGuarded {
+            val recorded = networkService.recordPoolEntry(
+                PoolEntry(
+                    kind = kind,
+                    amountCents = amountCents,
+                    note = note,
+                    actorEmail = _currentUser.value.email
+                )
+            )
+            if (recorded) {
+                _poolEntries.value = networkService.fetchPoolEntries()
+                _poolTotals.value = networkService.fetchPoolTotals()
+                networkService.publishStudioTotals()
+                _studioTotals.value = networkService.fetchStudioTotals()
+                recomputeMyPayoutValue()
+            }
+        }
+    }
+
     fun generateAiDraftFromPrompt(
         section: SectionEntity,
         prompt: String,
@@ -1081,6 +1121,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _globalBookIndex.value = emptyList()
                 _myAssignments.value = emptyList()
                 _assignedBooks.value = emptyList()
+                _myUnits.value = emptyList()
+                _myPayoutRequests.value = emptyList()
+                _myPayoutValueCents.value = 0L
+                _studioTotals.value = StudioTotals()
             }
             if (!provenStanding) {
                 _suspendedUsers.value = emptyList()
