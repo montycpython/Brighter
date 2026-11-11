@@ -9,11 +9,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -141,6 +146,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val regentEmail by viewModel.regentEmail.collectAsState()
     val isRoot by viewModel.isRoot.collectAsState()
     val systemConfig by viewModel.systemConfig.collectAsState()
+    val visitingAdmin by viewModel.visitingAdmin.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -258,6 +264,17 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (visitingAdmin) {
+            Text(
+                text = "Visiting admin — this device's library is locked",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         Box(modifier = Modifier.weight(1f)) {
     NavHost(
         navController = navController,

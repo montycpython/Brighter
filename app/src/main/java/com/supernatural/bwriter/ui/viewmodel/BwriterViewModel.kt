@@ -116,6 +116,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         organization: String = _currentUser.value.organization,
         preferredCmosEdition: String = _currentUser.value.preferredCmosEdition
     ) {
+        if (_visitingAdmin.value) return
         val updated = _currentUser.value.copy(
             name = if (name.isNotBlank()) name.trim() else "Author",
             penName = penName.trim(),
@@ -163,7 +164,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _isLoggedIn.value = true
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _userAiSubscription.value = userPreferences.getUserSubscription(updated.email)
-        restoreManuscriptsFromGoogleDrive()
+        bindDeviceHomeIfUnset()
+        if (_currentUser.value.email.equals(userPreferences.getDeviceHomeEmail(), ignoreCase = true)) {
+            restoreManuscriptsFromGoogleDrive()
+        }
         refreshNetwork()
     }
 
@@ -182,7 +186,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _isLoggedIn.value = true
         _savedGoogleAccounts.value = userPreferences.getSavedGoogleAccounts()
         _userAiSubscription.value = userPreferences.getUserSubscription(corrected.email)
-        restoreManuscriptsFromGoogleDrive()
+        bindDeviceHomeIfUnset()
+        if (_currentUser.value.email.equals(userPreferences.getDeviceHomeEmail(), ignoreCase = true)) {
+            restoreManuscriptsFromGoogleDrive()
+        }
         refreshNetwork()
     }
 
@@ -230,6 +237,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _studioTotals.value = StudioTotals()
         _systemConfig.value = StudioSystemConfig()
         SystemAiConfig.update(StudioSystemConfig())
+        _visitingAdmin.value = false
         _adFreeEntitled.value = false
         _billingMessage.value = null
         _selectedManuscriptId.value = null
@@ -340,6 +348,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     )
 
     fun saveCharacter(character: com.supernatural.bwriter.model.CharacterEntity) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             if (character.id == 0L) {
                 repository.insertCharacter(character)
@@ -350,6 +359,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteCharacter(characterId: Long) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.deleteCharacterById(characterId)
         }
@@ -374,6 +384,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun saveSetting(setting: com.supernatural.bwriter.model.StorySettingEntity) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             if (setting.id == 0L) {
                 repository.insertSetting(setting)
@@ -384,6 +395,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteSetting(settingId: Long) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.deleteSettingById(settingId)
         }
@@ -460,6 +472,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun launchBillingPurchase(activity: Activity, productId: String) {
+        if (_visitingAdmin.value) return
         val manager = billingManager
         if (manager == null || !manager.launch(activity, productId)) {
             _billingMessage.value = "Google Play is not ready yet."
@@ -516,6 +529,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun requestPayout(method: String, destination: String) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             networkService.createPayoutRequest(method, destination)
             if (_currentUser.value.email.isNotBlank()) {
@@ -587,6 +601,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         onGenerated: (String) -> Unit,
         onRequiresUpgrade: () -> Unit = { openPaywall() }
     ) {
+        if (_visitingAdmin.value) return
         val currentSub = _userAiSubscription.value
         val isEditorInChief = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
 
@@ -651,6 +666,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         epigraph: String,
         onCreated: (Long) -> Unit
     ) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             val author = authorName.ifBlank { _currentUser.value.name }
             val pen = authorPenName.trim()
@@ -680,12 +696,14 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateManuscriptDetails(updated: ManuscriptEntity) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.updateManuscript(updated)
         }
     }
 
     fun deleteManuscript(id: Long) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             val manuscript = repository.getManuscriptByIdOnce(id)
             repository.deleteManuscript(id)
@@ -714,6 +732,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         subtitle: String = "",
         content: String = ""
     ) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             val maxOrder = (repository.getSectionsForManuscriptOnce(manuscriptId).maxOfOrNull { it.orderIndex } ?: 0) + 1
             val section = SectionEntity(
@@ -734,24 +753,28 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateSectionContent(section: SectionEntity, newContent: String) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.updateSectionContent(section, newContent)
         }
     }
 
     fun updateSectionAiPrompt(section: SectionEntity, prompt: String) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.updateSection(section.copy(aiDraftPrompt = prompt))
         }
     }
 
     fun updateSectionTitle(section: SectionEntity, newTitle: String, newSubtitle: String) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.updateSectionTitle(section, newTitle, newSubtitle)
         }
     }
 
     fun updateSectionStatus(section: SectionEntity, newStatus: SectionStatus) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.updateSection(section.copy(status = newStatus))
         }
@@ -763,6 +786,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         assignedRole: WorkRole,
         contributorNotes: String
     ) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.updateSection(
                 section.copy(
@@ -781,12 +805,14 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         tailUri: String,
         tailCaption: String
     ) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.updateSectionIllustrations(section, headerUri, headerCaption, tailUri, tailCaption)
         }
     }
 
     fun deleteSection(sectionId: Long, manuscriptId: Long) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.deleteSection(sectionId, manuscriptId)
             if (_selectedSectionId.value == sectionId) {
@@ -799,6 +825,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         section: SectionEntity,
         newContent: String
     ) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.proposeRevision(
                 section = section,
@@ -826,6 +853,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun acceptSectionRevision(section: SectionEntity) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.acceptRevision(section)
             if (section.revisionAuthorEmail.isNotBlank() && !section.revisionAuthorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
@@ -846,6 +874,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun rejectSectionRevision(section: SectionEntity) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.rejectRevision(section)
             if (section.revisionAuthorEmail.isNotBlank() && !section.revisionAuthorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
@@ -866,6 +895,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun addEditorialComment(sectionId: Long, manuscriptId: Long, text: String, cmosRef: String = "") {
+        if (_visitingAdmin.value) return
         launchGuarded {
             val comment = EditorialCommentEntity(
                 sectionId = sectionId,
@@ -880,6 +910,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun resolveComment(commentId: Long, resolved: Boolean) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             repository.setCommentResolved(commentId, resolved)
         }
@@ -892,6 +923,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
 
     fun exportActiveManuscriptToPdf(context: Context, onComplete: (com.supernatural.bwriter.export.CmosPdfExporter.ExportResult) -> Unit) {
+        if (_visitingAdmin.value) {
+            _exportFailed.value = true
+            return
+        }
         val m = activeManuscript.value ?: return
         _isExporting.value = true
         _exportFailed.value = false
@@ -947,6 +982,31 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     val regentEmail: StateFlow<String> = _regentEmail.asStateFlow()
     private val _isRoot = MutableStateFlow(false)
     val isRoot: StateFlow<Boolean> = _isRoot.asStateFlow()
+
+    // Visiting admin mode: a standing account (Editor in Chief or regent)
+    // signed in on a device whose home account is someone else. Local
+    // action is locked in this ViewModel; only server-side admin works.
+    private val _visitingAdmin = MutableStateFlow(false)
+    val visitingAdmin: StateFlow<Boolean> = _visitingAdmin.asStateFlow()
+
+    private fun refreshVisitingAdmin() {
+        val email = _currentUser.value.email.trim().lowercase()
+        val home = userPreferences.getDeviceHomeEmail()
+        _visitingAdmin.value = email.isNotBlank() &&
+            (com.supernatural.bwriter.data.StudioStanding.isEditorInChief || _isRoot.value) &&
+            home.isNotBlank() &&
+            !home.equals(email, ignoreCase = true)
+    }
+
+    // The first account to sign in on a device becomes its home account.
+    // Set-once: later sign-ins never rewrite it.
+    private fun bindDeviceHomeIfUnset() {
+        val email = _currentUser.value.email.trim().lowercase()
+        if (email.isNotBlank() && userPreferences.getDeviceHomeEmail().isBlank()) {
+            userPreferences.setDeviceHomeEmail(email)
+        }
+        refreshVisitingAdmin()
+    }
 
     private val _allIssuances = MutableStateFlow<List<CreditIssuance>>(emptyList())
     val allIssuances: StateFlow<List<CreditIssuance>> = _allIssuances.asStateFlow()
@@ -1011,6 +1071,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         title.trim().lowercase() + "|" + authorEmail.trim().lowercase()
 
     fun restoreManuscriptsFromGoogleDrive(interactive: Boolean = false, onRestored: (Int) -> Unit = {}) {
+        if (_visitingAdmin.value) {
+            onRestored(0)
+            return
+        }
         launchGuarded {
             val restored = networkService.restoreUserManuscriptsFromBackRoom(_currentUser.value.email)
             var total = 0
@@ -1085,6 +1149,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun openCommunityBook(entry: GlobalBookIndexEntry, onReady: (Long) -> Unit) {
+        if (_visitingAdmin.value) {
+            onReady(-1L)
+            return
+        }
         launchGuarded {
             if (entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
                 val local = repository.getManuscriptByIdOnce(entry.manuscriptId)
@@ -1131,6 +1199,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
             com.supernatural.bwriter.data.StudioStanding.isEditorInChief = networkService.verifyEditorInChief()
             val provenStanding = com.supernatural.bwriter.data.StudioStanding.isEditorInChief
             val userNow = _currentUser.value
+            bindDeviceHomeIfUnset()
             if (!userNow.email.equals(lastRefreshEmail, ignoreCase = true)) {
                 lastRefreshEmail = userNow.email
                 _mailboxMessages.value = emptyList()
@@ -1159,6 +1228,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _allUnits.value = emptyList()
                 _approvalUnitsMessage.value = null
                 _allPayoutRequests.value = emptyList()
+                refreshVisitingAdmin()
             }
             if (provenStanding && userNow.role != WorkRole.EDITOR) {
                 val corrected = userNow.copy(role = WorkRole.EDITOR, organization = "Bwriter Editorial Board")
@@ -1251,6 +1321,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _isRoot.value = _currentUser.value.email.isNotBlank() &&
                     (_regentEmail.value.isBlank() ||
                         !_currentUser.value.email.equals(_regentEmail.value, ignoreCase = true))
+                refreshVisitingAdmin()
                 val indexAuthors = _globalBookIndex.value
                     .map { it.authorName to it.authorEmail.trim().lowercase() }
                     .filter { it.second.isNotBlank() }
@@ -1276,6 +1347,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         isPublicInCommunity: Boolean,
         onDone: (Result<GlobalBookIndexEntry>) -> Unit
     ) {
+        if (_visitingAdmin.value) {
+            onDone(Result.failure(IllegalStateException("Unavailable in visiting admin mode")))
+            return
+        }
         val authorEmail = manuscript.authorEmail
         if (authorEmail.isNotBlank() && !authorEmail.equals(_currentUser.value.email, ignoreCase = true)) {
             onDone(Result.failure(IllegalStateException("Only the author can sync this book.")))
@@ -1411,6 +1486,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun sendCredit(toEmail: String, amount: Int, onDone: (Boolean) -> Unit = {}) {
+        if (_visitingAdmin.value) {
+            onDone(false)
+            return
+        }
         launchGuarded {
             val from = _currentUser.value
             val result = networkService.sendTransfer(from.email, toEmail, amount)
@@ -1432,6 +1511,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun claimCredit() {
+        if (_visitingAdmin.value) return
         if (_isMiningCredit.value) return
         _isMiningCredit.value = true
         launchGuarded {
@@ -1464,6 +1544,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun backupAuthorKey(passphrase: String, onDone: (Result<Unit>) -> Unit) {
+        if (_visitingAdmin.value) {
+            onDone(Result.failure(IllegalStateException("Unavailable in visiting admin mode")))
+            return
+        }
         launchGuarded {
             try {
                 val appContext = getApplication<Application>().applicationContext
@@ -1486,6 +1570,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun restoreAuthorKey(passphrase: String, onDone: (Result<Boolean>) -> Unit) {
+        if (_visitingAdmin.value) {
+            onDone(Result.failure(IllegalStateException("Unavailable in visiting admin mode")))
+            return
+        }
         launchGuarded {
             try {
                 val appContext = getApplication<Application>().applicationContext
@@ -1511,6 +1599,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun markMailMessageAsRead(messageId: String) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             networkService.markMailAsRead(_currentUser.value.email, messageId)
             refreshNetwork()
@@ -1673,6 +1762,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun requestAccountDeletion(onResult: (Boolean) -> Unit) {
+        if (_visitingAdmin.value) {
+            onResult(false)
+            return
+        }
         val user = _currentUser.value
         if (user.email.isBlank()) {
             onResult(false)
@@ -1694,6 +1787,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun sendServerlessMailDirective(message: ServerlessMailMessage) {
+        if (_visitingAdmin.value) return
         launchGuarded {
             networkService.sendServerlessMail(message)
             refreshNetwork()

@@ -64,6 +64,7 @@ class UserPreferences(context: Context) {
         private const val KEY_TOTAL_GENERATIONS = "user_total_generations"
         private const val KEY_RENEWAL_TIMESTAMP = "user_renewal_timestamp"
         private const val KEY_TOKEN_TRANSACTIONS_JSON = "user_token_transactions_json"
+        private const val KEY_DEVICE_HOME_EMAIL = "device_home_email"
     }
 
     fun isLoggedIn(): Boolean {
@@ -76,6 +77,18 @@ class UserPreferences(context: Context) {
 
     fun signOut() {
         prefs.edit().putBoolean(KEY_IS_LOGGED_IN, false).apply()
+    }
+
+    // The device home binding: the account this device belongs to. It is a
+    // device-level value, not a per-account one — it names the device's
+    // owner no matter who is currently signed in. Written once, by the
+    // caller, the first time an account signs in on this device.
+    fun getDeviceHomeEmail(): String {
+        return prefs.getString(KEY_DEVICE_HOME_EMAIL, "") ?: ""
+    }
+
+    fun setDeviceHomeEmail(email: String) {
+        prefs.edit().putString(KEY_DEVICE_HOME_EMAIL, email.trim().lowercase()).apply()
     }
 
     fun getSavedGoogleAccounts(): List<UserProfile> {
