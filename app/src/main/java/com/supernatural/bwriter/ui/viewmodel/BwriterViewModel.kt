@@ -1215,6 +1215,10 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 _allEditorAssignments.value = networkService.fetchAllEditorAssignments()
                 _poolEntries.value = networkService.fetchPoolEntries()
                 _poolTotals.value = networkService.fetchPoolTotals()
+                if (networkService.foldPurchasesIntoPool() > 0) {
+                    _poolEntries.value = networkService.fetchPoolEntries()
+                    _poolTotals.value = networkService.fetchPoolTotals()
+                }
                 _allUnits.value = networkService.fetchAllUnits()
                 networkService.publishStudioTotals()
                 _studioTotals.value = networkService.fetchStudioTotals()

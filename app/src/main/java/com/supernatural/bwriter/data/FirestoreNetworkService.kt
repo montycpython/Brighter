@@ -32,6 +32,10 @@ object StudioStanding {
     var isEditorInChief: Boolean = false
 }
 
+enum class PurchaseEntryResult {
+    CREATED, ALREADY_ENTERED, REFUNDED, INVALID, FAILED
+}
+
 data class BookStamp(
     val authorAddress: String = "",
     val authorPubKey: String = "",
@@ -63,6 +67,7 @@ class FirestoreNetworkService(private val context: Context) {
     private val poolChainLock = Mutex()
     private val unitChainLock = Mutex()
     private val payoutChainLock = Mutex()
+    private val foldLock = Mutex()
 
     @Volatile
     var lastApprovalUnitsResult: ApprovalUnitsResult? = null
@@ -782,31 +787,41 @@ class FirestoreNetworkService(private val context: Context) {
         try {
             val buyer = normEmail(buyerEmail)
             val ref = db.collection(COL_PURCHASES).document(orderId)
-            if (ref.get().await().exists()) return@withContext false
             val priceCents = BillingProducts.priceCentsFor(productId)
-            ref.set(
-                mapOf(
-                    "productId" to productId,
-                    "orderId" to orderId,
-                    "purchaseToken" to purchaseToken,
-                    "buyerEmail" to buyer,
-                    "priceCents" to priceCents,
-                    "recordedAtMillis" to System.currentTimeMillis(),
-                    "refunded" to false
-                )
-            ).await()
-            if (priceCents > 0L) {
-                recordPoolEntry(
-                    PoolEntry(
-                        kind = PoolKinds.PURCHASE,
-                        amountCents = priceCents,
-                        note = productId,
-                        actorEmail = buyer
-                    )
-                )
-            }
             val tokensInPack = BillingProducts.tokensPerPackFor(productId)
-            if (tokensInPack > 0) {
+            val existing = ref.get().await()
+            var pooled: Boolean
+            var tokensRaised: Boolean
+            if (existing.exists()) {
+                pooled = existing.getBoolean("pooled") == true
+                tokensRaised = existing.getBoolean("tokensRaised") == true
+            } else {
+                ref.set(
+                    mapOf(
+                        "productId" to productId,
+                        "orderId" to orderId,
+                        "purchaseToken" to purchaseToken,
+                        "buyerEmail" to buyer,
+                        "priceCents" to priceCents,
+                        "recordedAtMillis" to System.currentTimeMillis(),
+                        "refunded" to false,
+                        "pooled" to false,
+                        "tokensRaised" to false
+                    )
+                ).await()
+                pooled = false
+                tokensRaised = false
+            }
+            if (!pooled && priceCents > 0L) {
+                val entryResult = recordPurchasePoolEntry(orderId)
+                if (entryResult == PurchaseEntryResult.CREATED ||
+                    entryResult == PurchaseEntryResult.ALREADY_ENTERED
+                ) {
+                    pooled = true
+                }
+            }
+            if (tokensInPack > 0 && !tokensRaised) {
+                var raised = false
                 try {
                     val prefs = UserPreferences(context)
                     val current = prefs.getUserSubscription(buyer)
@@ -815,14 +830,94 @@ class FirestoreNetworkService(private val context: Context) {
                             creditsRemaining = current.creditsRemaining + tokensInPack
                         )
                     )
+                    raised = true
                 } catch (e: Exception) {
                     Log.e("FirestoreNetwork", "Raise token balance failed", e)
+                }
+                if (raised) {
+                    ref.update("tokensRaised", true).await()
                 }
             }
             true
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Record verified purchase failed", e)
             false
+        }
+    }
+
+    private suspend fun recordPurchasePoolEntry(orderId: String): PurchaseEntryResult =
+        withContext(Dispatchers.IO) {
+            if (!StudioStanding.isEditorInChief) return@withContext PurchaseEntryResult.FAILED
+            if (orderId.isBlank()) return@withContext PurchaseEntryResult.INVALID
+            val entryId = CreditChain.sha256Hex("pool-purchase|$orderId")
+            val purchaseRef = db.collection(COL_PURCHASES).document(orderId)
+            val entryRef = db.collection(COL_POOL_ENTRIES).document(entryId)
+            try {
+                val outcome: PurchaseEntryResult = db.runTransaction { txn ->
+                    val purchaseSnap = txn.get(purchaseRef)
+                    when {
+                        !purchaseSnap.exists() -> PurchaseEntryResult.INVALID
+                        purchaseSnap.getBoolean("refunded") == true -> PurchaseEntryResult.REFUNDED
+                        else -> {
+                            val entrySnap = txn.get(entryRef)
+                            if (entrySnap.exists()) {
+                                if (purchaseSnap.getBoolean("pooled") != true) {
+                                    txn.update(purchaseRef, "pooled", true)
+                                }
+                                PurchaseEntryResult.ALREADY_ENTERED
+                            } else {
+                                val priceCents = purchaseSnap.getLong("priceCents") ?: 0L
+                                if (priceCents <= 0L) {
+                                    PurchaseEntryResult.INVALID
+                                } else {
+                                    val createdAt = purchaseSnap.getLong("recordedAtMillis")
+                                        ?.takeIf { it > 0L } ?: System.currentTimeMillis()
+                                    val entry = PoolEntry(
+                                        id = entryId,
+                                        kind = PoolKinds.PURCHASE,
+                                        amountCents = priceCents,
+                                        note = orderId,
+                                        actorEmail = normEmail(
+                                            purchaseSnap.getString("buyerEmail") ?: ""
+                                        ),
+                                        createdAtMillis = createdAt,
+                                        settledAtMillis = PoolChain.settledAtFor(createdAt),
+                                        prevEntryHash = "",
+                                        entryHash = entryId
+                                    )
+                                    txn.set(entryRef, poolEntryToMap(entry))
+                                    txn.update(purchaseRef, "pooled", true)
+                                    PurchaseEntryResult.CREATED
+                                }
+                            }
+                        }
+                    }
+                }.await()
+                outcome
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Record purchase pool entry failed", e)
+                PurchaseEntryResult.FAILED
+            }
+        }
+
+    suspend fun foldPurchasesIntoPool(): Int = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext 0
+        foldLock.withLock {
+            try {
+                val snap = db.collection(COL_PURCHASES).get().await()
+                val unpooled = snap.documents.filter { it.getBoolean("pooled") != true }
+                var folded = 0
+                for (doc in unpooled) {
+                    if (doc.getBoolean("refunded") == true) continue
+                    if (recordPurchasePoolEntry(doc.id) == PurchaseEntryResult.CREATED) {
+                        folded++
+                    }
+                }
+                folded
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Fold purchases into pool failed", e)
+                0
+            }
         }
     }
 
@@ -959,6 +1054,9 @@ class FirestoreNetworkService(private val context: Context) {
             if (destination.isBlank()) {
                 return@withContext PayoutRequestOutcome(null, PayoutRequestResult.FAILED)
             }
+            if (method != PayoutMethods.PAYPAL && method != PayoutMethods.STRIPE) {
+                return@withContext PayoutRequestOutcome(null, PayoutRequestResult.FAILED)
+            }
             payoutChainLock.withLock {
                 try {
                     val mine = fetchPayoutRequestsFor(caller)
@@ -985,18 +1083,18 @@ class FirestoreNetworkService(private val context: Context) {
                     val prevHash = mine
                         .maxWithOrNull(compareBy<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
                         ?.requestHash ?: ""
-                    val cleanMethod =
-                        if (method == PayoutMethods.STRIPE) PayoutMethods.STRIPE else PayoutMethods.PAYPAL
+                    val cleanDestination = destination.trim()
                     val hash = PayoutChain.requestHashFor(
-                        prevHash, caller, myVestedUnits, amountCents, cleanMethod, now
+                        prevHash, caller, myVestedUnits, amountCents, method,
+                        cleanDestination, now
                     )
                     val request = PayoutRequest(
                         id = hash,
                         requesterEmail = caller,
                         units = myVestedUnits,
                         amountCents = amountCents,
-                        method = cleanMethod,
-                        destination = destination.trim(),
+                        method = method,
+                        destination = cleanDestination,
                         status = PayoutStatuses.PENDING,
                         createdAtMillis = now,
                         paidAtMillis = 0L,
@@ -1050,33 +1148,42 @@ class FirestoreNetworkService(private val context: Context) {
             if (status != PayoutStatuses.SENT && status != PayoutStatuses.REJECTED) {
                 return@withContext false
             }
-            try {
-                val updates = mutableMapOf<String, Any>("status" to status)
-                if (status == PayoutStatuses.SENT) {
-                    updates["paidAtMillis"] = System.currentTimeMillis()
-                }
-                db.collection(COL_PAYOUT_REQUESTS).document(request.requestHash)
-                    .update(updates).await()
-                if (status == PayoutStatuses.SENT) {
-                    val recorded = recordPoolEntry(
-                        PoolEntry(
-                            kind = PoolKinds.PAYOUT,
-                            amountCents = -request.amountCents,
-                            note = request.id,
-                            actorEmail = request.requesterEmail
-                        )
-                    )
-                    if (!recorded) {
-                        Log.e(
-                            "FirestoreNetwork",
-                            "Payout marked sent but pool entry failed for ${request.id}"
-                        )
+            payoutChainLock.withLock {
+                try {
+                    val current = db.collection(COL_PAYOUT_REQUESTS)
+                        .document(request.requestHash).get().await()
+                    if (!current.exists() ||
+                        current.getString("status") != PayoutStatuses.PENDING
+                    ) {
+                        return@withLock false
                     }
+                    val updates = mutableMapOf<String, Any>("status" to status)
+                    if (status == PayoutStatuses.SENT) {
+                        updates["paidAtMillis"] = System.currentTimeMillis()
+                    }
+                    db.collection(COL_PAYOUT_REQUESTS).document(request.requestHash)
+                        .update(updates).await()
+                    if (status == PayoutStatuses.SENT) {
+                        val recorded = recordPoolEntry(
+                            PoolEntry(
+                                kind = PoolKinds.PAYOUT,
+                                amountCents = -request.amountCents,
+                                note = request.id,
+                                actorEmail = request.requesterEmail
+                            )
+                        )
+                        if (!recorded) {
+                            Log.e(
+                                "FirestoreNetwork",
+                                "Payout marked sent but pool entry failed for ${request.id}"
+                            )
+                        }
+                    }
+                    true
+                } catch (e: Exception) {
+                    Log.e("FirestoreNetwork", "Set payout request status failed", e)
+                    false
                 }
-                true
-            } catch (e: Exception) {
-                Log.e("FirestoreNetwork", "Set payout request status failed", e)
-                false
             }
         }
 

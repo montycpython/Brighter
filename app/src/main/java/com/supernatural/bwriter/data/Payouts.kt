@@ -53,6 +53,7 @@ object PayoutChain {
         units: Int,
         amountCents: Long,
         method: String,
+        destination: String,
         createdAtMillis: Long
-    ): String = CreditChain.sha256Hex("$prevHash|$requesterEmail|$units|$amountCents|$method|$createdAtMillis")
+    ): String = CreditChain.sha256Hex("$prevHash|$requesterEmail|$units|$amountCents|$method|$destination|$createdAtMillis")
 }
