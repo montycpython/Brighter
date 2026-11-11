@@ -29,6 +29,8 @@ import com.supernatural.bwriter.data.BillingProducts
 import com.supernatural.bwriter.data.BillingPurchase
 import com.supernatural.bwriter.data.PayoutRequest
 import com.supernatural.bwriter.data.StudioTotals
+import com.supernatural.bwriter.data.StudioSystemConfig
+import com.supernatural.bwriter.data.SystemAiConfig
 import com.supernatural.bwriter.data.UnitChain
 import com.supernatural.bwriter.data.RestoredBook
 import com.supernatural.bwriter.data.GoogleDriveClient
@@ -226,6 +228,8 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _allPayoutRequests.value = emptyList()
         _myPayoutValueCents.value = 0L
         _studioTotals.value = StudioTotals()
+        _systemConfig.value = StudioSystemConfig()
+        SystemAiConfig.update(StudioSystemConfig())
         _adFreeEntitled.value = false
         _billingMessage.value = null
         _selectedManuscriptId.value = null
@@ -564,6 +568,15 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 networkService.publishStudioTotals()
                 _studioTotals.value = networkService.fetchStudioTotals()
                 recomputeMyPayoutValue()
+            }
+        }
+    }
+
+    fun updateSystemConfig(apiKey: String, model: String) {
+        if (!_isRoot.value) return
+        launchGuarded {
+            if (networkService.updateSystemConfig(apiKey, model)) {
+                _systemConfig.value = networkService.fetchSystemConfig()
             }
         }
     }
@@ -974,6 +987,9 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private val _studioTotals = MutableStateFlow(StudioTotals())
     val studioTotals: StateFlow<StudioTotals> = _studioTotals.asStateFlow()
 
+    private val _systemConfig = MutableStateFlow(StudioSystemConfig())
+    val systemConfig: StateFlow<StudioSystemConfig> = _systemConfig.asStateFlow()
+
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
@@ -1176,6 +1192,13 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 networkService.fetchStudioTotals()
             } else {
                 StudioTotals()
+            }
+
+            _systemConfig.value = if (_currentUser.value.email.isNotBlank()) {
+                networkService.fetchSystemConfig()
+            } else {
+                SystemAiConfig.update(StudioSystemConfig())
+                StudioSystemConfig()
             }
 
             _myPayoutRequests.value = if (_currentUser.value.email.isNotBlank()) {

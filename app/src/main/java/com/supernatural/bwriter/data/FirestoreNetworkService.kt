@@ -97,6 +97,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_PAYOUT_REQUESTS = "payoutRequests"
         private const val COL_STUDIO_TOTALS = "studioTotals"
         private const val DOC_STUDIO_TOTALS_CURRENT = "current"
+        private const val DOC_STUDIO_SYSTEM = "system"
         private const val COL_USERS = "users"
     }
 
@@ -777,6 +778,38 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    suspend fun fetchSystemConfig(): StudioSystemConfig = withContext(Dispatchers.IO) {
+        try {
+            val data = db.collection(COL_STUDIO_CONFIG).document(DOC_STUDIO_SYSTEM)
+                .get().await().data
+            val config = docToSystemConfig(data)
+            SystemAiConfig.update(config)
+            config
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch system config failed", e)
+            StudioSystemConfig()
+        }
+    }
+
+    suspend fun updateSystemConfig(apiKey: String, model: String): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val current = fetchSystemConfig()
+                val updated = StudioSystemConfig(
+                    geminiApiKey = apiKey.trim().ifBlank { current.geminiApiKey },
+                    geminiModel = model.trim().ifBlank { current.geminiModel },
+                    updatedAtMillis = System.currentTimeMillis()
+                )
+                db.collection(COL_STUDIO_CONFIG).document(DOC_STUDIO_SYSTEM)
+                    .set(systemConfigToMap(updated)).await()
+                SystemAiConfig.update(updated)
+                true
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Update system config failed", e)
+                false
+            }
+        }
+
     suspend fun recordVerifiedPurchase(
         productId: String,
         orderId: String,
@@ -1427,6 +1460,21 @@ class FirestoreNetworkService(private val context: Context) {
         "totalVestedUnits" to t.totalVestedUnits,
         "unitValueCents" to t.unitValueCents,
         "updatedAtMillis" to t.updatedAtMillis
+    )
+
+    private fun docToSystemConfig(data: Map<String, Any>?): StudioSystemConfig =
+        StudioSystemConfig(
+            geminiApiKey = data?.get("geminiApiKey") as? String ?: "",
+            geminiModel = (data?.get("geminiModel") as? String)
+                ?.ifBlank { StudioSystemConfig.DEFAULT_MODEL }
+                ?: StudioSystemConfig.DEFAULT_MODEL,
+            updatedAtMillis = (data?.get("updatedAtMillis") as? Number)?.toLong() ?: 0L
+        )
+
+    private fun systemConfigToMap(c: StudioSystemConfig): Map<String, Any> = mapOf(
+        "geminiApiKey" to c.geminiApiKey,
+        "geminiModel" to c.geminiModel,
+        "updatedAtMillis" to c.updatedAtMillis
     )
 
 

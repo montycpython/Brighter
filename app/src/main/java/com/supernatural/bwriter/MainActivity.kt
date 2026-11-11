@@ -140,6 +140,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val myPayoutValueCents by viewModel.myPayoutValueCents.collectAsState()
     val regentEmail by viewModel.regentEmail.collectAsState()
     val isRoot by viewModel.isRoot.collectAsState()
+    val systemConfig by viewModel.systemConfig.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -661,6 +662,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 onRecordPoolEntry = { kind, cents, note ->
                     viewModel.recordManualPoolEntry(kind, cents, note)
                     Toast.makeText(context, "Entry recorded", Toast.LENGTH_SHORT).show()
+                },
+                systemConfig = systemConfig,
+                onUpdateSystemConfig = { apiKey, model ->
+                    viewModel.updateSystemConfig(apiKey, model)
+                    Toast.makeText(context, "Controls saved", Toast.LENGTH_SHORT).show()
                 },
                 onDecideEditorAssignment = { assignment, approve ->
                     viewModel.decideEditorAssignment(assignment, approve)

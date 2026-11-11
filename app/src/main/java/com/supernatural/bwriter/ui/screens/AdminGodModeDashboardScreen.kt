@@ -2,6 +2,7 @@ package com.supernatural.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,7 @@ import com.supernatural.bwriter.data.PoolKinds
 import com.supernatural.bwriter.data.PoolTotals
 import com.supernatural.bwriter.data.PayoutRequest
 import com.supernatural.bwriter.data.PayoutStatuses
+import com.supernatural.bwriter.data.StudioSystemConfig
 import com.supernatural.bwriter.data.UnitChain
 import com.supernatural.bwriter.data.UnitGrant
 import com.supernatural.bwriter.data.UnitRoles
@@ -148,6 +150,8 @@ fun AdminGodModeDashboardScreen(
     onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
     onVestCurrentSeason: () -> Unit = {},
     onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> },
+    systemConfig: StudioSystemConfig = StudioSystemConfig(),
+    onUpdateSystemConfig: (String, String) -> Unit = { _, _ -> },
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -308,7 +312,9 @@ fun AdminGodModeDashboardScreen(
                     allPayoutRequests = allPayoutRequests,
                     onSetPayoutRequestStatus = onSetPayoutRequestStatus,
                     onVestCurrentSeason = onVestCurrentSeason,
-                    onRecordPoolEntry = onRecordPoolEntry
+                    onRecordPoolEntry = onRecordPoolEntry,
+                    systemConfig = systemConfig,
+                    onUpdateSystemConfig = onUpdateSystemConfig
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -615,7 +621,9 @@ fun MasterBookIndexTab(
     allPayoutRequests: List<PayoutRequest> = emptyList(),
     onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
     onVestCurrentSeason: () -> Unit = {},
-    onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> }
+    onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> },
+    systemConfig: StudioSystemConfig = StudioSystemConfig(),
+    onUpdateSystemConfig: (String, String) -> Unit = { _, _ -> }
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
@@ -626,6 +634,10 @@ fun MasterBookIndexTab(
     var poolEntryKind by remember { mutableStateOf(PoolKinds.EXPENSE) }
     var poolEntryAmount by remember { mutableStateOf("") }
     var poolEntryNote by remember { mutableStateOf("") }
+    var geminiKeyInput by remember { mutableStateOf("") }
+    var geminiModelInput by remember(systemConfig.geminiModel) {
+        mutableStateOf(systemConfig.geminiModel)
+    }
     val currentSeasonYear = UnitChain.seasonYearFor(System.currentTimeMillis())
     val seasonCapReached = allUnits.count {
         it.role == UnitRoles.AUTHOR && it.seasonYear == currentSeasonYear
@@ -1403,6 +1415,221 @@ fun MasterBookIndexTab(
                     Text("Clear Regent", fontSize = 12.5.sp)
                 }
             }
+        }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        if (isRoot) {
+        // Ship's panel: steel-navy plate, brass trim, lamp and readouts.
+        val panelSteel = Color(0xFF0D1626)
+        val panelInset = Color(0xFF05090F)
+        val panelLine = Color(0xFF2A3850)
+        val panelBrass = Color(0xFFC9A227)
+        val panelBrassDim = Color(0xFF8A6D1F)
+        val panelReadout = Color(0xFFD7DEE8)
+        val lampColor = if (systemConfig.geminiApiKey.isBlank()) {
+            Color(0xFFFFB020)
+        } else {
+            Color(0xFF3DDC74)
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(panelSteel, RoundedCornerShape(10.dp))
+                .border(1.5.dp, panelBrass, RoundedCornerShape(10.dp))
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(11.dp)
+                            .background(lampColor, CircleShape)
+                            .border(1.dp, panelBrassDim, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(9.dp))
+                    Text(
+                        text = "CONTROL ROOM",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        letterSpacing = 3.sp,
+                        color = panelBrass
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(panelBrassDim)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "GEMINI KEY",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    letterSpacing = 2.sp,
+                    color = panelBrass
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(panelInset, RoundedCornerShape(4.dp))
+                        .border(1.dp, panelLine, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = if (systemConfig.geminiApiKey.isBlank()) {
+                            "Gemini API Key: Not set"
+                        } else {
+                            "Gemini API Key: Set \u2022\u2022\u2022\u2022" +
+                                systemConfig.geminiApiKey.takeLast(4)
+                        },
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = panelReadout
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "MODEL",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    letterSpacing = 2.sp,
+                    color = panelBrass
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(panelInset, RoundedCornerShape(4.dp))
+                        .border(1.dp, panelLine, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = systemConfig.geminiModel,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = panelReadout
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "NEW API KEY",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    letterSpacing = 2.sp,
+                    color = panelBrass
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                OutlinedTextField(
+                    value = geminiKeyInput,
+                    onValueChange = { geminiKeyInput = it },
+                    placeholder = { Text("New API key") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.5.sp,
+                        color = panelReadout
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = panelBrass,
+                        unfocusedBorderColor = panelLine,
+                        focusedContainerColor = panelInset,
+                        unfocusedContainerColor = panelInset
+                    )
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "GEMINI MODEL",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    letterSpacing = 2.sp,
+                    color = panelBrass
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                OutlinedTextField(
+                    value = geminiModelInput,
+                    onValueChange = { geminiModelInput = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.5.sp,
+                        color = panelReadout
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = panelBrass,
+                        unfocusedBorderColor = panelLine,
+                        focusedContainerColor = panelInset,
+                        unfocusedContainerColor = panelInset
+                    )
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        onUpdateSystemConfig(geminiKeyInput, geminiModelInput)
+                        geminiKeyInput = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = panelBrass,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Save Controls",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        color = Color.Black
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "Use a key restricted to the Gemini API, with a quota cap.",
+                    fontSize = 10.5.sp,
+                    letterSpacing = 0.5.sp,
+                    color = panelBrassDim
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(5.dp)
+                    .size(6.dp)
+                    .background(panelBrassDim, CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(5.dp)
+                    .size(6.dp)
+                    .background(panelBrassDim, CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(5.dp)
+                    .size(6.dp)
+                    .background(panelBrassDim, CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(5.dp)
+                    .size(6.dp)
+                    .background(panelBrassDim, CircleShape)
+            )
         }
         }
 

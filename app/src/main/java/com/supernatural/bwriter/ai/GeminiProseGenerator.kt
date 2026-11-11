@@ -1,6 +1,7 @@
 package com.supernatural.bwriter.ai
 
 import com.supernatural.bwriter.BuildConfig
+import com.supernatural.bwriter.data.SystemAiConfig
 import com.supernatural.bwriter.model.AiGenerationResult
 import com.supernatural.bwriter.model.CharacterEntity
 import com.supernatural.bwriter.model.ManuscriptEntity
@@ -123,10 +124,12 @@ object GeminiProseGenerator {
     }
 
     suspend fun generateChapterProse(prompt: String): Result<AiGenerationResult> = withContext(Dispatchers.IO) {
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (e: Throwable) {
-            ""
+        val apiKey = SystemAiConfig.apiKey.ifBlank {
+            try {
+                BuildConfig.GEMINI_API_KEY
+            } catch (e: Throwable) {
+                ""
+            }
         }
 
         val estimatedPromptTokens = Math.max(1, prompt.length / 4)
@@ -148,7 +151,8 @@ object GeminiProseGenerator {
         }
 
         try {
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+            val model = SystemAiConfig.model.ifBlank { "gemini-2.5-flash" }
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
 
             val jsonBody = JSONObject().apply {
                 val contents = JSONArray().apply {
@@ -217,7 +221,7 @@ object GeminiProseGenerator {
                                 promptTokens = pTokens,
                                 completionTokens = finalCompTokens,
                                 totalTokens = finalTotalTokens,
-                                modelUsed = "gemini-2.5-flash",
+                                modelUsed = model,
                                 isSuccess = true
                             )
                         )
