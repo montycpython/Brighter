@@ -1008,12 +1008,22 @@ fun MasterBookIndexTab(
             color = Color(0xFFB0A89C)
         )
         Text(
-            text = "Settled ${formatCents(poolTotals.balanceCents - poolTotals.unsettledCents)}",
+            text = "Author pool ${formatCents(poolTotals.authorBalanceCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Studio ${formatCents(poolTotals.studioBalanceCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Settled ${formatCents(poolTotals.authorBalanceCents - poolTotals.authorUnsettledCents)}",
             fontSize = 11.5.sp,
             color = Color(0xFFB0A89C)
         )
         val vestedUnits = allUnits.filter { it.vested }
-        val settledCents = poolTotals.balanceCents - poolTotals.unsettledCents
+        val settledCents = poolTotals.authorBalanceCents - poolTotals.authorUnsettledCents
         Text(
             text = "Total units (vested) ${vestedUnits.size}",
             fontSize = 11.5.sp,

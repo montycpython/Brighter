@@ -731,10 +731,16 @@ class FirestoreNetworkService(private val context: Context) {
                     else -> kotlin.math.abs(entry.amountCents)
                 }
                 val actor = normEmail(entry.actorEmail)
-                val hash = PoolChain.entryHashFor(prevHash, entry.kind, amount, actor, createdAt)
+                val fund = if (entry.fund.isNotBlank()) entry.fund else when (entry.kind) {
+                    PoolKinds.EXPENSE -> PoolFunds.STUDIO
+                    PoolKinds.FEE, PoolKinds.PAYOUT -> PoolFunds.AUTHOR
+                    else -> ""
+                }
+                val hash = PoolChain.entryHashFor(prevHash, entry.kind, amount, actor, createdAt, fund)
                 val recorded = entry.copy(
                     id = hash,
                     amountCents = amount,
+                    fund = fund,
                     actorEmail = actor,
                     createdAtMillis = createdAt,
                     settledAtMillis = if (entry.settledAtMillis > 0L) entry.settledAtMillis
@@ -771,7 +777,7 @@ class FirestoreNetworkService(private val context: Context) {
         if (!StudioStanding.isEditorInChief) return@withContext false
         try {
             val totals = fetchPoolTotals()
-            val settled = totals.balanceCents - totals.unsettledCents
+            val settled = totals.authorBalanceCents - totals.authorUnsettledCents
             val totalVestedUnits = fetchAllUnits().count { it.vested }
             val published = StudioTotals(
                 settledBalanceCents = settled,
@@ -926,20 +932,45 @@ class FirestoreNetworkService(private val context: Context) {
                                 } else {
                                     val createdAt = purchaseSnap.getLong("recordedAtMillis")
                                         ?.takeIf { it > 0L } ?: System.currentTimeMillis()
+                                    val buyer = normEmail(
+                                        purchaseSnap.getString("buyerEmail") ?: ""
+                                    )
+                                    val authorHalf = priceCents - priceCents / 2
+                                    val studioHalf = priceCents / 2
                                     val entry = PoolEntry(
                                         id = entryId,
                                         kind = PoolKinds.PURCHASE,
-                                        amountCents = priceCents,
+                                        amountCents = authorHalf,
                                         note = orderId,
-                                        actorEmail = normEmail(
-                                            purchaseSnap.getString("buyerEmail") ?: ""
-                                        ),
+                                        actorEmail = buyer,
                                         createdAtMillis = createdAt,
                                         settledAtMillis = PoolChain.settledAtFor(createdAt),
                                         prevEntryHash = "",
-                                        entryHash = entryId
+                                        entryHash = entryId,
+                                        fund = PoolFunds.AUTHOR
                                     )
                                     txn.set(entryRef, poolEntryToMap(entry))
+                                    if (studioHalf > 0L) {
+                                        val studioEntryId = CreditChain.sha256Hex(
+                                            "pool-purchase-studio|$orderId"
+                                        )
+                                        val studioEntry = PoolEntry(
+                                            id = studioEntryId,
+                                            kind = PoolKinds.PURCHASE,
+                                            amountCents = studioHalf,
+                                            note = orderId,
+                                            actorEmail = buyer,
+                                            createdAtMillis = createdAt,
+                                            settledAtMillis = PoolChain.settledAtFor(createdAt),
+                                            prevEntryHash = "",
+                                            entryHash = studioEntryId,
+                                            fund = PoolFunds.STUDIO
+                                        )
+                                        txn.set(
+                                            db.collection(COL_POOL_ENTRIES).document(studioEntryId),
+                                            poolEntryToMap(studioEntry)
+                                        )
+                                    }
                                     txn.update(purchaseRef, "pooled", true)
                                     PurchaseEntryResult.CREATED
                                 }
@@ -1392,7 +1423,8 @@ class FirestoreNetworkService(private val context: Context) {
             createdAtMillis = (data["createdAtMillis"] as? Number)?.toLong() ?: 0L,
             settledAtMillis = (data["settledAtMillis"] as? Number)?.toLong() ?: 0L,
             prevEntryHash = data["prevEntryHash"] as? String ?: "",
-            entryHash = hash
+            entryHash = hash,
+            fund = data["fund"] as? String ?: ""
         )
     }
 
@@ -1433,7 +1465,8 @@ class FirestoreNetworkService(private val context: Context) {
         "createdAtMillis" to e.createdAtMillis,
         "settledAtMillis" to e.settledAtMillis,
         "prevEntryHash" to e.prevEntryHash,
-        "entryHash" to e.entryHash
+        "entryHash" to e.entryHash,
+        "fund" to e.fund
     )
 
 
