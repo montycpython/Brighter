@@ -2,6 +2,7 @@ package com.supernatural.bwriter.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +36,18 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderShared
+import com.supernatural.bwriter.data.ApprovalCreditPreview
+import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.EditorAssignment
+import com.supernatural.bwriter.data.PoolEntry
+import com.supernatural.bwriter.data.PoolKinds
+import com.supernatural.bwriter.data.PoolTotals
+import com.supernatural.bwriter.data.PayoutRequest
+import com.supernatural.bwriter.data.PayoutStatuses
+import com.supernatural.bwriter.data.StudioSystemConfig
+import com.supernatural.bwriter.data.UnitChain
+import com.supernatural.bwriter.data.UnitGrant
+import com.supernatural.bwriter.data.UnitRoles
 import com.supernatural.bwriter.data.SiteUser
 import com.supernatural.bwriter.model.WorkRole
 import androidx.compose.material.icons.filled.Gavel
@@ -125,6 +137,21 @@ fun AdminGodModeDashboardScreen(
     isRoot: Boolean = false,
     onSetRegent: (String) -> Unit = {},
     onClearRegent: () -> Unit = {},
+    allIssuances: List<CreditIssuance> = emptyList(),
+    claimedIssuanceIds: Set<String> = emptySet(),
+    allEditorAssignments: List<EditorAssignment> = emptyList(),
+    approvalPreview: ApprovalCreditPreview? = null,
+    onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
+    poolEntries: List<PoolEntry> = emptyList(),
+    poolTotals: PoolTotals = PoolTotals(),
+    allUnits: List<UnitGrant> = emptyList(),
+    approvalUnitsMessage: String? = null,
+    allPayoutRequests: List<PayoutRequest> = emptyList(),
+    onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
+    onVestCurrentSeason: () -> Unit = {},
+    onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> },
+    systemConfig: StudioSystemConfig = StudioSystemConfig(),
+    onUpdateSystemConfig: (String, String) -> Unit = { _, _ -> },
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
@@ -271,7 +298,23 @@ fun AdminGodModeDashboardScreen(
                     regentEmail = regentEmail,
                     isRoot = isRoot,
                     onSetRegent = onSetRegent,
-                    onClearRegent = onClearRegent
+                    onClearRegent = onClearRegent,
+                    suspendedCount = suspendedUsers.size,
+                    allIssuances = allIssuances,
+                    claimedIssuanceIds = claimedIssuanceIds,
+                    allEditorAssignments = allEditorAssignments,
+                    approvalPreview = approvalPreview,
+                    onPreviewApproval = onPreviewApproval,
+                    poolEntries = poolEntries,
+                    poolTotals = poolTotals,
+                    allUnits = allUnits,
+                    approvalUnitsMessage = approvalUnitsMessage,
+                    allPayoutRequests = allPayoutRequests,
+                    onSetPayoutRequestStatus = onSetPayoutRequestStatus,
+                    onVestCurrentSeason = onVestCurrentSeason,
+                    onRecordPoolEntry = onRecordPoolEntry,
+                    systemConfig = systemConfig,
+                    onUpdateSystemConfig = onUpdateSystemConfig
                 )
                 1 -> AuthorRosterTab(
                     globalIndex = globalIndex,
@@ -564,13 +607,41 @@ fun MasterBookIndexTab(
     regentEmail: String = "",
     isRoot: Boolean = false,
     onSetRegent: (String) -> Unit = {},
-    onClearRegent: () -> Unit = {}
+    onClearRegent: () -> Unit = {},
+    suspendedCount: Int = 0,
+    allIssuances: List<CreditIssuance> = emptyList(),
+    claimedIssuanceIds: Set<String> = emptySet(),
+    allEditorAssignments: List<EditorAssignment> = emptyList(),
+    approvalPreview: ApprovalCreditPreview? = null,
+    onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
+    poolEntries: List<PoolEntry> = emptyList(),
+    poolTotals: PoolTotals = PoolTotals(),
+    allUnits: List<UnitGrant> = emptyList(),
+    approvalUnitsMessage: String? = null,
+    allPayoutRequests: List<PayoutRequest> = emptyList(),
+    onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
+    onVestCurrentSeason: () -> Unit = {},
+    onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> },
+    systemConfig: StudioSystemConfig = StudioSystemConfig(),
+    onUpdateSystemConfig: (String, String) -> Unit = { _, _ -> }
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
     var selectedEditorEmail by remember { mutableStateOf<String?>(null) }
     var selectedBookFileId by remember { mutableStateOf<String?>(null) }
     var regentInput by remember { mutableStateOf("") }
     var decidingBook by remember { mutableStateOf<Pair<GlobalBookIndexEntry, Boolean>?>(null) }
+    var showVestConfirm by remember { mutableStateOf(false) }
+    var poolEntryKind by remember { mutableStateOf(PoolKinds.EXPENSE) }
+    var poolEntryAmount by remember { mutableStateOf("") }
+    var poolEntryNote by remember { mutableStateOf("") }
+    var geminiKeyInput by remember { mutableStateOf("") }
+    var geminiModelInput by remember(systemConfig.geminiModel) {
+        mutableStateOf(systemConfig.geminiModel)
+    }
+    val currentSeasonYear = UnitChain.seasonYearFor(System.currentTimeMillis())
+    val seasonCapReached = allUnits.count {
+        it.role == UnitRoles.AUTHOR && it.seasonYear == currentSeasonYear
+    } >= UnitChain.SEASON_AUTHOR_CAP
 
     decidingBook?.let { (entry, approve) ->
         Dialog(onDismissRequest = { decidingBook = null }) {
@@ -598,6 +669,54 @@ fun MasterBookIndexTab(
                         color = Color(0xFFC8C2B7)
                     )
                     Spacer(modifier = Modifier.height(14.dp))
+                    val preview = approvalPreview?.takeIf { it.fileId == entry.fileId && it.amount > 0 }
+                    if (approve && preview != null) {
+                        val recipientCount = (if (preview.authorIssuancePending) 1 else 0) + preview.editorEmails.size
+                        Text(
+                            text = "Credit issued: ${preview.amount * recipientCount}",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BookGoldLight
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (preview.authorIssuancePending) {
+                                "Author ${preview.authorEmail}: ${preview.amount}"
+                            } else if (preview.authorAlreadyIssued) {
+                                "Author ${preview.authorEmail}: already issued"
+                            } else {
+                                "Author ${preview.authorEmail}: no address on file"
+                            },
+                            fontSize = 12.sp,
+                            color = Color(0xFFC8C2B7)
+                        )
+                        preview.editorEmails.forEach { editorEmail ->
+                            Text(
+                                text = "Editor $editorEmail: ${preview.amount}",
+                                fontSize = 12.sp,
+                                color = Color(0xFFC8C2B7)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                    if (approve) {
+                        val unitsRecorded = allUnits.any {
+                            it.fileId == entry.fileId && it.role == UnitRoles.AUTHOR
+                        }
+                        val editorUnitCount = allEditorAssignments.count {
+                            it.fileId == entry.fileId && it.status == "APPROVED"
+                        }
+                        Text(
+                            text = when {
+                                unitsRecorded -> "Units: already recorded for this book"
+                                seasonCapReached -> "Units: season cap reached, none issued"
+                                else -> "Units: Author +1, Editor +1 \u00d7$editorUnitCount, Chair +1"
+                            },
+                            fontSize = 12.sp,
+                            color = Color(0xFFC8C2B7)
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -626,12 +745,91 @@ fun MasterBookIndexTab(
         }
     }
 
+    if (showVestConfirm) {
+        Dialog(onDismissRequest = { showVestConfirm = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C26),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Vest $currentSeasonYear units?",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 15.sp,
+                        color = BookGoldLight
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Vesting makes this season's units payable. This cannot be undone.",
+                        fontSize = 12.5.sp,
+                        color = Color(0xFFC8C2B7)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showVestConfirm = false },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel", color = Color.LightGray)
+                        }
+                        Button(
+                            onClick = {
+                                onVestCurrentSeason()
+                                showVestConfirm = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = BookGoldDark
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Vest", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(14.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        Text(
+            text = "Totals",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TotalChip("Users", siteUsers.size, Modifier.weight(1f))
+            TotalChip("Books", entries.size, Modifier.weight(1f))
+            TotalChip("Pending", pendingBooks.size, Modifier.weight(1f))
+            TotalChip("Suspended", suspendedCount, Modifier.weight(1f))
+            TotalChip("Assignments", allEditorAssignments.count { it.status == "APPROVED" }, Modifier.weight(1f))
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+
+        approvalUnitsMessage?.let { message ->
+            Text(
+                text = message,
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -694,7 +892,7 @@ fun MasterBookIndexTab(
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                onClick = { decidingBook = entry to true },
+                                onClick = { onPreviewApproval(entry); decidingBook = entry to true },
                                 colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.testTag("btn_approve_${entry.fileId}")
@@ -714,6 +912,323 @@ fun MasterBookIndexTab(
             }
             Spacer(modifier = Modifier.height(14.dp))
         }
+
+        Text(
+            text = "Credit (${allIssuances.size})",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (allIssuances.isEmpty()) {
+            Text(
+                text = "No credit issued.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+        } else {
+            allIssuances.forEach { issuance ->
+                val bookTitle = (entries + pendingBooks).firstOrNull { it.fileId == issuance.fileId }?.title
+                    ?: issuance.fileId
+                val claimed = claimedIssuanceIds.contains(issuance.issuanceHash)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .testTag("admin_issuance_card_${issuance.issuanceHash}"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                    border = BorderStroke(1.dp, BookGoldDark)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = issuance.authorEmail,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Text(
+                            text = "$bookTitle \u00b7 ${issuance.kind}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = "${issuance.amount} \u00b7 ${if (claimed) "Claimed" else "Unclaimed"}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Pool",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Receipts ${formatCents(poolTotals.receiptsCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Expenses ${formatCents(poolTotals.expensesCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Refunds ${formatCents(poolTotals.refundsCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Fees ${formatCents(poolTotals.feesCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Paid out ${formatCents(poolTotals.payoutsCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Balance ${formatCents(poolTotals.balanceCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Settled ${formatCents(poolTotals.balanceCents - poolTotals.unsettledCents)}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        val vestedUnits = allUnits.filter { it.vested }
+        val settledCents = poolTotals.balanceCents - poolTotals.unsettledCents
+        Text(
+            text = "Total units (vested) ${vestedUnits.size}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Unit value ${formatCents(UnitChain.unitValueCents(settledCents, vestedUnits.size))}",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Text(
+            text = "Season $currentSeasonYear",
+            fontSize = 11.5.sp,
+            color = Color(0xFFB0A89C)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Button(
+            onClick = { showVestConfirm = true },
+            colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark)
+        ) {
+            Text("Vest $currentSeasonYear Units", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        UnitChain.totalsByHolder(vestedUnits).entries
+            .sortedByDescending { it.value }
+            .take(10)
+            .forEach { (holderEmail, count) ->
+                Text(
+                    text = "$holderEmail \u2014 $count units",
+                    fontSize = 11.5.sp,
+                    color = Color(0xFFB0A89C)
+                )
+            }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (poolEntries.isEmpty()) {
+            Text(
+                text = "No pool entries.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+        } else {
+            poolEntries.takeLast(5).reversed().forEach { entry ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .testTag("admin_pool_entry_card_${entry.entryHash}"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                    border = BorderStroke(1.dp, BookGoldDark)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = entry.kind,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Text(
+                            text = "${formatCents(entry.amountCents)} \u00b7 ${entry.note}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Record Entry",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            listOf(
+                PoolKinds.EXPENSE to "Expense",
+                PoolKinds.REFUND to "Refund",
+                PoolKinds.FEE to "Fee",
+                PoolKinds.AD_RETURN to "Ad Return"
+            ).forEach { (kind, label) ->
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    fontWeight = if (poolEntryKind == kind) FontWeight.Bold else FontWeight.Normal,
+                    color = if (poolEntryKind == kind) BookGoldLight else Color(0xFFB0A89C),
+                    modifier = Modifier.clickable { poolEntryKind = kind }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        val recordAmountCents = poolEntryAmount.trim().toDoubleOrNull()
+            ?.let { kotlin.math.roundToLong(it * 100) }
+        OutlinedTextField(
+            value = poolEntryAmount,
+            onValueChange = { input ->
+                if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                    poolEntryAmount = input
+                }
+            },
+            label = { Text("Amount (USD)", color = BookGoldLight) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = BookGoldDark,
+                unfocusedBorderColor = Color(0xFF444455),
+                focusedContainerColor = Color(0xFF1B1B24),
+                unfocusedContainerColor = Color(0xFF16161E)
+            )
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = poolEntryNote,
+            onValueChange = { poolEntryNote = it },
+            label = { Text("Note", color = BookGoldLight) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = BookGoldDark,
+                unfocusedBorderColor = Color(0xFF444455),
+                focusedContainerColor = Color(0xFF1B1B24),
+                unfocusedContainerColor = Color(0xFF16161E)
+            )
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                onRecordPoolEntry(poolEntryKind, recordAmountCents ?: 0L, poolEntryNote.trim())
+                poolEntryAmount = ""
+                poolEntryNote = ""
+            },
+            enabled = recordAmountCents != null && recordAmountCents > 0L,
+            colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark)
+        ) {
+            Text("Record", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "Payout Requests",
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
+            color = BookGoldLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (allPayoutRequests.isEmpty()) {
+            Text(
+                text = "No payout requests.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+        } else {
+            allPayoutRequests.forEach { request ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .testTag("admin_payout_request_card_${request.requestHash}"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+                    border = BorderStroke(1.dp, BookGoldDark)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = request.requesterEmail,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFFF3EFE6)
+                        )
+                        Text(
+                            text = "${request.units} units \u00b7 ${formatCents(request.amountCents)}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = "${request.method} \u00b7 ${request.destination}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        Text(
+                            text = request.status,
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB0A89C)
+                        )
+                        if (request.status == PayoutStatuses.PENDING) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { onSetPayoutRequestStatus(request, PayoutStatuses.SENT) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.testTag("btn_payout_sent_${request.requestHash}")
+                                ) {
+                                    Text("Mark Sent", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                }
+                                OutlinedButton(
+                                    onClick = { onSetPayoutRequestStatus(request, PayoutStatuses.REJECTED) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.testTag("btn_payout_reject_${request.requestHash}")
+                                ) {
+                                    Text("Reject", fontSize = 12.5.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         Text(
             text = "Editor Assignments",
@@ -900,6 +1415,221 @@ fun MasterBookIndexTab(
                     Text("Clear Regent", fontSize = 12.5.sp)
                 }
             }
+        }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        if (isRoot) {
+        // Ship's panel: steel-navy plate, brass trim, lamp and readouts.
+        val panelSteel = Color(0xFF0D1626)
+        val panelInset = Color(0xFF05090F)
+        val panelLine = Color(0xFF2A3850)
+        val panelBrass = Color(0xFFC9A227)
+        val panelBrassDim = Color(0xFF8A6D1F)
+        val panelReadout = Color(0xFFD7DEE8)
+        val lampColor = if (systemConfig.geminiApiKey.isBlank()) {
+            Color(0xFFFFB020)
+        } else {
+            Color(0xFF3DDC74)
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(panelSteel, RoundedCornerShape(10.dp))
+                .border(1.5.dp, panelBrass, RoundedCornerShape(10.dp))
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(11.dp)
+                            .background(lampColor, CircleShape)
+                            .border(1.dp, panelBrassDim, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(9.dp))
+                    Text(
+                        text = "CONTROL ROOM",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        letterSpacing = 3.sp,
+                        color = panelBrass
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(panelBrassDim)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "GEMINI KEY",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    letterSpacing = 2.sp,
+                    color = panelBrass
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(panelInset, RoundedCornerShape(4.dp))
+                        .border(1.dp, panelLine, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = if (systemConfig.geminiApiKey.isBlank()) {
+                            "Gemini API Key: Not set"
+                        } else {
+                            "Gemini API Key: Set \u2022\u2022\u2022\u2022" +
+                                systemConfig.geminiApiKey.takeLast(4)
+                        },
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = panelReadout
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "MODEL",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    letterSpacing = 2.sp,
+                    color = panelBrass
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(panelInset, RoundedCornerShape(4.dp))
+                        .border(1.dp, panelLine, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = systemConfig.geminiModel,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = panelReadout
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "NEW API KEY",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    letterSpacing = 2.sp,
+                    color = panelBrass
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                OutlinedTextField(
+                    value = geminiKeyInput,
+                    onValueChange = { geminiKeyInput = it },
+                    placeholder = { Text("New API key") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.5.sp,
+                        color = panelReadout
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = panelBrass,
+                        unfocusedBorderColor = panelLine,
+                        focusedContainerColor = panelInset,
+                        unfocusedContainerColor = panelInset
+                    )
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "GEMINI MODEL",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    letterSpacing = 2.sp,
+                    color = panelBrass
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                OutlinedTextField(
+                    value = geminiModelInput,
+                    onValueChange = { geminiModelInput = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.5.sp,
+                        color = panelReadout
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = panelBrass,
+                        unfocusedBorderColor = panelLine,
+                        focusedContainerColor = panelInset,
+                        unfocusedContainerColor = panelInset
+                    )
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        onUpdateSystemConfig(geminiKeyInput, geminiModelInput)
+                        geminiKeyInput = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = panelBrass,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Save Controls",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        color = Color.Black
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "Use a key restricted to the Gemini API, with a quota cap.",
+                    fontSize = 10.5.sp,
+                    letterSpacing = 0.5.sp,
+                    color = panelBrassDim
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(5.dp)
+                    .size(6.dp)
+                    .background(panelBrassDim, CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(5.dp)
+                    .size(6.dp)
+                    .background(panelBrassDim, CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(5.dp)
+                    .size(6.dp)
+                    .background(panelBrassDim, CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(5.dp)
+                    .size(6.dp)
+                    .background(panelBrassDim, CircleShape)
+            )
         }
         }
 
@@ -1494,3 +2224,37 @@ fun DriveHealthTab(
     }
 }
 
+
+private fun formatCents(cents: Long): String {
+    val sign = if (cents < 0L) "-" else ""
+    val abs = kotlin.math.abs(cents)
+    return "${sign}\$${abs / 100}.${(abs % 100).toString().padStart(2, '0')}"
+}
+
+@Composable
+private fun TotalChip(label: String, count: Int, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF14141C)),
+        border = BorderStroke(1.dp, BookGoldDark)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "$count",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = Color(0xFFF3EFE6)
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                color = Color(0xFFB0A89C)
+            )
+        }
+    }
+}

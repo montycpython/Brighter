@@ -9,11 +9,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -54,6 +59,9 @@ import com.supernatural.bwriter.ui.screens.UserAgreementScreen
 import com.supernatural.bwriter.ui.theme.BwriterTheme
 import com.google.android.gms.ads.MobileAds
 import com.supernatural.bwriter.ui.ads.AdBannerBar
+import com.supernatural.bwriter.data.BillingManager
+import com.supernatural.bwriter.data.BillingProducts
+import com.supernatural.bwriter.data.PayoutStatuses
 import com.supernatural.bwriter.ui.ads.AdsFreeStore
 import com.supernatural.bwriter.ui.ads.InterstitialAds
 import com.supernatural.bwriter.ui.viewmodel.BwriterViewModel
@@ -124,8 +132,21 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val pendingEditorAssignments by viewModel.pendingEditorAssignments.collectAsState()
     val registryAuthors by viewModel.registryAuthors.collectAsState()
     val siteUsers by viewModel.siteUsers.collectAsState()
+    val allIssuances by viewModel.allIssuances.collectAsState()
+    val claimedIssuanceIds by viewModel.claimedIssuanceIds.collectAsState()
+    val allEditorAssignments by viewModel.allEditorAssignments.collectAsState()
+    val approvalPreview by viewModel.approvalPreview.collectAsState()
+    val poolEntries by viewModel.poolEntries.collectAsState()
+    val poolTotals by viewModel.poolTotals.collectAsState()
+    val allUnits by viewModel.allUnits.collectAsState()
+    val approvalUnitsMessage by viewModel.approvalUnitsMessage.collectAsState()
+    val myPayoutRequests by viewModel.myPayoutRequests.collectAsState()
+    val allPayoutRequests by viewModel.allPayoutRequests.collectAsState()
+    val myPayoutValueCents by viewModel.myPayoutValueCents.collectAsState()
     val regentEmail by viewModel.regentEmail.collectAsState()
     val isRoot by viewModel.isRoot.collectAsState()
+    val systemConfig by viewModel.systemConfig.collectAsState()
+    val visitingAdmin by viewModel.visitingAdmin.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -136,6 +157,9 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val creditBalance by viewModel.creditBalance.collectAsState()
     val unclaimedCredit by viewModel.unclaimedCredit.collectAsState()
     val claimFailed by viewModel.claimFailed.collectAsState()
+    val adFreeEntitled by viewModel.adFreeEntitled.collectAsState()
+    val billingPrices by viewModel.billingPrices.collectAsState()
+    val billingMessage by viewModel.billingMessage.collectAsState()
     val aiGenerationFailed by viewModel.aiGenerationFailed.collectAsState()
     val assignedBooks by viewModel.assignedBooks.collectAsState()
     val exportFailed by viewModel.exportFailed.collectAsState()
@@ -190,8 +214,30 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val currentRoute = navBackStackEntry?.destination?.route
     val adsFreeStore = remember { AdsFreeStore(context) }
     var adsFreeUntil by remember { mutableStateOf(adsFreeStore.adsFreeUntil()) }
-    val showBanner = System.currentTimeMillis() >= adsFreeUntil &&
+    val showBanner = !adsFreeStore.isAdsFree() &&
         currentRoute != "section_editor/{sectionId}"
+
+    val billingManager = remember {
+        BillingManager(
+            context.applicationContext,
+            onPurchase = { purchase -> viewModel.onBillingPurchase(purchase) },
+            onPrices = { prices -> viewModel.onBillingPrices(prices) }
+        )
+    }
+    LaunchedEffect(billingManager) {
+        viewModel.billingManager = billingManager
+        billingManager.connect()
+    }
+    LaunchedEffect(adFreeEntitled) {
+        adsFreeStore.setPurchasedAdFree(adFreeEntitled)
+    }
+    LaunchedEffect(billingMessage) {
+        val message = billingMessage
+        if (message != null) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            viewModel.clearBillingMessage()
+        }
+    }
 
     val hostActivity = context as? Activity
     var previousRoute by remember { mutableStateOf<String?>(null) }
@@ -218,6 +264,17 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (visitingAdmin) {
+            Text(
+                text = "Visiting admin — this device's library is locked",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         Box(modifier = Modifier.weight(1f)) {
     NavHost(
         navController = navController,
@@ -602,6 +659,32 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                 pendingEditorAssignments = pendingEditorAssignments,
                 registryAuthors = registryAuthors,
                 siteUsers = siteUsers,
+                allIssuances = allIssuances,
+                claimedIssuanceIds = claimedIssuanceIds,
+                allEditorAssignments = allEditorAssignments,
+                approvalPreview = approvalPreview,
+                onPreviewApproval = { entry -> viewModel.previewApprovalCredit(entry) },
+                poolEntries = poolEntries,
+                poolTotals = poolTotals,
+                allUnits = allUnits,
+                approvalUnitsMessage = approvalUnitsMessage,
+                allPayoutRequests = allPayoutRequests,
+                onSetPayoutRequestStatus = { request, status ->
+                    viewModel.setPayoutRequestStatus(request, status)
+                    Toast.makeText(context, if (status == PayoutStatuses.SENT) "Payout marked sent" else "Payout request updated", Toast.LENGTH_SHORT).show()
+                },
+                onVestCurrentSeason = {
+                    viewModel.vestCurrentSeason()
+                },
+                onRecordPoolEntry = { kind, cents, note ->
+                    viewModel.recordManualPoolEntry(kind, cents, note)
+                    Toast.makeText(context, "Entry recorded", Toast.LENGTH_SHORT).show()
+                },
+                systemConfig = systemConfig,
+                onUpdateSystemConfig = { apiKey, model ->
+                    viewModel.updateSystemConfig(apiKey, model)
+                    Toast.makeText(context, "Controls saved", Toast.LENGTH_SHORT).show()
+                },
                 onDecideEditorAssignment = { assignment, approve ->
                     viewModel.decideEditorAssignment(assignment, approve)
                     Toast.makeText(context, if (approve) "Editor approved" else "Editor declined", Toast.LENGTH_SHORT).show()
@@ -654,6 +737,19 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
             creditBalance = creditBalance,
             unclaimedCredit = unclaimedCredit,
             claimFailed = claimFailed,
+            adFreePrice = billingPrices[BillingProducts.AD_FREE_PRODUCT_ID] ?: "",
+            tokenPackPrice = billingPrices[BillingProducts.TOKENS_PRODUCT_ID] ?: "",
+            tokenBulkPrice = billingPrices[BillingProducts.TOKENS_100_PRODUCT_ID] ?: "",
+            onBuyAdFree = { hostActivity?.let { viewModel.buyAdFree(it) } },
+            onBuyTokens = { hostActivity?.let { viewModel.buyTokens(it) } },
+            onBuyTokens100 = { hostActivity?.let { viewModel.buyTokens100(it) } },
+            onBuyAdFreeWithCredit = { viewModel.buyAdFreeWithCredit(adsFreeStore) },
+            payoutValueCents = myPayoutValueCents,
+            myPayoutRequests = myPayoutRequests,
+            onRequestPayout = { method, destination ->
+                viewModel.requestPayout(method, destination)
+                Toast.makeText(context, "Payout requested", Toast.LENGTH_SHORT).show()
+            },
             onClaimCredit = { viewModel.claimCredit() },
             onSendCredit = { email, amount ->
                 viewModel.sendCredit(email, amount) { ok ->

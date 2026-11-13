@@ -32,6 +32,10 @@ object StudioStanding {
     var isEditorInChief: Boolean = false
 }
 
+enum class PurchaseEntryResult {
+    CREATED, ALREADY_ENTERED, REFUNDED, INVALID, FAILED
+}
+
 data class BookStamp(
     val authorAddress: String = "",
     val authorPubKey: String = "",
@@ -60,6 +64,14 @@ class FirestoreNetworkService(private val context: Context) {
 
     private val issuanceLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
     private val transferLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
+    private val poolChainLock = Mutex()
+    private val unitChainLock = Mutex()
+    private val payoutChainLock = Mutex()
+    private val foldLock = Mutex()
+
+    @Volatile
+    var lastApprovalUnitsResult: ApprovalUnitsResult? = null
+        private set
 
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -75,10 +87,17 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_STUDIO_CONFIG = "studioConfig"
         private const val COL_CREDIT_ISSUANCES = "creditIssuances"
         private const val COL_CREDIT_TRANSFERS = "creditTransfers"
+        private const val COL_CREDIT_SPENDS = "creditSpends"
         private val VOLATILE_PAYLOAD_KEYS = setOf("updatedAt", "timestamp", "stampHash", "prevStampHash", "stampSignature", "revisionTimestamp")
         private const val COL_CREDIT_CLAIMS = "creditClaims"
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
         private const val COL_EDITOR_ACCESS = "editorAccess"
+        private const val COL_POOL_ENTRIES = "poolEntries"
+        private const val COL_SHARE_UNITS = "shareUnits"
+        private const val COL_PURCHASES = "purchases"
+        private const val COL_PAYOUT_REQUESTS = "payoutRequests"
+        private const val COL_STUDIO_TOTALS = "studioTotals"
+        private const val DOC_STUDIO_TOTALS_CURRENT = "current"
         private const val COL_USERS = "users"
     }
 
@@ -528,6 +547,7 @@ class FirestoreNetworkService(private val context: Context) {
                     IllegalStateException("Credit issuance failed; approval not completed. Try again.")
                 )
             }
+            lastApprovalUnitsResult = recordApprovalUnits(entry)
             val batch = db.batch()
             batch.set(db.collection(COL_REGISTRY).document(fileId), registryToMap(entry))
             if (contentSnap.exists()) {
@@ -643,6 +663,570 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    suspend fun fetchAllIssuances(): List<CreditIssuance> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptyList()
+        try {
+            val snap = db.collection(COL_CREDIT_ISSUANCES).get().await()
+            snap.documents.mapNotNull { docToIssuance(it.data) }
+                .sortedByDescending { it.issuedAtMillis }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all credit issuances failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchAllClaimedIssuanceIds(): Set<String> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptySet()
+        try {
+            val snap = db.collection(COL_CREDIT_CLAIMS).get().await()
+            snap.documents.mapNotNull { it.getString("issuanceHash") }.toSet()
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all credit claims failed", e)
+            emptySet()
+        }
+    }
+
+    suspend fun fetchAllEditorAssignments(): List<EditorAssignment> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_EDITOR_ASSIGNMENTS).get().await()
+            snap.documents.mapNotNull { docToAssignment(it.data) }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all editor assignments failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun recordPoolEntry(entry: PoolEntry): Boolean = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext false
+        poolChainLock.withLock {
+            try {
+                val prevHash = fetchPoolEntries()
+                    .maxWithOrNull(compareBy<PoolEntry> { it.createdAtMillis }.thenBy { it.entryHash })
+                    ?.entryHash ?: ""
+                val createdAt = if (entry.createdAtMillis > 0L) entry.createdAtMillis else System.currentTimeMillis()
+                val amount = when (entry.kind) {
+                    PoolKinds.EXPENSE, PoolKinds.REFUND, PoolKinds.FEE, PoolKinds.PAYOUT ->
+                        -kotlin.math.abs(entry.amountCents)
+                    else -> kotlin.math.abs(entry.amountCents)
+                }
+                val actor = normEmail(entry.actorEmail)
+                val hash = PoolChain.entryHashFor(prevHash, entry.kind, amount, actor, createdAt)
+                val recorded = entry.copy(
+                    id = hash,
+                    amountCents = amount,
+                    actorEmail = actor,
+                    createdAtMillis = createdAt,
+                    settledAtMillis = if (entry.settledAtMillis > 0L) entry.settledAtMillis
+                        else PoolChain.settledAtFor(createdAt),
+                    prevEntryHash = prevHash,
+                    entryHash = hash
+                )
+                db.collection(COL_POOL_ENTRIES).document(hash).set(poolEntryToMap(recorded)).await()
+                true
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Record pool entry failed", e)
+                false
+            }
+        }
+    }
+
+    suspend fun fetchPoolEntries(): List<PoolEntry> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptyList()
+        try {
+            val snap = db.collection(COL_POOL_ENTRIES).get().await()
+            snap.documents.mapNotNull { docToPoolEntry(it.data) }
+                .sortedBy { it.createdAtMillis }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch pool entries failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchPoolTotals(): PoolTotals = withContext(Dispatchers.IO) {
+        PoolChain.totalsFor(fetchPoolEntries())
+    }
+
+    suspend fun publishStudioTotals(): Boolean = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext false
+        try {
+            val totals = fetchPoolTotals()
+            val settled = totals.balanceCents - totals.unsettledCents
+            val totalVestedUnits = fetchAllUnits().count { it.vested }
+            val published = StudioTotals(
+                settledBalanceCents = settled,
+                totalVestedUnits = totalVestedUnits,
+                unitValueCents = UnitChain.unitValueCents(settled, totalVestedUnits),
+                updatedAtMillis = System.currentTimeMillis()
+            )
+            db.collection(COL_STUDIO_TOTALS).document(DOC_STUDIO_TOTALS_CURRENT)
+                .set(studioTotalsToMap(published)).await()
+            true
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Publish studio totals failed", e)
+            false
+        }
+    }
+
+    suspend fun fetchStudioTotals(): StudioTotals = withContext(Dispatchers.IO) {
+        try {
+            val data = db.collection(COL_STUDIO_TOTALS).document(DOC_STUDIO_TOTALS_CURRENT)
+                .get().await().data
+            docToStudioTotals(data)
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch studio totals failed", e)
+            StudioTotals()
+        }
+    }
+
+    suspend fun recordVerifiedPurchase(
+        productId: String,
+        orderId: String,
+        purchaseToken: String,
+        buyerEmail: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (orderId.isBlank()) return@withContext false
+        try {
+            val buyer = normEmail(buyerEmail)
+            val ref = db.collection(COL_PURCHASES).document(orderId)
+            val priceCents = BillingProducts.priceCentsFor(productId)
+            val tokensInPack = BillingProducts.tokensPerPackFor(productId)
+            val existing = ref.get().await()
+            var pooled: Boolean
+            var tokensRaised: Boolean
+            if (existing.exists()) {
+                pooled = existing.getBoolean("pooled") == true
+                tokensRaised = existing.getBoolean("tokensRaised") == true
+            } else {
+                ref.set(
+                    mapOf(
+                        "productId" to productId,
+                        "orderId" to orderId,
+                        "purchaseToken" to purchaseToken,
+                        "buyerEmail" to buyer,
+                        "priceCents" to priceCents,
+                        "recordedAtMillis" to System.currentTimeMillis(),
+                        "refunded" to false,
+                        "pooled" to false,
+                        "tokensRaised" to false
+                    )
+                ).await()
+                pooled = false
+                tokensRaised = false
+            }
+            if (!pooled && priceCents > 0L) {
+                val entryResult = recordPurchasePoolEntry(orderId)
+                if (entryResult == PurchaseEntryResult.CREATED ||
+                    entryResult == PurchaseEntryResult.ALREADY_ENTERED
+                ) {
+                    pooled = true
+                }
+            }
+            if (tokensInPack > 0 && !tokensRaised) {
+                var raised = false
+                try {
+                    val prefs = UserPreferences(context)
+                    val current = prefs.getUserSubscription(buyer)
+                    prefs.saveUserSubscription(
+                        current.copy(
+                            creditsRemaining = current.creditsRemaining + tokensInPack
+                        )
+                    )
+                    raised = true
+                } catch (e: Exception) {
+                    Log.e("FirestoreNetwork", "Raise token balance failed", e)
+                }
+                if (raised) {
+                    ref.update("tokensRaised", true).await()
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Record verified purchase failed", e)
+            false
+        }
+    }
+
+    private suspend fun recordPurchasePoolEntry(orderId: String): PurchaseEntryResult =
+        withContext(Dispatchers.IO) {
+            if (!StudioStanding.isEditorInChief) return@withContext PurchaseEntryResult.FAILED
+            if (orderId.isBlank()) return@withContext PurchaseEntryResult.INVALID
+            val entryId = CreditChain.sha256Hex("pool-purchase|$orderId")
+            val purchaseRef = db.collection(COL_PURCHASES).document(orderId)
+            val entryRef = db.collection(COL_POOL_ENTRIES).document(entryId)
+            try {
+                val outcome: PurchaseEntryResult = db.runTransaction { txn ->
+                    val purchaseSnap = txn.get(purchaseRef)
+                    when {
+                        !purchaseSnap.exists() -> PurchaseEntryResult.INVALID
+                        purchaseSnap.getBoolean("refunded") == true -> PurchaseEntryResult.REFUNDED
+                        else -> {
+                            val entrySnap = txn.get(entryRef)
+                            if (entrySnap.exists()) {
+                                if (purchaseSnap.getBoolean("pooled") != true) {
+                                    txn.update(purchaseRef, "pooled", true)
+                                }
+                                PurchaseEntryResult.ALREADY_ENTERED
+                            } else {
+                                val priceCents = purchaseSnap.getLong("priceCents") ?: 0L
+                                if (priceCents <= 0L) {
+                                    PurchaseEntryResult.INVALID
+                                } else {
+                                    val createdAt = purchaseSnap.getLong("recordedAtMillis")
+                                        ?.takeIf { it > 0L } ?: System.currentTimeMillis()
+                                    val entry = PoolEntry(
+                                        id = entryId,
+                                        kind = PoolKinds.PURCHASE,
+                                        amountCents = priceCents,
+                                        note = orderId,
+                                        actorEmail = normEmail(
+                                            purchaseSnap.getString("buyerEmail") ?: ""
+                                        ),
+                                        createdAtMillis = createdAt,
+                                        settledAtMillis = PoolChain.settledAtFor(createdAt),
+                                        prevEntryHash = "",
+                                        entryHash = entryId
+                                    )
+                                    txn.set(entryRef, poolEntryToMap(entry))
+                                    txn.update(purchaseRef, "pooled", true)
+                                    PurchaseEntryResult.CREATED
+                                }
+                            }
+                        }
+                    }
+                }.await()
+                outcome
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Record purchase pool entry failed", e)
+                PurchaseEntryResult.FAILED
+            }
+        }
+
+    suspend fun foldPurchasesIntoPool(): Int = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext 0
+        foldLock.withLock {
+            try {
+                val snap = db.collection(COL_PURCHASES).get().await()
+                val unpooled = snap.documents.filter { it.getBoolean("pooled") != true }
+                var folded = 0
+                for (doc in unpooled) {
+                    if (doc.getBoolean("refunded") == true) continue
+                    if (recordPurchasePoolEntry(doc.id) == PurchaseEntryResult.CREATED) {
+                        folded++
+                    }
+                }
+                folded
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Fold purchases into pool failed", e)
+                0
+            }
+        }
+    }
+
+    suspend fun isPurchaseRecorded(orderId: String): Boolean = withContext(Dispatchers.IO) {
+        if (orderId.isBlank()) return@withContext false
+        try {
+            db.collection(COL_PURCHASES).document(orderId).get().await().exists()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun isAdFreeEntitled(email: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_PURCHASES)
+                .whereEqualTo("buyerEmail", normEmail(email))
+                .whereEqualTo("productId", BillingProducts.AD_FREE_PRODUCT_ID)
+                .get().await()
+            snap.documents.any { it.getBoolean("refunded") != true }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Check ad-free entitlement failed", e)
+            false
+        }
+    }
+
+    suspend fun recordApprovalUnits(entry: GlobalBookIndexEntry): ApprovalUnitsResult {
+        if (!StudioStanding.isEditorInChief) return ApprovalUnitsResult.NOT_EDITOR_IN_CHIEF
+        return try {
+            val chairEmail = normEmail(
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: ""
+            )
+            if (chairEmail.isBlank()) return ApprovalUnitsResult.FAILED
+            val now = System.currentTimeMillis()
+            val seasonYear = UnitChain.seasonYearFor(now)
+            val grants = mutableListOf<Pair<String, String>>()
+            grants.add(normEmail(entry.authorEmail) to UnitRoles.AUTHOR)
+            fetchApprovedEditorAssignments(entry.fileId)
+                .map { normEmail(it.editorEmail) }
+                .distinct()
+                .forEach { grants.add(it to UnitRoles.EDITOR) }
+            grants.add(chairEmail to UnitRoles.CHAIR)
+            unitChainLock.withLock {
+                val allUnits = fetchAllUnits()
+                val recordedKeys = allUnits
+                    .filter { it.fileId == entry.fileId }
+                    .map { it.holderEmail to it.role }
+                    .toSet()
+                val missing = grants.filter { it !in recordedKeys }
+                if (missing.isEmpty()) {
+                    return@withLock ApprovalUnitsResult.ALREADY_RECORDED
+                }
+                if (missing.any { it.second == UnitRoles.AUTHOR }) {
+                    val seasonAuthorGrants = allUnits.count {
+                        it.role == UnitRoles.AUTHOR && it.seasonYear == seasonYear
+                    }
+                    if (seasonAuthorGrants >= UnitChain.SEASON_AUTHOR_CAP) {
+                        return@withLock ApprovalUnitsResult.SEASON_CAP_REACHED
+                    }
+                }
+                var prevHash = allUnits
+                    .maxWithOrNull(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
+                    ?.grantHash ?: ""
+                for ((holderEmail, role) in missing) {
+                    val hash = UnitChain.grantHashFor(prevHash, holderEmail, role, entry.fileId, now)
+                    val grant = UnitGrant(
+                        id = hash,
+                        holderEmail = holderEmail,
+                        role = role,
+                        fileId = entry.fileId,
+                        seasonYear = seasonYear,
+                        issuedAtMillis = now,
+                        vested = false,
+                        prevGrantHash = prevHash,
+                        grantHash = hash
+                    )
+                    db.collection(COL_SHARE_UNITS).document(hash).set(unitGrantToMap(grant)).await()
+                    prevHash = hash
+                }
+                ApprovalUnitsResult.WRITTEN
+            }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Record approval units failed", e)
+            ApprovalUnitsResult.FAILED
+        }
+    }
+
+    suspend fun fetchAllUnits(): List<UnitGrant> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptyList()
+        try {
+            val snap = db.collection(COL_SHARE_UNITS).get().await()
+            snap.documents.mapNotNull { docToUnitGrant(it.data) }
+                .sortedWith(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all share units failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchUnitsFor(email: String): List<UnitGrant> = withContext(Dispatchers.IO) {
+        try {
+            val snap = db.collection(COL_SHARE_UNITS)
+                .whereEqualTo("holderEmail", normEmail(email)).get().await()
+            snap.documents.mapNotNull { docToUnitGrant(it.data) }
+                .sortedWith(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch share units failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun vestSeasonUnits(seasonYear: Int): Boolean = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext false
+        try {
+            val unvested = fetchAllUnits().filter { it.seasonYear == seasonYear && !it.vested }
+            for (grant in unvested) {
+                db.collection(COL_SHARE_UNITS).document(grant.grantHash)
+                    .update("vested", true).await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Vest season units failed", e)
+            false
+        }
+    }
+
+    suspend fun createPayoutRequest(method: String, destination: String): PayoutRequestOutcome =
+        withContext(Dispatchers.IO) {
+            val caller = normEmail(
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: ""
+            )
+            if (caller.isBlank()) {
+                return@withContext PayoutRequestOutcome(null, PayoutRequestResult.NOT_SIGNED_IN)
+            }
+            if (destination.isBlank()) {
+                return@withContext PayoutRequestOutcome(null, PayoutRequestResult.FAILED)
+            }
+            if (method != PayoutMethods.PAYPAL && method != PayoutMethods.STRIPE) {
+                return@withContext PayoutRequestOutcome(null, PayoutRequestResult.FAILED)
+            }
+            payoutChainLock.withLock {
+                try {
+                    val mine = fetchPayoutRequestsFor(caller)
+                    mine.firstOrNull { it.status == PayoutStatuses.PENDING }?.let {
+                        return@withLock PayoutRequestOutcome(it, PayoutRequestResult.EXISTING_PENDING)
+                    }
+                    val myVestedUnits = fetchUnitsFor(caller).count { it.vested }
+                    if (myVestedUnits == 0) {
+                        return@withLock PayoutRequestOutcome(null, PayoutRequestResult.NO_VESTED_UNITS)
+                    }
+                    val totals = fetchPoolTotals()
+                    val settled = totals.balanceCents - totals.unsettledCents
+                    val totalVestedUnits = fetchAllUnits().count { it.vested }
+                    var amountCents = myVestedUnits.toLong() *
+                        UnitChain.unitValueCents(settled, totalVestedUnits)
+                    if (amountCents <= 0L && !StudioStanding.isEditorInChief) {
+                        amountCents = myVestedUnits.toLong() *
+                            fetchStudioTotals().unitValueCents
+                    }
+                    if (amountCents <= 0L) {
+                        return@withLock PayoutRequestOutcome(null, PayoutRequestResult.NO_VALUE)
+                    }
+                    val now = System.currentTimeMillis()
+                    val prevHash = mine
+                        .maxWithOrNull(compareBy<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
+                        ?.requestHash ?: ""
+                    val cleanDestination = destination.trim()
+                    val hash = PayoutChain.requestHashFor(
+                        prevHash, caller, myVestedUnits, amountCents, method,
+                        cleanDestination, now
+                    )
+                    val request = PayoutRequest(
+                        id = hash,
+                        requesterEmail = caller,
+                        units = myVestedUnits,
+                        amountCents = amountCents,
+                        method = method,
+                        destination = cleanDestination,
+                        status = PayoutStatuses.PENDING,
+                        createdAtMillis = now,
+                        paidAtMillis = 0L,
+                        prevRequestHash = prevHash,
+                        requestHash = hash
+                    )
+                    db.collection(COL_PAYOUT_REQUESTS).document(hash)
+                        .set(payoutRequestToMap(request)).await()
+                    PayoutRequestOutcome(request, PayoutRequestResult.CREATED)
+                } catch (e: Exception) {
+                    Log.e("FirestoreNetwork", "Create payout request failed", e)
+                    PayoutRequestOutcome(null, PayoutRequestResult.FAILED)
+                }
+            }
+        }
+
+    private suspend fun fetchPayoutRequestsFor(email: String): List<PayoutRequest> {
+        return try {
+            val snap = db.collection(COL_PAYOUT_REQUESTS)
+                .whereEqualTo("requesterEmail", normEmail(email)).get().await()
+            snap.documents.mapNotNull { docToPayoutRequest(it.data) }
+                .sortedWith(compareByDescending<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch payout requests failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchMyPayoutRequests(): List<PayoutRequest> = withContext(Dispatchers.IO) {
+        val caller = normEmail(
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: ""
+        )
+        if (caller.isBlank()) emptyList() else fetchPayoutRequestsFor(caller)
+    }
+
+    suspend fun fetchAllPayoutRequests(): List<PayoutRequest> = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext emptyList()
+        try {
+            val snap = db.collection(COL_PAYOUT_REQUESTS).get().await()
+            snap.documents.mapNotNull { docToPayoutRequest(it.data) }
+                .sortedWith(compareByDescending<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch all payout requests failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun setPayoutRequestStatus(request: PayoutRequest, status: String): Boolean =
+        withContext(Dispatchers.IO) {
+            if (!StudioStanding.isEditorInChief) return@withContext false
+            if (status != PayoutStatuses.SENT && status != PayoutStatuses.REJECTED) {
+                return@withContext false
+            }
+            payoutChainLock.withLock {
+                try {
+                    val current = db.collection(COL_PAYOUT_REQUESTS)
+                        .document(request.requestHash).get().await()
+                    if (!current.exists() ||
+                        current.getString("status") != PayoutStatuses.PENDING
+                    ) {
+                        return@withLock false
+                    }
+                    val updates = mutableMapOf<String, Any>("status" to status)
+                    if (status == PayoutStatuses.SENT) {
+                        updates["paidAtMillis"] = System.currentTimeMillis()
+                    }
+                    db.collection(COL_PAYOUT_REQUESTS).document(request.requestHash)
+                        .update(updates).await()
+                    if (status == PayoutStatuses.SENT) {
+                        val recorded = recordPoolEntry(
+                            PoolEntry(
+                                kind = PoolKinds.PAYOUT,
+                                amountCents = -request.amountCents,
+                                note = request.id,
+                                actorEmail = request.requesterEmail
+                            )
+                        )
+                        if (!recorded) {
+                            Log.e(
+                                "FirestoreNetwork",
+                                "Payout marked sent but pool entry failed for ${request.id}"
+                            )
+                        }
+                    }
+                    true
+                } catch (e: Exception) {
+                    Log.e("FirestoreNetwork", "Set payout request status failed", e)
+                    false
+                }
+            }
+        }
+
+    suspend fun previewApprovalCredit(entry: GlobalBookIndexEntry): ApprovalCreditPreview {
+        if (!StudioStanding.isEditorInChief) return ApprovalCreditPreview(fileId = entry.fileId)
+        return try {
+            val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
+                .whereEqualTo("fileId", entry.fileId).get().await()
+                .documents.mapNotNull { docToIssuance(it.data) }
+            val existingAuthorIssuance = existingForBook.firstOrNull {
+                it.kind == "AUTHOR" && it.authorEmail == normEmail(entry.authorEmail)
+            }
+            val amount = existingAuthorIssuance?.amount
+                ?: CreditSchedule.amountForApproval(
+                    fetchIssuancesFor(entry.authorEmail).count { it.kind == "AUTHOR" }
+                )
+            val editorEmails = mutableListOf<String>()
+            fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
+                if (existingForBook.any { it.kind == "EDITOR" && it.authorEmail == normEmail(assignment.editorEmail) }) return@forEach
+                val editorAddress = assignment.editorAddress.ifBlank {
+                    db.collection(COL_REGISTRY)
+                        .whereEqualTo("authorEmailLower", normEmail(assignment.editorEmail)).get().await()
+                        .documents.mapNotNull { docToRegistry(it.data) }
+                        .firstOrNull { it.authorAddress.isNotBlank() }
+                        ?.authorAddress.orEmpty()
+                }
+                if (editorAddress.isNotBlank()) editorEmails.add(normEmail(assignment.editorEmail))
+            }
+            ApprovalCreditPreview(
+                fileId = entry.fileId,
+                amount = amount,
+                authorEmail = normEmail(entry.authorEmail),
+                authorIssuancePending = existingAuthorIssuance == null && entry.authorAddress.isNotBlank(),
+                authorAlreadyIssued = existingAuthorIssuance != null,
+                editorEmails = editorEmails
+            )
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Preview approval credit failed", e)
+            ApprovalCreditPreview(fileId = entry.fileId)
+        }
+    }
+
     private suspend fun writeIssuance(
         recipientEmail: String,
         recipientAddress: String,
@@ -743,6 +1327,110 @@ class FirestoreNetworkService(private val context: Context) {
     )
 
 
+    private fun docToPoolEntry(data: Map<String, Any>?): PoolEntry? {
+        if (data == null) return null
+        val hash = data["entryHash"] as? String ?: return null
+        return PoolEntry(
+            id = data["id"] as? String ?: hash,
+            kind = data["kind"] as? String ?: "",
+            amountCents = (data["amountCents"] as? Number)?.toLong() ?: 0L,
+            note = data["note"] as? String ?: "",
+            actorEmail = data["actorEmail"] as? String ?: "",
+            createdAtMillis = (data["createdAtMillis"] as? Number)?.toLong() ?: 0L,
+            settledAtMillis = (data["settledAtMillis"] as? Number)?.toLong() ?: 0L,
+            prevEntryHash = data["prevEntryHash"] as? String ?: "",
+            entryHash = hash
+        )
+    }
+
+    private fun docToUnitGrant(data: Map<String, Any>?): UnitGrant? {
+        if (data == null) return null
+        val hash = data["grantHash"] as? String ?: return null
+        return UnitGrant(
+            id = data["id"] as? String ?: hash,
+            holderEmail = data["holderEmail"] as? String ?: "",
+            role = data["role"] as? String ?: "",
+            fileId = data["fileId"] as? String ?: "",
+            seasonYear = (data["seasonYear"] as? Number)?.toInt() ?: 0,
+            issuedAtMillis = (data["issuedAtMillis"] as? Number)?.toLong() ?: 0L,
+            vested = data["vested"] as? Boolean ?: false,
+            prevGrantHash = data["prevGrantHash"] as? String ?: "",
+            grantHash = hash
+        )
+    }
+
+    private fun unitGrantToMap(g: UnitGrant): Map<String, Any> = mapOf(
+        "id" to g.id,
+        "holderEmail" to g.holderEmail,
+        "role" to g.role,
+        "fileId" to g.fileId,
+        "seasonYear" to g.seasonYear,
+        "issuedAtMillis" to g.issuedAtMillis,
+        "vested" to g.vested,
+        "prevGrantHash" to g.prevGrantHash,
+        "grantHash" to g.grantHash
+    )
+
+    private fun poolEntryToMap(e: PoolEntry): Map<String, Any> = mapOf(
+        "id" to e.id,
+        "kind" to e.kind,
+        "amountCents" to e.amountCents,
+        "note" to e.note,
+        "actorEmail" to e.actorEmail,
+        "createdAtMillis" to e.createdAtMillis,
+        "settledAtMillis" to e.settledAtMillis,
+        "prevEntryHash" to e.prevEntryHash,
+        "entryHash" to e.entryHash
+    )
+
+
+    private fun docToPayoutRequest(data: Map<String, Any>?): PayoutRequest? {
+        if (data == null) return null
+        val hash = data["requestHash"] as? String ?: return null
+        return PayoutRequest(
+            id = data["id"] as? String ?: hash,
+            requesterEmail = data["requesterEmail"] as? String ?: "",
+            units = (data["units"] as? Number)?.toInt() ?: 0,
+            amountCents = (data["amountCents"] as? Number)?.toLong() ?: 0L,
+            method = data["method"] as? String ?: "",
+            destination = data["destination"] as? String ?: "",
+            status = data["status"] as? String ?: PayoutStatuses.PENDING,
+            createdAtMillis = (data["createdAtMillis"] as? Number)?.toLong() ?: 0L,
+            paidAtMillis = (data["paidAtMillis"] as? Number)?.toLong() ?: 0L,
+            prevRequestHash = data["prevRequestHash"] as? String ?: "",
+            requestHash = hash
+        )
+    }
+
+    private fun payoutRequestToMap(r: PayoutRequest): Map<String, Any> = mapOf(
+        "id" to r.id,
+        "requesterEmail" to r.requesterEmail,
+        "units" to r.units,
+        "amountCents" to r.amountCents,
+        "method" to r.method,
+        "destination" to r.destination,
+        "status" to r.status,
+        "createdAtMillis" to r.createdAtMillis,
+        "paidAtMillis" to r.paidAtMillis,
+        "prevRequestHash" to r.prevRequestHash,
+        "requestHash" to r.requestHash
+    )
+
+    private fun docToStudioTotals(data: Map<String, Any>?): StudioTotals = StudioTotals(
+        settledBalanceCents = (data?.get("settledBalanceCents") as? Number)?.toLong() ?: 0L,
+        totalVestedUnits = (data?.get("totalVestedUnits") as? Number)?.toInt() ?: 0,
+        unitValueCents = (data?.get("unitValueCents") as? Number)?.toLong() ?: 0L,
+        updatedAtMillis = (data?.get("updatedAtMillis") as? Number)?.toLong() ?: 0L
+    )
+
+    private fun studioTotalsToMap(t: StudioTotals): Map<String, Any> = mapOf(
+        "settledBalanceCents" to t.settledBalanceCents,
+        "totalVestedUnits" to t.totalVestedUnits,
+        "unitValueCents" to t.unitValueCents,
+        "updatedAtMillis" to t.updatedAtMillis
+    )
+
+
     suspend fun fetchTransfersForResult(email: String): Result<List<CreditTransfer>> = withContext(Dispatchers.IO) {
         try {
             val normalized = normEmail(email)
@@ -773,10 +1461,12 @@ class FirestoreNetworkService(private val context: Context) {
                 val issuances = fetchIssuancesFor(from)
                 val claimed = fetchClaimedIssuanceIds(from)
                 val transfers = fetchTransfersFor(from)
+                val spends = fetchSpendsFor(from)
                 val claimedSum = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
                 val balance = claimedSum -
                     transfers.filter { it.fromEmail == from }.sumOf { it.amount } +
-                    transfers.filter { it.toEmail == from }.sumOf { it.amount }
+                    transfers.filter { it.toEmail == from }.sumOf { it.amount } -
+                    spends.sumOf { it.amount }
                 if (amount > balance) {
                     return@withLock Result.failure(IllegalStateException("Insufficient claimed credit"))
                 }
@@ -823,6 +1513,94 @@ class FirestoreNetworkService(private val context: Context) {
         "createdAtMillis" to t.createdAtMillis,
         "prevTransferHash" to t.prevTransferHash,
         "transferHash" to t.transferHash
+    )
+
+    suspend fun fetchSpendsFor(email: String): List<CreditSpend> = withContext(Dispatchers.IO) {
+        try {
+            db.collection(COL_CREDIT_SPENDS)
+                .whereEqualTo("fromEmail", normEmail(email)).get().await()
+                .documents.mapNotNull { docToSpend(it.data) }
+        } catch (e: Exception) {
+            Log.e("FirestoreNetwork", "Fetch credit spends failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchSpendsForResult(email: String): Result<List<CreditSpend>> = withContext(Dispatchers.IO) {
+        try {
+            val spends = db.collection(COL_CREDIT_SPENDS)
+                .whereEqualTo("fromEmail", normEmail(email)).get().await()
+                .documents.mapNotNull { docToSpend(it.data) }
+            Result.success(spends.distinctBy { it.spendHash })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Spends serialize on the same per-sender lock as transfers: one balance,
+    // one lock, so a send and a spend can never race the same credit twice.
+    suspend fun spendCredit(fromEmail: String, amount: Int, purpose: String): Boolean = withContext(Dispatchers.IO) {
+        val from = normEmail(fromEmail)
+        if (from.isBlank() || amount <= 0) return@withContext false
+        if (purpose != SpendPurposes.GENERATION && purpose != SpendPurposes.AD_FREE) return@withContext false
+        val lock = transferLocks.getOrPut(from) { Mutex() }
+        lock.withLock {
+            try {
+                val issuances = fetchIssuancesFor(from)
+                val claimed = fetchClaimedIssuanceIds(from)
+                val transfers = fetchTransfersFor(from)
+                val spends = fetchSpendsFor(from)
+                val claimedSum = issuances.filter { claimed.contains(it.issuanceHash) }.sumOf { it.amount }
+                val balance = claimedSum -
+                    transfers.filter { it.fromEmail == from }.sumOf { it.amount } +
+                    transfers.filter { it.toEmail == from }.sumOf { it.amount } -
+                    spends.sumOf { it.amount }
+                if (amount > balance) return@withLock false
+                val prev = spends.maxWithOrNull(
+                    compareBy<CreditSpend> { it.createdAtMillis }.thenBy { it.spendHash }
+                )
+                val now = System.currentTimeMillis()
+                val hash = SpendChain.spendHashFor(prev?.spendHash ?: "", from, amount, purpose, now)
+                val spend = CreditSpend(
+                    id = hash,
+                    fromEmail = from,
+                    amount = amount,
+                    purpose = purpose,
+                    createdAtMillis = now,
+                    prevSpendHash = prev?.spendHash ?: "",
+                    spendHash = hash
+                )
+                db.collection(COL_CREDIT_SPENDS).document(hash).set(spendToMap(spend)).await()
+                true
+            } catch (e: Exception) {
+                Log.e("FirestoreNetwork", "Credit spend failed", e)
+                false
+            }
+        }
+    }
+
+    private fun docToSpend(data: Map<String, Any>?): CreditSpend? {
+        if (data == null) return null
+        val hash = data["spendHash"] as? String ?: return null
+        return CreditSpend(
+            id = data["id"] as? String ?: hash,
+            fromEmail = data["fromEmail"] as? String ?: "",
+            amount = (data["amount"] as? Number)?.toInt() ?: 0,
+            purpose = data["purpose"] as? String ?: "",
+            createdAtMillis = (data["createdAtMillis"] as? Number)?.toLong() ?: 0L,
+            prevSpendHash = data["prevSpendHash"] as? String ?: "",
+            spendHash = hash
+        )
+    }
+
+    private fun spendToMap(s: CreditSpend): Map<String, Any> = mapOf(
+        "id" to s.id,
+        "fromEmail" to s.fromEmail,
+        "amount" to s.amount,
+        "purpose" to s.purpose,
+        "createdAtMillis" to s.createdAtMillis,
+        "prevSpendHash" to s.prevSpendHash,
+        "spendHash" to s.spendHash
     )
 
 

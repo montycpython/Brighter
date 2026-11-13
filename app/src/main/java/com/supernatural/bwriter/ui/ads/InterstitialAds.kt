@@ -44,7 +44,7 @@ object InterstitialAds {
     fun showIfEligible(activity: Activity) {
         try {
             val now = System.currentTimeMillis()
-            if (now < AdsFreeStore(activity).adsFreeUntil()) return
+            if (AdsFreeStore(activity).isAdsFree(now)) return
             if (now - lastShownAt < MIN_INTERVAL_MS) return
             val ad = loadedAd
             if (ad == null) {

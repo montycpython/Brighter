@@ -49,8 +49,19 @@ class AdsFreeStore(context: Context) {
         prefs.edit().putLong(KEY_ADS_FREE_UNTIL, now + ADS_FREE_DURATION_MS).apply()
     }
 
+    fun setPurchasedAdFree(purchased: Boolean) {
+        prefs.edit().putBoolean(KEY_PURCHASED_AD_FREE, purchased).apply()
+    }
+
+    fun hasPurchasedAdFree(): Boolean = prefs.getBoolean(KEY_PURCHASED_AD_FREE, false)
+
+    // The one ad-free check: a purchased entitlement, or the rewarded window.
+    fun isAdsFree(now: Long = System.currentTimeMillis()): Boolean =
+        hasPurchasedAdFree() || now < adsFreeUntil()
+
     companion object {
         private const val KEY_ADS_FREE_UNTIL = "ads_free_until"
+        private const val KEY_PURCHASED_AD_FREE = "purchased_ad_free"
         const val ADS_FREE_DURATION_MS = 24L * 60L * 60L * 1000L
     }
 }
