@@ -5,6 +5,9 @@ import android.app.Application
 import android.util.Log
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewModelScope
 import com.supernatural.bwriter.cmos.CmosLeafEngine
 import com.supernatural.bwriter.data.AuthorKeys
@@ -73,10 +76,13 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class BwriterViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val repository: BwriterRepository
-    private val userPreferences = UserPreferences(application)
+class BwriterViewModel(
+    application: Application,
+    private val repository: BwriterRepository,
+    private val userPreferences: UserPreferences,
+    val networkService: FirestoreNetworkService,
+    private val googleDriveClient: GoogleDriveClient
+) : AndroidViewModel(application) {
 
     private val _currentUser = MutableStateFlow(userPreferences.getUserProfile())
     val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
@@ -95,10 +101,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         _hasAcceptedTerms.value = true
     }
 
-    val networkService = FirestoreNetworkService(application)
-
-    private val googleDriveClient = GoogleDriveClient(application)
-
     private val guardExceptionHandler = CoroutineExceptionHandler { _, e ->
         Log.e("BwriterViewModel", "Guarded launch failed", e)
     }
@@ -107,8 +109,6 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch(guardExceptionHandler, block = block)
 
     init {
-        val db = BwriterDatabase.getDatabase(application)
-        repository = BwriterRepository(db)
         launchGuarded {
             refreshNetwork()
         }
@@ -1217,6 +1217,22 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                 .putLong(entry.fileId + "_ts", entry.lastSyncedTimestamp)
                 .apply()
             onReady(mId)
+        }
+    }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+                val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                return BwriterViewModel(
+                    application = application,
+                    repository = BwriterRepository(BwriterDatabase.getDatabase(application)),
+                    userPreferences = UserPreferences(application),
+                    networkService = FirestoreNetworkService(application),
+                    googleDriveClient = GoogleDriveClient(application)
+                ) as T
+            }
         }
     }
 

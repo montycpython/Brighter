@@ -69,7 +69,7 @@ import com.supernatural.bwriter.ui.viewmodel.BwriterViewModel
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: BwriterViewModel by viewModels()
+    private val viewModel: BwriterViewModel by viewModels { BwriterViewModel.Factory }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
