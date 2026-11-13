@@ -61,7 +61,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -1219,6 +1223,15 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
     private var refreshJob: kotlinx.coroutines.Job? = null
     private var lastRefreshEmail = ""
 
+    private suspend fun <T> fetchOrDefault(default: T, block: suspend () -> T): T =
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            default
+        }
+
     fun refreshNetwork() {
         refreshJob?.cancel()
         refreshJob = launchGuarded {
@@ -1279,72 +1292,104 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
 
             refreshAdFreeEntitlement()
 
-            _myUnits.value = if (_currentUser.value.email.isNotBlank()) {
-                networkService.fetchUnitsFor(_currentUser.value.email)
-            } else {
-                emptyList()
-            }
-
-            _studioTotals.value = if (_currentUser.value.email.isNotBlank()) {
-                networkService.fetchStudioTotals()
-            } else {
-                StudioTotals()
-            }
-
-            _systemConfig.value = if (_currentUser.value.email.isNotBlank()) {
-                networkService.fetchSystemConfig()
-            } else {
-                SystemAiConfig.update(StudioSystemConfig())
-                StudioSystemConfig()
-            }
-
-            _myPayoutRequests.value = if (_currentUser.value.email.isNotBlank()) {
-                networkService.fetchMyPayoutRequests()
-            } else {
-                emptyList()
+            val email = _currentUser.value.email
+            val signedIn = email.isNotBlank()
+            coroutineScope {
+                async {
+                    _myUnits.value = fetchOrDefault(emptyList()) {
+                        if (signedIn) networkService.fetchUnitsFor(email) else emptyList()
+                    }
+                }
+                val totals = async {
+                    _studioTotals.value = fetchOrDefault(StudioTotals()) {
+                        if (signedIn) networkService.fetchStudioTotals() else StudioTotals()
+                    }
+                }
+                async {
+                    _systemConfig.value = if (signedIn) {
+                        networkService.fetchSystemConfig()
+                    } else {
+                        SystemAiConfig.update(StudioSystemConfig())
+                        StudioSystemConfig()
+                    }
+                }
+                async {
+                    _myPayoutRequests.value = fetchOrDefault(emptyList()) {
+                        if (signedIn) networkService.fetchMyPayoutRequests() else emptyList()
+                    }
+                }
+                async {
+                    val indexResult = networkService.fetchGlobalBookIndex(_currentUser.value)
+                    if (indexResult.isSuccess) {
+                        _globalBookIndex.value = indexResult.getOrNull() ?: emptyList()
+                    }
+                }
+                async {
+                    val assignmentsForMe = networkService.fetchEditorAssignmentsForEditor(email)
+                    _myAssignments.value = assignmentsForMe
+                    val entries = assignmentsForMe.map { assignment ->
+                        async { networkService.fetchRegistryEntryById(assignment.fileId) }
+                    }.awaitAll()
+                    _assignedBooks.value = entries.filterNotNull()
+                }
+                async {
+                    val mailResult = networkService.fetchMailboxMessages(email)
+                    if (mailResult.isSuccess) {
+                        val msgs = mailResult.getOrNull() ?: emptyList()
+                        _mailboxMessages.value = msgs
+                        _driveSyncStatus.value = _driveSyncStatus.value.copy(unreadMailCount = msgs.count { !it.isRead })
+                    }
+                }
+                if (provenStanding) {
+                    async {
+                        _suspendedUsers.value = fetchOrDefault(emptyList()) { networkService.getSuspendedUsers() }
+                    }
+                    async {
+                        _pendingBooks.value = fetchOrDefault(emptyList()) {
+                            networkService.fetchPendingBooks().getOrNull() ?: emptyList()
+                        }
+                    }
+                    async {
+                        _pendingEditorAssignments.value = fetchOrDefault(emptyList()) { networkService.fetchPendingEditorAssignments() }
+                    }
+                    async {
+                        _siteUsers.value = fetchOrDefault(emptyList()) { networkService.fetchSiteUsers() }
+                    }
+                    async {
+                        _allIssuances.value = fetchOrDefault(emptyList()) { networkService.fetchAllIssuances() }
+                    }
+                    async {
+                        _claimedIssuanceIds.value = fetchOrDefault(emptySet()) { networkService.fetchAllClaimedIssuanceIds() }
+                    }
+                    async {
+                        _allEditorAssignments.value = fetchOrDefault(emptyList()) { networkService.fetchAllEditorAssignments() }
+                    }
+                    val pool = async {
+                        fetchOrDefault(0) { networkService.foldPurchasesIntoPool() }
+                        _poolEntries.value = fetchOrDefault(emptyList()) { networkService.fetchPoolEntries() }
+                        _poolTotals.value = fetchOrDefault(PoolTotals()) { networkService.fetchPoolTotals() }
+                    }
+                    async {
+                        _allUnits.value = fetchOrDefault(emptyList()) { networkService.fetchAllUnits() }
+                    }
+                    async {
+                        _allPayoutRequests.value = fetchOrDefault(emptyList()) { networkService.fetchAllPayoutRequests() }
+                    }
+                    async {
+                        _regentEmail.value = fetchOrDefault("") { networkService.fetchRegentEmail() }
+                    }
+                    async {
+                        totals.await()
+                        pool.await()
+                        fetchOrDefault(Unit) {
+                            networkService.publishStudioTotals()
+                            _studioTotals.value = networkService.fetchStudioTotals()
+                        }
+                    }
+                }
             }
             recomputeMyPayoutValue()
-
-            val indexResult = networkService.fetchGlobalBookIndex(_currentUser.value)
-            if (indexResult.isSuccess) {
-                _globalBookIndex.value = indexResult.getOrNull() ?: emptyList()
-            }
-
-            val assignmentsForMe = networkService.fetchEditorAssignmentsForEditor(_currentUser.value.email)
-            _myAssignments.value = assignmentsForMe
-            val assignedEntries = mutableListOf<GlobalBookIndexEntry>()
-            for (assignment in assignmentsForMe) {
-                networkService.fetchRegistryEntryById(assignment.fileId)?.let { assignedEntries.add(it) }
-            }
-            _assignedBooks.value = assignedEntries
-
-            val mailResult = networkService.fetchMailboxMessages(_currentUser.value.email)
-            if (mailResult.isSuccess) {
-                val msgs = mailResult.getOrNull() ?: emptyList()
-                _mailboxMessages.value = msgs
-                _driveSyncStatus.value = _driveSyncStatus.value.copy(unreadMailCount = msgs.count { !it.isRead })
-            }
-
-            if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) {
-                _suspendedUsers.value = networkService.getSuspendedUsers()
-                _pendingBooks.value = networkService.fetchPendingBooks().getOrNull() ?: emptyList()
-                _pendingEditorAssignments.value = networkService.fetchPendingEditorAssignments()
-                _siteUsers.value = networkService.fetchSiteUsers()
-                _allIssuances.value = networkService.fetchAllIssuances()
-                _claimedIssuanceIds.value = networkService.fetchAllClaimedIssuanceIds()
-                _allEditorAssignments.value = networkService.fetchAllEditorAssignments()
-                _poolEntries.value = networkService.fetchPoolEntries()
-                _poolTotals.value = networkService.fetchPoolTotals()
-                if (networkService.foldPurchasesIntoPool() > 0) {
-                    _poolEntries.value = networkService.fetchPoolEntries()
-                    _poolTotals.value = networkService.fetchPoolTotals()
-                }
-                _allUnits.value = networkService.fetchAllUnits()
-                networkService.publishStudioTotals()
-                _studioTotals.value = networkService.fetchStudioTotals()
-                _allPayoutRequests.value = networkService.fetchAllPayoutRequests()
-                recomputeMyPayoutValue()
-                _regentEmail.value = networkService.fetchRegentEmail()
+            if (provenStanding) {
                 _isRoot.value = _currentUser.value.email.isNotBlank() &&
                     (_regentEmail.value.isBlank() ||
                         !_currentUser.value.email.equals(_regentEmail.value, ignoreCase = true))
@@ -1357,6 +1402,7 @@ class BwriterViewModel(application: Application) : AndroidViewModel(application)
                     .map { it.displayName to it.email }
                 _registryAuthors.value = (directoryAuthors + indexAuthors).distinctBy { it.second }
             }
+
             } catch (t: Throwable) {
             }
 
