@@ -116,6 +116,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
 
     val currentUser by viewModel.currentUser.collectAsState()
     val adminUiState by viewModel.adminUiState.collectAsState()
+    val walletUiState by viewModel.walletUiState.collectAsState()
     val manuscripts by viewModel.manuscripts.collectAsState()
     val selectedFilter by viewModel.selectedWorkTypeFilter.collectAsState()
     val activeManuscript by viewModel.activeManuscript.collectAsState()
@@ -132,21 +133,14 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val driveSyncStatus by viewModel.driveSyncStatus.collectAsState()
     val globalBookIndex by viewModel.globalBookIndex.collectAsState()
     val mailboxMessages by viewModel.mailboxMessages.collectAsState()
-    val myPayoutRequests by viewModel.myPayoutRequests.collectAsState()
-    val myPayoutValueCents by viewModel.myPayoutValueCents.collectAsState()
     val visitingAdmin by viewModel.visitingAdmin.collectAsState()
     val activeSuspension by viewModel.activeSuspension.collectAsState()
     val hasAcceptedTerms by viewModel.hasAcceptedTerms.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val savedGoogleAccounts by viewModel.savedGoogleAccounts.collectAsState()
     val userSubscription by viewModel.userAiSubscription.collectAsState()
-    val tokenTransactions by viewModel.tokenTransactions.collectAsState()
     val showPaywall by viewModel.showPaywall.collectAsState()
-    val creditBalance by viewModel.creditBalance.collectAsState()
-    val unclaimedCredit by viewModel.unclaimedCredit.collectAsState()
-    val claimFailed by viewModel.claimFailed.collectAsState()
     val adFreeEntitled by viewModel.adFreeEntitled.collectAsState()
-    val billingPrices by viewModel.billingPrices.collectAsState()
     val billingMessage by viewModel.billingMessage.collectAsState()
     val aiGenerationFailed by viewModel.aiGenerationFailed.collectAsState()
     val assignedBooks by viewModel.assignedBooks.collectAsState()
@@ -462,8 +456,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                     isGeneratingAi = isGeneratingAiProse,
                     aiGenerationFailed = aiGenerationFailed,
                     isAssignedEditor = activeManuscript?.let { viewModel.isAssignedEditor(it) } ?: false,
-                    subscription = userSubscription,
-                    onOpenSubscription = { viewModel.openPaywall() },
+                            onOpenSubscription = { viewModel.openPaywall() },
                     onSaveAssignment = { sec, author, role, notes ->
                         viewModel.updateSectionAssignment(sec, author, role, notes)
                     },
@@ -702,20 +695,12 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
 
     if (showPaywall) {
         SubscriptionPaywallDialog(
+            state = walletUiState,
             subscription = userSubscription,
-            recentTransactions = tokenTransactions,
-            creditBalance = creditBalance,
-            unclaimedCredit = unclaimedCredit,
-            claimFailed = claimFailed,
-            adFreePrice = billingPrices[BillingProducts.AD_FREE_PRODUCT_ID] ?: "",
-            tokenPackPrice = billingPrices[BillingProducts.TOKENS_PRODUCT_ID] ?: "",
-            tokenBulkPrice = billingPrices[BillingProducts.TOKENS_100_PRODUCT_ID] ?: "",
             onBuyAdFree = { hostActivity?.let { viewModel.buyAdFree(it) } },
             onBuyTokens = { hostActivity?.let { viewModel.buyTokens(it) } },
             onBuyTokens100 = { hostActivity?.let { viewModel.buyTokens100(it) } },
             onBuyAdFreeWithCredit = { viewModel.buyAdFreeWithCredit(adsFreeStore) },
-            payoutValueCents = myPayoutValueCents,
-            myPayoutRequests = myPayoutRequests,
             onRequestPayout = { method, destination ->
                 viewModel.requestPayout(method, destination)
                 Toast.makeText(context, "Payout requested", Toast.LENGTH_SHORT).show()

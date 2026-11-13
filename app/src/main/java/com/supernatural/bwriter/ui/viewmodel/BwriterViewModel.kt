@@ -98,6 +98,31 @@ data class AdminUiState(
     val systemConfig: StudioSystemConfig = StudioSystemConfig()
 )
 
+data class WalletUiState(
+    val subscription: com.supernatural.bwriter.model.UserAiSubscription,
+    val recentTransactions: List<com.supernatural.bwriter.model.AiTokenTransaction> = emptyList(),
+    val creditBalance: Int = 0,
+    val unclaimedCredit: Int = 0,
+    val claimFailed: Boolean = false,
+    val billingPrices: Map<String, String> = emptyMap(),
+    val myPayoutValueCents: Long = 0L,
+    val myPayoutRequests: List<PayoutRequest> = emptyList()
+)
+
+private data class WalletGroupA(
+    val subscription: com.supernatural.bwriter.model.UserAiSubscription,
+    val recentTransactions: List<com.supernatural.bwriter.model.AiTokenTransaction>,
+    val creditBalance: Int,
+    val unclaimedCredit: Int,
+    val claimFailed: Boolean
+)
+
+private data class WalletGroupB(
+    val billingPrices: Map<String, String>,
+    val myPayoutValueCents: Long,
+    val myPayoutRequests: List<PayoutRequest>
+)
+
 private data class AdminGroupA(
     val currentUser: UserProfile,
     val globalBookIndex: List<GlobalBookIndexEntry>,
@@ -1129,6 +1154,26 @@ class BwriterViewModel(
 
     private val _myPayoutValueCents = MutableStateFlow(0L)
     val myPayoutValueCents: StateFlow<Long> = _myPayoutValueCents.asStateFlow()
+
+    val walletUiState: StateFlow<WalletUiState> = combine(
+        combine(userAiSubscription, tokenTransactions, creditBalance, unclaimedCredit, claimFailed) { a, b, c, d, e ->
+            WalletGroupA(a, b, c, d, e)
+        },
+        combine(billingPrices, myPayoutValueCents, myPayoutRequests) { a, b, c ->
+            WalletGroupB(a, b, c)
+        }
+    ) { a, b ->
+        WalletUiState(
+            subscription = a.subscription,
+            recentTransactions = a.recentTransactions,
+            creditBalance = a.creditBalance,
+            unclaimedCredit = a.unclaimedCredit,
+            claimFailed = a.claimFailed,
+            billingPrices = b.billingPrices,
+            myPayoutValueCents = b.myPayoutValueCents,
+            myPayoutRequests = b.myPayoutRequests
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WalletUiState(subscription = _userAiSubscription.value))
 
     private val _studioTotals = MutableStateFlow(StudioTotals())
     val studioTotals: StateFlow<StudioTotals> = _studioTotals.asStateFlow()

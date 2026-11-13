@@ -54,12 +54,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.supernatural.bwriter.data.BillingProducts
 import com.supernatural.bwriter.data.PayoutMethods
 import com.supernatural.bwriter.data.PayoutRequest
 import com.supernatural.bwriter.model.AiTokenTransaction
 import com.supernatural.bwriter.model.SubscriptionPlan
 import com.supernatural.bwriter.model.UserAiSubscription
 import com.supernatural.bwriter.ui.theme.BookGold
+import com.supernatural.bwriter.ui.viewmodel.WalletUiState
 import com.supernatural.bwriter.ui.theme.BookGoldDark
 import com.supernatural.bwriter.ui.theme.BookGoldLight
 import java.text.SimpleDateFormat
@@ -68,25 +70,26 @@ import java.util.Locale
 
 @Composable
 fun SubscriptionPaywallDialog(
-    subscription: UserAiSubscription,
-    recentTransactions: List<AiTokenTransaction> = emptyList(),
-    creditBalance: Int = 0,
-    unclaimedCredit: Int = 0,
-    claimFailed: Boolean = false,
+    state: WalletUiState,
     onClaimCredit: () -> Unit = {},
     onSendCredit: (String, Int) -> Unit = { _, _ -> },
-    adFreePrice: String = "",
-    tokenPackPrice: String = "",
-    tokenBulkPrice: String = "",
     onBuyAdFree: () -> Unit = {},
     onBuyTokens: () -> Unit = {},
     onBuyTokens100: () -> Unit = {},
     onBuyAdFreeWithCredit: () -> Unit = {},
-    payoutValueCents: Long = 0L,
-    myPayoutRequests: List<PayoutRequest> = emptyList(),
     onRequestPayout: (String, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit
 ) {
+    val subscription = state.subscription
+    val recentTransactions = state.recentTransactions
+    val creditBalance = state.creditBalance
+    val unclaimedCredit = state.unclaimedCredit
+    val claimFailed = state.claimFailed
+    val adFreePrice = state.billingPrices[BillingProducts.AD_FREE_PRODUCT_ID] ?: ""
+    val tokenPackPrice = state.billingPrices[BillingProducts.TOKENS_PRODUCT_ID] ?: ""
+    val tokenBulkPrice = state.billingPrices[BillingProducts.TOKENS_100_PRODUCT_ID] ?: ""
+    val payoutValueCents = state.myPayoutValueCents
+    val myPayoutRequests = state.myPayoutRequests
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Dialog(onDismissRequest = onDismiss) {
