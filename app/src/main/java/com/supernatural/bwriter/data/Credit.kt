@@ -40,16 +40,10 @@ data class CreditIssuance(
     val issuedAtMillis: Long = 0L,
     val prevIssuanceHash: String = "",
     val issuanceHash: String = "",
-    val signature: String = ""
+    val signature: String = "",
+    val bonus: Boolean = false
 )
 
-data class ApprovalCreditPreview(
-    val fileId: String = "",
-    val amount: Int = 0,
-    val authorEmail: String = "",
-    val authorIssuancePending: Boolean = false,
-    val authorAlreadyIssued: Boolean = false,
-    val editorEmails: List<String> = emptyList()
 )
 
 data class CreditTransfer(

@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderShared
-import com.supernatural.bwriter.data.ApprovalCreditPreview
 import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.data.PoolEntry
@@ -129,7 +128,7 @@ fun AdminGodModeDashboardScreen(
     onAppointEditor: (fileId: String, bookAuthorEmail: String, editorEmail: String, editorAddress: String) -> Unit = { _, _, _, _ -> },
     onSetRegent: (String) -> Unit = {},
     onClearRegent: () -> Unit = {},
-    onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
+    onGiveCredit: (String) -> Unit = {},
     onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
     onVestCurrentSeason: () -> Unit = {},
     onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> },
@@ -151,7 +150,6 @@ fun AdminGodModeDashboardScreen(
     val allIssuances = state.allIssuances
     val claimedIssuanceIds = state.claimedIssuanceIds
     val allEditorAssignments = state.allEditorAssignments
-    val approvalPreview = state.approvalPreview
     val poolEntries = state.poolEntries
     val poolTotals = state.poolTotals
     val allUnits = state.allUnits
@@ -305,8 +303,7 @@ fun AdminGodModeDashboardScreen(
                     allIssuances = allIssuances,
                     claimedIssuanceIds = claimedIssuanceIds,
                     allEditorAssignments = allEditorAssignments,
-                    approvalPreview = approvalPreview,
-                    onPreviewApproval = onPreviewApproval,
+                    onGiveCredit = onGiveCredit,
                     poolEntries = poolEntries,
                     poolTotals = poolTotals,
                     allUnits = allUnits,
@@ -614,8 +611,7 @@ fun MasterBookIndexTab(
     allIssuances: List<CreditIssuance> = emptyList(),
     claimedIssuanceIds: Set<String> = emptySet(),
     allEditorAssignments: List<EditorAssignment> = emptyList(),
-    approvalPreview: ApprovalCreditPreview? = null,
-    onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
+    onGiveCredit: (String) -> Unit = {},
     poolEntries: List<PoolEntry> = emptyList(),
     poolTotals: PoolTotals = PoolTotals(),
     allUnits: List<UnitGrant> = emptyList(),
@@ -671,36 +667,6 @@ fun MasterBookIndexTab(
                         color = Color(0xFFC8C2B7)
                     )
                     Spacer(modifier = Modifier.height(14.dp))
-                    val preview = approvalPreview?.takeIf { it.fileId == entry.fileId && it.amount > 0 }
-                    if (approve && preview != null) {
-                        val recipientCount = (if (preview.authorIssuancePending) 1 else 0) + preview.editorEmails.size
-                        Text(
-                            text = "Credit issued: ${preview.amount * recipientCount}",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BookGoldLight
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (preview.authorIssuancePending) {
-                                "Author ${preview.authorEmail}: ${preview.amount}"
-                            } else if (preview.authorAlreadyIssued) {
-                                "Author ${preview.authorEmail}: already issued"
-                            } else {
-                                "Author ${preview.authorEmail}: no address on file"
-                            },
-                            fontSize = 12.sp,
-                            color = Color(0xFFC8C2B7)
-                        )
-                        preview.editorEmails.forEach { editorEmail ->
-                            Text(
-                                text = "Editor $editorEmail: ${preview.amount}",
-                                fontSize = 12.sp,
-                                color = Color(0xFFC8C2B7)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(14.dp))
-                    }
                     if (approve) {
                         val unitsRecorded = allUnits.any {
                             it.fileId == entry.fileId && it.role == UnitRoles.AUTHOR
@@ -894,7 +860,7 @@ fun MasterBookIndexTab(
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                onClick = { onPreviewApproval(entry); decidingBook = entry to true },
+                                onClick = { decidingBook = entry to true },
                                 colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.testTag("btn_approve_${entry.fileId}")
@@ -923,6 +889,54 @@ fun MasterBookIndexTab(
             color = BookGoldLight
         )
         Spacer(modifier = Modifier.height(8.dp))
+
+        var giftEmail by remember { mutableStateOf("") }
+        if (isRoot) {
+            Text(
+                text = "Give credit",
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFF3EFE6)
+            )
+            Text(
+                text = "A gift from the chair, at the schedule amount for that author's mined claims. The author mines it like any other issuance.",
+                fontSize = 11.5.sp,
+                color = Color(0xFFB0A89C)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = giftEmail,
+                    onValueChange = { giftEmail = it },
+                    placeholder = { Text("Author email", fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    textStyle = TextStyle(fontSize = 12.sp, color = Color(0xFFF3EFE6)),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = BookGoldDark,
+                        unfocusedBorderColor = Color(0xFF444455),
+                        focusedContainerColor = Color(0xFF1B1B24),
+                        unfocusedContainerColor = Color(0xFF16161E)
+                    )
+                )
+                Button(
+                    onClick = {
+                        if (giftEmail.isNotBlank()) {
+                            onGiveCredit(giftEmail.trim())
+                            giftEmail = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BookGoldDark),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Give", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+        }
 
         if (allIssuances.isEmpty()) {
             Text(
@@ -1008,22 +1022,12 @@ fun MasterBookIndexTab(
             color = Color(0xFFB0A89C)
         )
         Text(
-            text = "Author pool ${formatCents(poolTotals.authorBalanceCents)}",
-            fontSize = 11.5.sp,
-            color = Color(0xFFB0A89C)
-        )
-        Text(
-            text = "Studio ${formatCents(poolTotals.studioBalanceCents)}",
-            fontSize = 11.5.sp,
-            color = Color(0xFFB0A89C)
-        )
-        Text(
-            text = "Settled ${formatCents(poolTotals.authorBalanceCents - poolTotals.authorUnsettledCents)}",
+            text = "Settled ${formatCents(poolTotals.balanceCents - poolTotals.unsettledCents)}",
             fontSize = 11.5.sp,
             color = Color(0xFFB0A89C)
         )
         val vestedUnits = allUnits.filter { it.vested }
-        val settledCents = poolTotals.authorBalanceCents - poolTotals.authorUnsettledCents
+        val settledCents = poolTotals.balanceCents - poolTotals.unsettledCents
         Text(
             text = "Total units (vested) ${vestedUnits.size}",
             fontSize = 11.5.sp,

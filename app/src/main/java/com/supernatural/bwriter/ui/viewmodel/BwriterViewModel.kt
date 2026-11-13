@@ -12,7 +12,6 @@ import androidx.lifecycle.viewModelScope
 import com.supernatural.bwriter.cmos.CmosLeafEngine
 import com.supernatural.bwriter.data.AuthorKeys
 import com.supernatural.bwriter.data.BookStamp
-import com.supernatural.bwriter.data.ApprovalCreditPreview
 import com.supernatural.bwriter.data.CreditChain
 import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.CreditSchedule
@@ -89,7 +88,6 @@ data class AdminUiState(
     val allIssuances: List<CreditIssuance> = emptyList(),
     val claimedIssuanceIds: Set<String> = emptySet(),
     val allEditorAssignments: List<EditorAssignment> = emptyList(),
-    val approvalPreview: ApprovalCreditPreview? = null,
     val poolEntries: List<PoolEntry> = emptyList(),
     val poolTotals: PoolTotals = PoolTotals(),
     val allUnits: List<UnitGrant> = emptyList(),
@@ -143,7 +141,6 @@ private data class AdminGroupC(
     val allIssuances: List<CreditIssuance>,
     val claimedIssuanceIds: Set<String>,
     val allEditorAssignments: List<EditorAssignment>,
-    val approvalPreview: ApprovalCreditPreview?,
     val poolEntries: List<PoolEntry>
 )
 
@@ -311,7 +308,6 @@ class BwriterViewModel(
         _allIssuances.value = emptyList()
         _claimedIssuanceIds.value = emptySet()
         _allEditorAssignments.value = emptyList()
-        _approvalPreview.value = null
         _poolEntries.value = emptyList()
         _poolTotals.value = PoolTotals()
         _allUnits.value = emptyList()
@@ -663,6 +659,18 @@ class BwriterViewModel(
             } else {
                 _approvalUnitsMessage.value = "Vesting season $seasonYear failed."
             }
+        }
+    }
+
+    fun giveCredit(recipientEmail: String, onDone: (Boolean) -> Unit = {}) {
+        if (!_isRoot.value) {
+            onDone(false)
+            return
+        }
+        launchGuarded {
+            val ok = networkService.issueGiftCredit(recipientEmail.trim())
+            if (ok) refreshNetwork()
+            onDone(ok)
         }
     }
 
@@ -1128,8 +1136,6 @@ class BwriterViewModel(
     private val _allEditorAssignments = MutableStateFlow<List<EditorAssignment>>(emptyList())
     val allEditorAssignments: StateFlow<List<EditorAssignment>> = _allEditorAssignments.asStateFlow()
 
-    private val _approvalPreview = MutableStateFlow<ApprovalCreditPreview?>(null)
-    val approvalPreview: StateFlow<ApprovalCreditPreview?> = _approvalPreview.asStateFlow()
 
     private val _poolEntries = MutableStateFlow<List<PoolEntry>>(emptyList())
     val poolEntries: StateFlow<List<PoolEntry>> = _poolEntries.asStateFlow()
@@ -1188,8 +1194,8 @@ class BwriterViewModel(
         combine(pendingEditorAssignments, registryAuthors, siteUsers, regentEmail, isRoot) { a, b, c, d, e ->
             AdminGroupB(a, b, c, d, e)
         },
-        combine(allIssuances, claimedIssuanceIds, allEditorAssignments, approvalPreview, poolEntries) { a, b, c, d, e ->
-            AdminGroupC(a, b, c, d, e)
+        combine(allIssuances, claimedIssuanceIds, allEditorAssignments, poolEntries) { a, b, c, d ->
+            AdminGroupC(a, b, c, d)
         },
         combine(poolTotals, allUnits, approvalUnitsMessage, allPayoutRequests, systemConfig) { a, b, c, d, e ->
             AdminGroupD(a, b, c, d, e)
@@ -1209,7 +1215,6 @@ class BwriterViewModel(
             allIssuances = c.allIssuances,
             claimedIssuanceIds = c.claimedIssuanceIds,
             allEditorAssignments = c.allEditorAssignments,
-            approvalPreview = c.approvalPreview,
             poolEntries = c.poolEntries,
             poolTotals = d.poolTotals,
             allUnits = d.allUnits,
@@ -1416,8 +1421,7 @@ class BwriterViewModel(
                 _allIssuances.value = emptyList()
                 _claimedIssuanceIds.value = emptySet()
                 _allEditorAssignments.value = emptyList()
-                _approvalPreview.value = null
-                _poolEntries.value = emptyList()
+                        _poolEntries.value = emptyList()
                 _poolTotals.value = PoolTotals()
                 _allUnits.value = emptyList()
                 _approvalUnitsMessage.value = null
@@ -1642,9 +1646,7 @@ class BwriterViewModel(
                     if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief && entry != null &&
                         entry.authorEmail.equals(_currentUser.value.email, ignoreCase = true)
                     ) {
-                        if (networkService.issueCredit(entry)) {
-                            networkService.recordApprovalUnits(entry)
-                        }
+                        networkService.recordApprovalUnits(entry)
                     }
                     val payload = networkService.buildPayloadJson(
                         fullyStamped, sections, characters, settings, comments, _currentUser.value, isPublicInCommunity
@@ -1897,13 +1899,6 @@ class BwriterViewModel(
                 refreshNetwork()
             }
             onDone(result.isSuccess)
-        }
-    }
-
-    fun previewApprovalCredit(entry: GlobalBookIndexEntry) {
-        _approvalPreview.value = null
-        launchGuarded {
-            _approvalPreview.value = networkService.previewApprovalCredit(entry)
         }
     }
 

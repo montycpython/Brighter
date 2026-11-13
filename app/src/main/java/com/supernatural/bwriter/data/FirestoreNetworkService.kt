@@ -563,11 +563,6 @@ class FirestoreNetworkService(private val context: Context) {
                 return@withContext Result.failure(IllegalStateException("Author stamp verification failed."))
             }
 
-            if (!issueCredit(entry)) {
-                return@withContext Result.failure(
-                    IllegalStateException("Credit issuance failed; approval not completed. Try again.")
-                )
-            }
             lastApprovalUnitsResult = recordApprovalUnits(entry)
             val batch = db.batch()
             batch.set(db.collection(COL_REGISTRY).document(fileId), registryToMap(entry))
@@ -654,40 +649,22 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchIssuancesFor(email: String): List<CreditIssuance> =
         fetchIssuancesForResult(email).getOrDefault(emptyList())
 
-    suspend fun issueCredit(entry: GlobalBookIndexEntry): Boolean {
-        if (!StudioStanding.isEditorInChief) return false
-        return try {
-            val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
-                .whereEqualTo("fileId", entry.fileId).get().await()
-                .documents.mapNotNull { docToIssuance(it.data) }
-            val existingAuthorIssuance = existingForBook.firstOrNull {
-                it.kind == "AUTHOR" && it.authorEmail == normEmail(entry.authorEmail)
-            }
-
-            val amount = existingAuthorIssuance?.amount
-                ?: CreditSchedule.amountForApproval(
-                    priorMinedClaimsFor(entry.authorEmail)
-                )
-
-            if (existingAuthorIssuance == null && entry.authorAddress.isNotBlank()) {
-                writeIssuance(entry.authorEmail, entry.authorAddress, amount, "AUTHOR", entry)
-            }
-            fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
-                if (existingForBook.any { it.kind == "EDITOR" && it.authorEmail == normEmail(assignment.editorEmail) }) return@forEach
-                val editorAddress = assignment.editorAddress.ifBlank {
-                    db.collection(COL_REGISTRY)
-                        .whereEqualTo("authorEmailLower", normEmail(assignment.editorEmail)).get().await()
-                        .documents.mapNotNull { docToRegistry(it.data) }
-                        .firstOrNull { it.authorAddress.isNotBlank() }
-                        ?.authorAddress.orEmpty()
-                }
-                if (editorAddress.isNotBlank()) {
-                    writeIssuance(assignment.editorEmail, editorAddress, amount, "EDITOR", entry)
-                }
-            }
+    suspend fun issueGiftCredit(recipientEmail: String): Boolean = withContext(Dispatchers.IO) {
+        if (!StudioStanding.isEditorInChief) return@withContext false
+        try {
+            val email = normEmail(recipientEmail)
+            if (email.isBlank()) return@withContext false
+            val address = db.collection(COL_REGISTRY)
+                .whereEqualTo("authorEmailLower", email).get().await()
+                .documents.mapNotNull { docToRegistry(it.data) }
+                .firstOrNull { it.authorAddress.isNotBlank() }
+                ?.authorAddress.orEmpty()
+            if (address.isBlank()) return@withContext false
+            val amount = CreditSchedule.amountForApproval(priorMinedClaimsFor(email))
+            writeIssuance(email, address, amount, "BONUS", GlobalBookIndexEntry(), bonus = true)
             true
         } catch (e: Exception) {
-            Log.e("FirestoreNetwork", "Credit issuance failed", e)
+            Log.e("FirestoreNetwork", "Gift credit issuance failed", e)
             false
         }
     }
@@ -1280,77 +1257,6 @@ class FirestoreNetworkService(private val context: Context) {
             }
         }
 
-    suspend fun previewApprovalCredit(entry: GlobalBookIndexEntry): ApprovalCreditPreview {
-        if (!StudioStanding.isEditorInChief) return ApprovalCreditPreview(fileId = entry.fileId)
-        return try {
-            val existingForBook = db.collection(COL_CREDIT_ISSUANCES)
-                .whereEqualTo("fileId", entry.fileId).get().await()
-                .documents.mapNotNull { docToIssuance(it.data) }
-            val existingAuthorIssuance = existingForBook.firstOrNull {
-                it.kind == "AUTHOR" && it.authorEmail == normEmail(entry.authorEmail)
-            }
-            val amount = existingAuthorIssuance?.amount
-                ?: CreditSchedule.amountForApproval(
-                    priorMinedClaimsFor(entry.authorEmail)
-                )
-            val editorEmails = mutableListOf<String>()
-            fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
-                if (existingForBook.any { it.kind == "EDITOR" && it.authorEmail == normEmail(assignment.editorEmail) }) return@forEach
-                val editorAddress = assignment.editorAddress.ifBlank {
-                    db.collection(COL_REGISTRY)
-                        .whereEqualTo("authorEmailLower", normEmail(assignment.editorEmail)).get().await()
-                        .documents.mapNotNull { docToRegistry(it.data) }
-                        .firstOrNull { it.authorAddress.isNotBlank() }
-                        ?.authorAddress.orEmpty()
-                }
-                if (editorAddress.isNotBlank()) editorEmails.add(normEmail(assignment.editorEmail))
-            }
-            ApprovalCreditPreview(
-                fileId = entry.fileId,
-                amount = amount,
-                authorEmail = normEmail(entry.authorEmail),
-                authorIssuancePending = existingAuthorIssuance == null && entry.authorAddress.isNotBlank(),
-                authorAlreadyIssued = existingAuthorIssuance != null,
-                editorEmails = editorEmails
-            )
-        } catch (e: Exception) {
-            Log.e("FirestoreNetwork", "Preview approval credit failed", e)
-            ApprovalCreditPreview(fileId = entry.fileId)
-        }
-    }
-
-    private suspend fun writeIssuance(
-        recipientEmail: String,
-        recipientAddress: String,
-        amount: Int,
-        kind: String,
-        entry: GlobalBookIndexEntry
-    ) {
-        val lock = issuanceLocks.getOrPut(normEmail(recipientEmail)) { Mutex() }
-        lock.withLock {
-            val recipientIssuances = fetchIssuancesFor(recipientEmail)
-            val prevHash = recipientIssuances
-                .maxWithOrNull(compareBy<CreditIssuance> { it.issuedAtMillis }.thenBy { it.issuanceHash })
-                ?.issuanceHash ?: ""
-            val issuedAt = System.currentTimeMillis()
-            val hash = CreditChain.issuanceHashFor(prevHash, recipientAddress, amount, entry.fileId, issuedAt)
-            val issuance = CreditIssuance(
-                id = hash,
-                authorEmail = normEmail(recipientEmail),
-                authorAddress = recipientAddress,
-                amount = amount,
-                kind = kind,
-                fileId = entry.fileId,
-                birthId = entry.birthId,
-                issuedAtMillis = issuedAt,
-                prevIssuanceHash = prevHash,
-                issuanceHash = hash,
-                signature = AuthorKeys.sign(context, hash)
-            )
-            db.collection(COL_CREDIT_ISSUANCES).document(hash).set(issuanceToMap(issuance)).await()
-        }
-    }
-
     suspend fun fetchClaimedIssuanceIdsResult(email: String): Result<Set<String>> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CREDIT_CLAIMS)
@@ -1400,7 +1306,8 @@ class FirestoreNetworkService(private val context: Context) {
             issuedAtMillis = (data["issuedAtMillis"] as? Number)?.toLong() ?: 0L,
             prevIssuanceHash = data["prevIssuanceHash"] as? String ?: "",
             issuanceHash = hash,
-            signature = data["signature"] as? String ?: ""
+            signature = data["signature"] as? String ?: "",
+            bonus = data["bonus"] as? Boolean ?: false
         )
     }
 
@@ -1415,7 +1322,8 @@ class FirestoreNetworkService(private val context: Context) {
         "issuedAtMillis" to i.issuedAtMillis,
         "prevIssuanceHash" to i.prevIssuanceHash,
         "issuanceHash" to i.issuanceHash,
-        "signature" to i.signature
+        "signature" to i.signature,
+        "bonus" to i.bonus
     )
 
 

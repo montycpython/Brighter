@@ -634,7 +634,11 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
                         Toast.makeText(context, if (ok) "Book not approved" else "Rejection failed — book is still pending", Toast.LENGTH_SHORT).show()
                     }
                 },
-                onPreviewApproval = { entry -> viewModel.previewApprovalCredit(entry) },
+                onGiveCredit = { email ->
+                    viewModel.giveCredit(email) { ok ->
+                        Toast.makeText(context, if (ok) "Credit given" else "Credit could not be given", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 onSetPayoutRequestStatus = { request, status ->
                     viewModel.setPayoutRequestStatus(request, status)
                     Toast.makeText(context, if (status == PayoutStatuses.SENT) "Payout marked sent" else "Payout request updated", Toast.LENGTH_SHORT).show()
