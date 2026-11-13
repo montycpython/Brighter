@@ -58,6 +58,7 @@ import com.supernatural.bwriter.ui.screens.SyncToGoogleDriveDialog
 import com.supernatural.bwriter.ui.screens.UserAgreementScreen
 import com.supernatural.bwriter.ui.theme.BwriterTheme
 import com.google.android.gms.ads.MobileAds
+import kotlinx.coroutines.delay
 import com.supernatural.bwriter.ui.ads.AdBannerBar
 import com.supernatural.bwriter.data.BillingManager
 import com.supernatural.bwriter.data.BillingProducts
@@ -76,9 +77,12 @@ class MainActivity : ComponentActivity() {
             com.google.firebase.FirebaseApp.initializeApp(this)
         } catch (t: Throwable) {
         }
-        try {
-            MobileAds.initialize(this) {}
-        } catch (t: Throwable) {
+        // Deferred until after the first frame: SDK setup stays off the startup path.
+        window.decorView.post {
+            try {
+                MobileAds.initialize(this) {}
+            } catch (t: Throwable) {
+            }
         }
         enableEdgeToEdge()
         setContent {
@@ -242,6 +246,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     val hostActivity = context as? Activity
     var previousRoute by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
+        delay(1500)
         InterstitialAds.preload(context)
     }
     LaunchedEffect(currentRoute) {

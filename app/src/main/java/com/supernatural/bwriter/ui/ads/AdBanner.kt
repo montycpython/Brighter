@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -68,15 +70,20 @@ class AdsFreeStore(context: Context) {
 
 @Composable
 fun BannerAd(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val adSize = remember {
+        AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, AdSize.FULL_WIDTH)
+    }
+    val slotHeight = with(LocalDensity.current) { adSize.getHeightInPixels(context).toDp() }
     AndroidView(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().height(slotHeight),
         factory = { ctx ->
             AdView(ctx).apply {
-                setAdSize(
-                    AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, AdSize.FULL_WIDTH)
-                )
+                setAdSize(adSize)
                 adUnitId = AdsConfig.BANNER_AD_UNIT_ID
-                loadAd(AdRequest.Builder().build())
+                // The slot height is reserved above, so the ad can load a beat
+                // after the first frame without moving the layout.
+                postDelayed({ loadAd(AdRequest.Builder().build()) }, 600)
             }
         }
     )
