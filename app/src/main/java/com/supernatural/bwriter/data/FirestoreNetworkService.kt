@@ -2,7 +2,10 @@ package com.supernatural.bwriter.data
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.supernatural.bwriter.model.BookVersionSnapshot
 import com.supernatural.bwriter.model.GlobalBookIndexEntry
@@ -20,10 +23,12 @@ import com.supernatural.bwriter.model.UserProfile
 import com.supernatural.bwriter.model.WorkRole
 import com.supernatural.bwriter.model.WorkType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -75,6 +80,20 @@ class FirestoreNetworkService(private val context: Context) {
 
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
+    private suspend fun Query.getAwait(): QuerySnapshot =
+        try {
+            withTimeout(READ_TIMEOUT_MS) { get().await() }
+        } catch (e: TimeoutCancellationException) {
+            throw IllegalStateException("Firestore read timed out", e)
+        }
+
+    private suspend fun DocumentReference.getAwait(): DocumentSnapshot =
+        try {
+            withTimeout(READ_TIMEOUT_MS) { get().await() }
+        } catch (e: TimeoutCancellationException) {
+            throw IllegalStateException("Firestore read timed out", e)
+        }
+
     companion object {
         const val DEFAULT_STUDIO_AUTHOR_EMAIL = "author.studio@bwriter.io"
 
@@ -89,6 +108,7 @@ class FirestoreNetworkService(private val context: Context) {
         private const val COL_CREDIT_ISSUANCES = "creditIssuances"
         private const val COL_CREDIT_TRANSFERS = "creditTransfers"
         private const val COL_CREDIT_SPENDS = "creditSpends"
+        private const val READ_TIMEOUT_MS = 15_000L
         private val VOLATILE_PAYLOAD_KEYS = setOf("updatedAt", "timestamp", "stampHash", "prevStampHash", "stampSignature", "revisionTimestamp")
         private const val COL_CREDIT_CLAIMS = "creditClaims"
         private const val COL_EDITOR_ASSIGNMENTS = "editorAssignments"
@@ -122,7 +142,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun checkUserSuspension(email: String): SuspendedUserEntry? = withContext(Dispatchers.IO) {
         try {
-            val doc = db.collection(COL_SUSPENDED).document(normEmail(email)).get().await()
+            val doc = db.collection(COL_SUSPENDED).document(normEmail(email)).getAwait()
             val entry = if (doc.exists()) docToSuspended(doc.data) else null
             if (entry != null && entry.isLockedOut) entry else null
         } catch (e: Exception) {
@@ -377,13 +397,13 @@ class FirestoreNetworkService(private val context: Context) {
         try {
             val isEditorInChief = StudioStanding.isEditorInChief
             val allEntries = if (isEditorInChief) {
-                db.collection(COL_REGISTRY).get().await()
+                db.collection(COL_REGISTRY).getAwait()
                     .documents.mapNotNull { docToRegistry(it.data) }
             } else {
                 val publicDocs = db.collection(COL_REGISTRY)
-                    .whereEqualTo("isPublicInCommunity", true).get().await().documents
+                    .whereEqualTo("isPublicInCommunity", true).getAwait().documents
                 val ownDocs = db.collection(COL_REGISTRY)
-                    .whereEqualTo("authorEmailLower", normEmail(currentUser.email)).get().await().documents
+                    .whereEqualTo("authorEmailLower", normEmail(currentUser.email)).getAwait().documents
                 (publicDocs + ownDocs).mapNotNull { docToRegistry(it.data) }
                     .distinctBy { it.fileId }
             }
@@ -501,7 +521,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun fetchPendingBooks(): Result<List<GlobalBookIndexEntry>> = withContext(Dispatchers.IO) {
         try {
-            val snap = db.collection(COL_PENDING).get().await()
+            val snap = db.collection(COL_PENDING).getAwait()
             val entries = snap.documents.mapNotNull { docToRegistry(it.data) }
             Result.success(entries.sortedByDescending { it.lastSyncedTimestamp })
         } catch (e: Exception) {
@@ -612,7 +632,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchIssuancesForResult(email: String): Result<List<CreditIssuance>> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CREDIT_ISSUANCES)
-                .whereEqualTo("authorEmail", normEmail(email)).get().await()
+                .whereEqualTo("authorEmail", normEmail(email)).getAwait()
             Result.success(
                 snap.documents.mapNotNull { docToIssuance(it.data) }
                     .sortedBy { it.issuedAtMillis }
@@ -667,7 +687,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchAllIssuances(): List<CreditIssuance> = withContext(Dispatchers.IO) {
         if (!StudioStanding.isEditorInChief) return@withContext emptyList()
         try {
-            val snap = db.collection(COL_CREDIT_ISSUANCES).get().await()
+            val snap = db.collection(COL_CREDIT_ISSUANCES).getAwait()
             snap.documents.mapNotNull { docToIssuance(it.data) }
                 .sortedByDescending { it.issuedAtMillis }
         } catch (e: Exception) {
@@ -679,7 +699,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchAllClaimedIssuanceIds(): Set<String> = withContext(Dispatchers.IO) {
         if (!StudioStanding.isEditorInChief) return@withContext emptySet()
         try {
-            val snap = db.collection(COL_CREDIT_CLAIMS).get().await()
+            val snap = db.collection(COL_CREDIT_CLAIMS).getAwait()
             snap.documents.mapNotNull { it.getString("issuanceHash") }.toSet()
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch all credit claims failed", e)
@@ -689,7 +709,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun fetchAllEditorAssignments(): List<EditorAssignment> = withContext(Dispatchers.IO) {
         try {
-            val snap = db.collection(COL_EDITOR_ASSIGNMENTS).get().await()
+            val snap = db.collection(COL_EDITOR_ASSIGNMENTS).getAwait()
             snap.documents.mapNotNull { docToAssignment(it.data) }
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch all editor assignments failed", e)
@@ -734,7 +754,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchPoolEntries(): List<PoolEntry> = withContext(Dispatchers.IO) {
         if (!StudioStanding.isEditorInChief) return@withContext emptyList()
         try {
-            val snap = db.collection(COL_POOL_ENTRIES).get().await()
+            val snap = db.collection(COL_POOL_ENTRIES).getAwait()
             snap.documents.mapNotNull { docToPoolEntry(it.data) }
                 .sortedBy { it.createdAtMillis }
         } catch (e: Exception) {
@@ -771,7 +791,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchStudioTotals(): StudioTotals = withContext(Dispatchers.IO) {
         try {
             val data = db.collection(COL_STUDIO_TOTALS).document(DOC_STUDIO_TOTALS_CURRENT)
-                .get().await().data
+                .getAwait().data
             docToStudioTotals(data)
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch studio totals failed", e)
@@ -782,7 +802,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchSystemConfig(): StudioSystemConfig = withContext(Dispatchers.IO) {
         try {
             val data = db.collection(COL_STUDIO_CONFIG).document(DOC_STUDIO_SYSTEM)
-                .get().await().data
+                .getAwait().data
             val config = docToSystemConfig(data)
             SystemAiConfig.update(config)
             config
@@ -1041,7 +1061,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchAllUnits(): List<UnitGrant> = withContext(Dispatchers.IO) {
         if (!StudioStanding.isEditorInChief) return@withContext emptyList()
         try {
-            val snap = db.collection(COL_SHARE_UNITS).get().await()
+            val snap = db.collection(COL_SHARE_UNITS).getAwait()
             snap.documents.mapNotNull { docToUnitGrant(it.data) }
                 .sortedWith(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
         } catch (e: Exception) {
@@ -1053,7 +1073,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchUnitsFor(email: String): List<UnitGrant> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_SHARE_UNITS)
-                .whereEqualTo("holderEmail", normEmail(email)).get().await()
+                .whereEqualTo("holderEmail", normEmail(email)).getAwait()
             snap.documents.mapNotNull { docToUnitGrant(it.data) }
                 .sortedWith(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
         } catch (e: Exception) {
@@ -1148,7 +1168,7 @@ class FirestoreNetworkService(private val context: Context) {
     private suspend fun fetchPayoutRequestsFor(email: String): List<PayoutRequest> {
         return try {
             val snap = db.collection(COL_PAYOUT_REQUESTS)
-                .whereEqualTo("requesterEmail", normEmail(email)).get().await()
+                .whereEqualTo("requesterEmail", normEmail(email)).getAwait()
             snap.documents.mapNotNull { docToPayoutRequest(it.data) }
                 .sortedWith(compareByDescending<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
         } catch (e: Exception) {
@@ -1167,7 +1187,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchAllPayoutRequests(): List<PayoutRequest> = withContext(Dispatchers.IO) {
         if (!StudioStanding.isEditorInChief) return@withContext emptyList()
         try {
-            val snap = db.collection(COL_PAYOUT_REQUESTS).get().await()
+            val snap = db.collection(COL_PAYOUT_REQUESTS).getAwait()
             snap.documents.mapNotNull { docToPayoutRequest(it.data) }
                 .sortedWith(compareByDescending<PayoutRequest> { it.createdAtMillis }.thenBy { it.requestHash })
         } catch (e: Exception) {
@@ -1295,7 +1315,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchClaimedIssuanceIdsResult(email: String): Result<Set<String>> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_CREDIT_CLAIMS)
-                .whereEqualTo("authorEmail", normEmail(email)).get().await()
+                .whereEqualTo("authorEmail", normEmail(email)).getAwait()
             Result.success(snap.documents.mapNotNull { it.getString("issuanceHash") }.toSet())
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch credit claims failed", e)
@@ -1484,10 +1504,10 @@ class FirestoreNetworkService(private val context: Context) {
         try {
             val normalized = normEmail(email)
             val sent = db.collection(COL_CREDIT_TRANSFERS)
-                .whereEqualTo("fromEmail", normalized).get().await()
+                .whereEqualTo("fromEmail", normalized).getAwait()
                 .documents.mapNotNull { docToTransfer(it.data) }
             val received = db.collection(COL_CREDIT_TRANSFERS)
-                .whereEqualTo("toEmail", normalized).get().await()
+                .whereEqualTo("toEmail", normalized).getAwait()
                 .documents.mapNotNull { docToTransfer(it.data) }
             Result.success((sent + received).distinctBy { it.transferHash })
         } catch (e: Exception) {
@@ -1567,7 +1587,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchSpendsFor(email: String): List<CreditSpend> = withContext(Dispatchers.IO) {
         try {
             db.collection(COL_CREDIT_SPENDS)
-                .whereEqualTo("fromEmail", normEmail(email)).get().await()
+                .whereEqualTo("fromEmail", normEmail(email)).getAwait()
                 .documents.mapNotNull { docToSpend(it.data) }
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch credit spends failed", e)
@@ -1578,7 +1598,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchSpendsForResult(email: String): Result<List<CreditSpend>> = withContext(Dispatchers.IO) {
         try {
             val spends = db.collection(COL_CREDIT_SPENDS)
-                .whereEqualTo("fromEmail", normEmail(email)).get().await()
+                .whereEqualTo("fromEmail", normEmail(email)).getAwait()
                 .documents.mapNotNull { docToSpend(it.data) }
             Result.success(spends.distinctBy { it.spendHash })
         } catch (e: Exception) {
@@ -1671,7 +1691,7 @@ class FirestoreNetworkService(private val context: Context) {
         try {
             val snap = db.collection(COL_EDITOR_ASSIGNMENTS)
                 .whereEqualTo("editorEmail", normEmail(email))
-                .whereEqualTo("status", "APPROVED").get().await()
+                .whereEqualTo("status", "APPROVED").getAwait()
             snap.documents.mapNotNull { docToAssignment(it.data) }
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch editor assignments for editor failed", e)
@@ -1681,7 +1701,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun fetchRegistryEntryById(fileId: String): GlobalBookIndexEntry? = withContext(Dispatchers.IO) {
         try {
-            val doc = db.collection(COL_REGISTRY).document(fileId).get().await()
+            val doc = db.collection(COL_REGISTRY).document(fileId).getAwait()
             if (doc.exists()) docToRegistry(doc.data) else null
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch registry entry failed", e)
@@ -1712,7 +1732,7 @@ class FirestoreNetworkService(private val context: Context) {
     suspend fun fetchPendingEditorAssignments(): List<EditorAssignment> = withContext(Dispatchers.IO) {
         try {
             val snap = db.collection(COL_EDITOR_ASSIGNMENTS)
-                .whereEqualTo("status", "PENDING").get().await()
+                .whereEqualTo("status", "PENDING").getAwait()
             snap.documents.mapNotNull { docToAssignment(it.data) }
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Fetch pending editor assignments failed", e)
@@ -1771,7 +1791,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun fetchSiteUsers(): List<SiteUser> = withContext(Dispatchers.IO) {
         try {
-            val snap = db.collection(COL_USERS).get().await()
+            val snap = db.collection(COL_USERS).getAwait()
             snap.documents.mapNotNull { docToSiteUser(it.data) }
                 .sortedByDescending { it.lastSeenAtMillis }
         } catch (e: Exception) {
@@ -1843,7 +1863,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun verifyEditorInChief(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val snap = db.collection(COL_STUDIO_CONFIG).document("main").get().await()
+            val snap = db.collection(COL_STUDIO_CONFIG).document("main").getAwait()
             snap.exists()
         } catch (e: Exception) {
             false
@@ -1852,7 +1872,7 @@ class FirestoreNetworkService(private val context: Context) {
 
     suspend fun fetchRegentEmail(): String = withContext(Dispatchers.IO) {
         try {
-            val snap = db.collection(COL_STUDIO_CONFIG).document("regency").get().await()
+            val snap = db.collection(COL_STUDIO_CONFIG).document("regency").getAwait()
             snap.getString("regentEmail") ?: ""
         } catch (e: Exception) {
             ""
@@ -1889,7 +1909,7 @@ class FirestoreNetworkService(private val context: Context) {
     private suspend fun fetchMailboxFor(email: String): List<ServerlessMailMessage> {
         val snap: QuerySnapshot = db.collection(COL_MAIL)
             .whereEqualTo("recipientEmail", normEmail(email))
-            .get().await()
+            .getAwait()
         return snap.documents.mapNotNull { docToMail(it.data) }.sortedByDescending { it.timestamp }
     }
 
