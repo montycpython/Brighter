@@ -3,12 +3,12 @@ package com.supernatural.bwriter.data
 import java.security.MessageDigest
 
 object CreditSchedule {
-    const val BASE_AMOUNT = 100
+    const val BASE_AMOUNT = 50
     const val HALVING_INTERVAL = 4
     const val BASE_DIFFICULTY_BITS = 20
 
-    fun amountForApproval(priorAuthorApprovals: Int): Int {
-        val era = priorAuthorApprovals / HALVING_INTERVAL
+    fun amountForApproval(priorMinedClaims: Int): Int {
+        val era = priorMinedClaims / HALVING_INTERVAL
         if (era >= 31) return 1
         return maxOf(1, BASE_AMOUNT shr era)
     }

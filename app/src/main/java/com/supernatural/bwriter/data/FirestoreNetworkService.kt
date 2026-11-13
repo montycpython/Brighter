@@ -643,6 +643,14 @@ class FirestoreNetworkService(private val context: Context) {
         }
     }
 
+    private suspend fun priorMinedClaimsFor(authorEmail: String): Int {
+        val claimedIds = fetchAllClaimedIssuanceIds()
+        if (claimedIds.isEmpty()) return 0
+        return fetchIssuancesFor(authorEmail)
+            .filter { it.kind == "AUTHOR" }
+            .count { (it.issuanceHash.ifBlank { it.id }) in claimedIds }
+    }
+
     suspend fun fetchIssuancesFor(email: String): List<CreditIssuance> =
         fetchIssuancesForResult(email).getOrDefault(emptyList())
 
@@ -658,7 +666,7 @@ class FirestoreNetworkService(private val context: Context) {
 
             val amount = existingAuthorIssuance?.amount
                 ?: CreditSchedule.amountForApproval(
-                    fetchIssuancesFor(entry.authorEmail).count { it.kind == "AUTHOR" }
+                    priorMinedClaimsFor(entry.authorEmail)
                 )
 
             if (existingAuthorIssuance == null && entry.authorAddress.isNotBlank()) {
@@ -1283,7 +1291,7 @@ class FirestoreNetworkService(private val context: Context) {
             }
             val amount = existingAuthorIssuance?.amount
                 ?: CreditSchedule.amountForApproval(
-                    fetchIssuancesFor(entry.authorEmail).count { it.kind == "AUTHOR" }
+                    priorMinedClaimsFor(entry.authorEmail)
                 )
             val editorEmails = mutableListOf<String>()
             fetchApprovedEditorAssignments(entry.fileId).forEach { assignment ->
