@@ -75,6 +75,61 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
+data class AdminUiState(
+    val currentUser: UserProfile,
+    val globalBookIndex: List<GlobalBookIndexEntry> = emptyList(),
+    val suspendedUsers: List<SuspendedUserEntry> = emptyList(),
+    val pendingBooks: List<GlobalBookIndexEntry> = emptyList(),
+    val mailboxMessages: List<ServerlessMailMessage> = emptyList(),
+    val pendingEditorAssignments: List<EditorAssignment> = emptyList(),
+    val registryAuthors: List<Pair<String, String>> = emptyList(),
+    val siteUsers: List<SiteUser> = emptyList(),
+    val regentEmail: String = "",
+    val isRoot: Boolean = false,
+    val allIssuances: List<CreditIssuance> = emptyList(),
+    val claimedIssuanceIds: Set<String> = emptySet(),
+    val allEditorAssignments: List<EditorAssignment> = emptyList(),
+    val approvalPreview: ApprovalCreditPreview? = null,
+    val poolEntries: List<PoolEntry> = emptyList(),
+    val poolTotals: PoolTotals = PoolTotals(),
+    val allUnits: List<UnitGrant> = emptyList(),
+    val approvalUnitsMessage: String? = null,
+    val allPayoutRequests: List<PayoutRequest> = emptyList(),
+    val systemConfig: StudioSystemConfig = StudioSystemConfig()
+)
+
+private data class AdminGroupA(
+    val currentUser: UserProfile,
+    val globalBookIndex: List<GlobalBookIndexEntry>,
+    val suspendedUsers: List<SuspendedUserEntry>,
+    val pendingBooks: List<GlobalBookIndexEntry>,
+    val mailboxMessages: List<ServerlessMailMessage>
+)
+
+private data class AdminGroupB(
+    val pendingEditorAssignments: List<EditorAssignment>,
+    val registryAuthors: List<Pair<String, String>>,
+    val siteUsers: List<SiteUser>,
+    val regentEmail: String,
+    val isRoot: Boolean
+)
+
+private data class AdminGroupC(
+    val allIssuances: List<CreditIssuance>,
+    val claimedIssuanceIds: Set<String>,
+    val allEditorAssignments: List<EditorAssignment>,
+    val approvalPreview: ApprovalCreditPreview?,
+    val poolEntries: List<PoolEntry>
+)
+
+private data class AdminGroupD(
+    val poolTotals: PoolTotals,
+    val allUnits: List<UnitGrant>,
+    val approvalUnitsMessage: String?,
+    val allPayoutRequests: List<PayoutRequest>,
+    val systemConfig: StudioSystemConfig
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class BwriterViewModel(
     application: Application,
@@ -1080,6 +1135,44 @@ class BwriterViewModel(
 
     private val _systemConfig = MutableStateFlow(StudioSystemConfig())
     val systemConfig: StateFlow<StudioSystemConfig> = _systemConfig.asStateFlow()
+
+    val adminUiState: StateFlow<AdminUiState> = combine(
+        combine(currentUser, globalBookIndex, suspendedUsers, pendingBooks, mailboxMessages) { a, b, c, d, e ->
+            AdminGroupA(a, b, c, d, e)
+        },
+        combine(pendingEditorAssignments, registryAuthors, siteUsers, regentEmail, isRoot) { a, b, c, d, e ->
+            AdminGroupB(a, b, c, d, e)
+        },
+        combine(allIssuances, claimedIssuanceIds, allEditorAssignments, approvalPreview, poolEntries) { a, b, c, d, e ->
+            AdminGroupC(a, b, c, d, e)
+        },
+        combine(poolTotals, allUnits, approvalUnitsMessage, allPayoutRequests, systemConfig) { a, b, c, d, e ->
+            AdminGroupD(a, b, c, d, e)
+        }
+    ) { a, b, c, d ->
+        AdminUiState(
+            currentUser = a.currentUser,
+            globalBookIndex = a.globalBookIndex,
+            suspendedUsers = a.suspendedUsers,
+            pendingBooks = a.pendingBooks,
+            mailboxMessages = a.mailboxMessages,
+            pendingEditorAssignments = b.pendingEditorAssignments,
+            registryAuthors = b.registryAuthors,
+            siteUsers = b.siteUsers,
+            regentEmail = b.regentEmail,
+            isRoot = b.isRoot,
+            allIssuances = c.allIssuances,
+            claimedIssuanceIds = c.claimedIssuanceIds,
+            allEditorAssignments = c.allEditorAssignments,
+            approvalPreview = c.approvalPreview,
+            poolEntries = c.poolEntries,
+            poolTotals = d.poolTotals,
+            allUnits = d.allUnits,
+            approvalUnitsMessage = d.approvalUnitsMessage,
+            allPayoutRequests = d.allPayoutRequests,
+            systemConfig = d.systemConfig
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AdminUiState(currentUser = _currentUser.value))
 
     private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
     val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()

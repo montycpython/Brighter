@@ -106,6 +106,7 @@ import com.supernatural.bwriter.model.GlobalBookIndexEntry
 import com.supernatural.bwriter.model.ServerlessMailMessage
 import com.supernatural.bwriter.model.SuspendedUserEntry
 import com.supernatural.bwriter.model.UserProfile
+import com.supernatural.bwriter.ui.viewmodel.AdminUiState
 import com.supernatural.bwriter.ui.theme.BookGold
 import com.supernatural.bwriter.ui.theme.BookGoldDark
 import com.supernatural.bwriter.ui.theme.BookGoldLight
@@ -116,46 +117,47 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminGodModeDashboardScreen(
-    currentUser: UserProfile,
-    globalIndex: List<GlobalBookIndexEntry>,
-    suspendedUsers: List<SuspendedUserEntry>,
+    state: AdminUiState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onSuspendUser: (targetEmail: String, reason: String) -> Unit,
     onUnsuspendUser: (targetEmail: String) -> Unit,
     onRevokeManuscript: (fileId: String) -> Unit,
-    pendingBooks: List<GlobalBookIndexEntry> = emptyList(),
-    mailboxMessages: List<ServerlessMailMessage> = emptyList(),
     onApproveBook: (fileId: String) -> Unit = {},
     onRejectBook: (fileId: String) -> Unit = {},
-    pendingEditorAssignments: List<EditorAssignment> = emptyList(),
-    registryAuthors: List<Pair<String, String>> = emptyList(),
-    siteUsers: List<SiteUser> = emptyList(),
     onDecideEditorAssignment: (EditorAssignment, Boolean) -> Unit = { _, _ -> },
     onAppointEditor: (fileId: String, bookAuthorEmail: String, editorEmail: String, editorAddress: String) -> Unit = { _, _, _, _ -> },
-    regentEmail: String = "",
-    isRoot: Boolean = false,
     onSetRegent: (String) -> Unit = {},
     onClearRegent: () -> Unit = {},
-    allIssuances: List<CreditIssuance> = emptyList(),
-    claimedIssuanceIds: Set<String> = emptySet(),
-    allEditorAssignments: List<EditorAssignment> = emptyList(),
-    approvalPreview: ApprovalCreditPreview? = null,
     onPreviewApproval: (GlobalBookIndexEntry) -> Unit = {},
-    poolEntries: List<PoolEntry> = emptyList(),
-    poolTotals: PoolTotals = PoolTotals(),
-    allUnits: List<UnitGrant> = emptyList(),
-    approvalUnitsMessage: String? = null,
-    allPayoutRequests: List<PayoutRequest> = emptyList(),
     onSetPayoutRequestStatus: (PayoutRequest, String) -> Unit = { _, _ -> },
     onVestCurrentSeason: () -> Unit = {},
     onRecordPoolEntry: (String, Long, String) -> Unit = { _, _, _ -> },
-    systemConfig: StudioSystemConfig = StudioSystemConfig(),
     onUpdateSystemConfig: (String, String) -> Unit = { _, _ -> },
     onSendServerlessMail: (ServerlessMailMessage) -> Unit,
     onUpdateProfile: (name: String, penName: String, email: String, role: WorkRole, organization: String, cmosEdition: String) -> Unit = { _, _, _, _, _, _ -> },
     onSignOut: () -> Unit = {}
 ) {
+    val currentUser = state.currentUser
+    val globalIndex = state.globalBookIndex
+    val suspendedUsers = state.suspendedUsers
+    val pendingBooks = state.pendingBooks
+    val mailboxMessages = state.mailboxMessages
+    val pendingEditorAssignments = state.pendingEditorAssignments
+    val registryAuthors = state.registryAuthors
+    val siteUsers = state.siteUsers
+    val regentEmail = state.regentEmail
+    val isRoot = state.isRoot
+    val allIssuances = state.allIssuances
+    val claimedIssuanceIds = state.claimedIssuanceIds
+    val allEditorAssignments = state.allEditorAssignments
+    val approvalPreview = state.approvalPreview
+    val poolEntries = state.poolEntries
+    val poolTotals = state.poolTotals
+    val allUnits = state.allUnits
+    val approvalUnitsMessage = state.approvalUnitsMessage
+    val allPayoutRequests = state.allPayoutRequests
+    val systemConfig = state.systemConfig
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Master Book Index", "Author Roster & Governance", "Mailbox Dispatcher", "Drive Storage Health")
 
