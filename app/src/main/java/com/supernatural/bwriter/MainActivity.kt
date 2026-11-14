@@ -265,6 +265,7 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     ) {
         composable("auth") {
             AuthScreen(
+                currentUser = currentUser,
                 savedAccounts = savedGoogleAccounts,
                     onGoogleSignIn = { email, name, penName ->
                     viewModel.signInWithGoogleAccount(email, name, penName)
@@ -606,7 +607,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
         composable("admin_god_mode") {
             AdminGodModeDashboardScreen(
                 state = adminUiState,
-                currentUser = currentUser,
                 onBack = { navController.popBackStack() },
                 onRefresh = { viewModel.refreshNetwork() },
                 onSuspendUser = { email, reason ->
@@ -700,7 +700,6 @@ fun BwriterAppNavigation(viewModel: BwriterViewModel) {
     if (showPaywall) {
         SubscriptionPaywallDialog(
             state = walletUiState,
-            subscription = userSubscription,
             onBuyAdFree = { hostActivity?.let { viewModel.buyAdFree(it) } },
             onBuyTokens = { hostActivity?.let { viewModel.buyTokens(it) } },
             onBuyTokens100 = { hostActivity?.let { viewModel.buyTokens100(it) } },

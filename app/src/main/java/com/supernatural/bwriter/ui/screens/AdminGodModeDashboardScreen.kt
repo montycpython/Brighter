@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderShared
+import kotlin.math.roundToLong
 import com.supernatural.bwriter.data.CreditIssuance
 import com.supernatural.bwriter.data.EditorAssignment
 import com.supernatural.bwriter.data.PoolEntry
@@ -1124,7 +1125,7 @@ fun MasterBookIndexTab(
         }
         Spacer(modifier = Modifier.height(8.dp))
         val recordAmountCents = poolEntryAmount.trim().toDoubleOrNull()
-            ?.let { kotlin.math.roundToLong(it * 100) }
+            ?.let { (it * 100).roundToLong() }
         OutlinedTextField(
             value = poolEntryAmount,
             onValueChange = { input ->

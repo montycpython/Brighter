@@ -1187,6 +1187,10 @@ class BwriterViewModel(
     private val _systemConfig = MutableStateFlow(StudioSystemConfig())
     val systemConfig: StateFlow<StudioSystemConfig> = _systemConfig.asStateFlow()
 
+    private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
+    val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
+
+
     val adminUiState: StateFlow<AdminUiState> = combine(
         combine(currentUser, globalBookIndex, suspendedUsers, pendingBooks, mailboxMessages) { a, b, c, d, e ->
             AdminGroupA(a, b, c, d, e)
@@ -1223,9 +1227,6 @@ class BwriterViewModel(
             systemConfig = d.systemConfig
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AdminUiState(currentUser = _currentUser.value))
-
-    private val _mailboxMessages = MutableStateFlow<List<ServerlessMailMessage>>(emptyList())
-    val mailboxMessages: StateFlow<List<ServerlessMailMessage>> = _mailboxMessages.asStateFlow()
 
     private val _activeSuspension = MutableStateFlow<SuspendedUserEntry?>(null)
     val activeSuspension: StateFlow<SuspendedUserEntry?> = _activeSuspension.asStateFlow()

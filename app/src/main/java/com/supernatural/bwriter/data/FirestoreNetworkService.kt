@@ -661,11 +661,46 @@ class FirestoreNetworkService(private val context: Context) {
                 ?.authorAddress.orEmpty()
             if (address.isBlank()) return@withContext false
             val amount = CreditSchedule.amountForApproval(priorMinedClaimsFor(email))
-            writeIssuance(email, address, amount, "BONUS", GlobalBookIndexEntry(), bonus = true)
+            writeIssuance(email, address, amount, "BONUS", GlobalBookIndexEntry(fileId = "", manuscriptId = 0L, title = "", authorName = "", authorEmail = email), bonus = true)
             true
         } catch (e: Exception) {
             Log.e("FirestoreNetwork", "Gift credit issuance failed", e)
             false
+        }
+    }
+
+
+    private suspend fun writeIssuance(
+        recipientEmail: String,
+        recipientAddress: String,
+        amount: Int,
+        kind: String,
+        entry: GlobalBookIndexEntry,
+        bonus: Boolean = false
+    ) {
+        val lock = issuanceLocks.getOrPut(normEmail(recipientEmail)) { Mutex() }
+        lock.withLock {
+            val recipientIssuances = fetchIssuancesFor(recipientEmail)
+            val prevHash = recipientIssuances
+                .maxWithOrNull(compareBy<CreditIssuance> { it.issuedAtMillis }.thenBy { it.issuanceHash })
+                ?.issuanceHash ?: ""
+            val issuedAt = System.currentTimeMillis()
+            val hash = CreditChain.issuanceHashFor(prevHash, recipientAddress, amount, entry.fileId, issuedAt)
+            val issuance = CreditIssuance(
+                id = hash,
+                authorEmail = normEmail(recipientEmail),
+                authorAddress = recipientAddress,
+                amount = amount,
+                kind = kind,
+                fileId = entry.fileId,
+                birthId = entry.birthId,
+                issuedAtMillis = issuedAt,
+                prevIssuanceHash = prevHash,
+                issuanceHash = hash,
+                signature = AuthorKeys.sign(context, hash),
+                bonus = bonus
+            )
+            db.collection(COL_CREDIT_ISSUANCES).document(hash).set(issuanceToMap(issuance)).await()
         }
     }
 
