@@ -1173,7 +1173,7 @@ class FirestoreNetworkService(private val context: Context) {
                         return@withLock PayoutRequestOutcome(null, PayoutRequestResult.NO_VESTED_UNITS)
                     }
                     val totals = fetchPoolTotals()
-                    val settled = totals.balanceCents - totals.unsettledCents
+                    val settled = totals.authorBalanceCents - totals.authorUnsettledCents
                     val totalVestedUnits = fetchAllUnits().count { it.vested }
                     var amountCents = myVestedUnits.toLong() *
                         UnitChain.unitValueCents(settled, totalVestedUnits)

@@ -617,7 +617,7 @@ class BwriterViewModel(
             if (com.supernatural.bwriter.data.StudioStanding.isEditorInChief) {
                 val totalVestedUnits = _allUnits.value.count { it.vested }
                 val totals = _poolTotals.value
-                val settled = totals.balanceCents - totals.unsettledCents
+                val settled = totals.authorBalanceCents - totals.authorUnsettledCents
                 myVestedUnits.toLong() * UnitChain.unitValueCents(settled, totalVestedUnits)
             } else {
                 myVestedUnits.toLong() * _studioTotals.value.unitValueCents
