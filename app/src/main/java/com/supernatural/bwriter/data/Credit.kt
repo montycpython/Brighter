@@ -44,7 +44,6 @@ data class CreditIssuance(
     val bonus: Boolean = false
 )
 
-)
 
 data class CreditTransfer(
     val id: String = "",
