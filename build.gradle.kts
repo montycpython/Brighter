@@ -4,4 +4,6 @@ plugins {
   alias(libs.plugins.google.devtools.ksp) apply false
   alias(libs.plugins.roborazzi) apply false
   alias(libs.plugins.google.services) apply false
+  alias(libs.plugins.kotlin.multiplatform) apply false
+  alias(libs.plugins.android.kotlin.multiplatform.library) apply false
 }

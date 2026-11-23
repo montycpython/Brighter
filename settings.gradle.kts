@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "Bwriter"
 
 include(":app")
+include(":shared")
