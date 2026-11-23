@@ -4,13 +4,13 @@ plugins {
 }
 
 kotlin {
-  androidLibrary {
+  android {
     namespace = "com.supernatural.bwriter.shared"
     compileSdk = 36
     minSdk = 24
 
-    compilerOptions {
-      jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+    compilerOptions.configure {
+      jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
   }
 
