@@ -26,3 +26,4 @@ rootProject.name = "Bwriter"
 
 include(":app")
 include(":shared")
+include(":webApp")
