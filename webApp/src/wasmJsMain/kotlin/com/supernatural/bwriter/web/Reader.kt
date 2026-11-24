@@ -1,6 +1,7 @@
 package com.supernatural.bwriter.web
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -78,6 +79,17 @@ private fun ReaderContent(
   parsed: ParsedBook?,
   onBack: () -> Unit
 ) {
+  var showCast by remember { mutableStateOf(false) }
+  val ready = parsed
+  if (showCast && ready != null) {
+    CastWorldScreen(
+      title,
+      ready.characters,
+      ready.settings,
+      onBack = { showCast = false }
+    )
+    return
+  }
   Column(
     modifier = Modifier
       .fillMaxSize()
@@ -92,6 +104,14 @@ private fun ReaderContent(
       TextButton(onClick = onBack) {
         Text(text = "‹  Library", color = BwriterGold, fontSize = 16.sp)
       }
+      Spacer(modifier = Modifier.weight(1f))
+      if (parsed != null &&
+        (parsed.characters.isNotEmpty() || parsed.settings.isNotEmpty())
+      ) {
+        TextButton(onClick = { showCast = true }) {
+          Text(text = "Cast & World", color = BwriterGold, fontSize = 16.sp)
+        }
+      }
     }
     val current = parsed
     when {
@@ -103,7 +123,8 @@ private fun ReaderContent(
           CircularProgressIndicator(color = BwriterGold)
         }
       }
-      current.sections.isEmpty() && current.frontMatter.isEmpty() -> {
+      current.sections.isEmpty() && current.frontMatter.isEmpty() &&
+        current.characters.isEmpty() && current.settings.isEmpty() -> {
         Box(
           modifier = Modifier.fillMaxSize(),
           contentAlignment = Alignment.Center
@@ -410,6 +431,160 @@ private fun FrontMatterBlock(front: BookFrontMatter, fallbackBirthId: String) {
           modifier = Modifier.padding(top = 4.dp)
         )
       }
+    }
+  }
+}
+
+@Composable
+private fun CastWorldScreen(
+  bookTitle: String,
+  characters: List<BookCharacter>,
+  settings: List<BookSetting>,
+  onBack: () -> Unit
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(AppleBackground)
+  ) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 16.dp, vertical = 8.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      TextButton(onClick = onBack) {
+        Text(text = "‹  Book", color = BwriterGold, fontSize = 16.sp)
+      }
+    }
+    LazyColumn(
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(horizontal = 28.dp),
+      verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+      item {
+        Column {
+          Text(
+            text = "Cast & World",
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold,
+            color = AppleInk
+          )
+          if (bookTitle.isNotBlank()) {
+            Text(
+              text = bookTitle,
+              fontSize = 15.sp,
+              color = AppleSecondary,
+              modifier = Modifier.padding(top = 2.dp)
+            )
+          }
+        }
+      }
+      if (characters.isNotEmpty()) {
+        item { WorldSectionHeader("Characters") }
+        items(characters) { character -> CharacterCard(character) }
+      }
+      if (settings.isNotEmpty()) {
+        item { WorldSectionHeader("Settings") }
+        items(settings) { setting -> SettingCard(setting) }
+      }
+      item { Spacer(modifier = Modifier.height(24.dp)) }
+    }
+  }
+}
+
+@Composable
+private fun WorldSectionHeader(text: String) {
+  Text(
+    text = text,
+    fontSize = 20.sp,
+    fontWeight = FontWeight.SemiBold,
+    color = AppleInk,
+    modifier = Modifier.padding(top = 10.dp)
+  )
+}
+
+@Composable
+private fun LabeledField(label: String, value: String) {
+  if (value.isNotBlank()) {
+    Column(modifier = Modifier.padding(top = 10.dp)) {
+      Text(
+        text = label.uppercase(),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = AppleSecondary
+      )
+      Text(
+        text = value,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        color = AppleInk,
+        modifier = Modifier.padding(top = 2.dp)
+      )
+    }
+  }
+}
+
+@Composable
+private fun CharacterCard(character: BookCharacter) {
+  Surface(
+    color = AppleSurface,
+    shape = RoundedCornerShape(16.dp),
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    Column(modifier = Modifier.padding(20.dp)) {
+      Text(
+        text = character.name.ifBlank { "Unnamed" },
+        fontSize = 18.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = AppleInk
+      )
+      if (character.role.isNotBlank()) {
+        Text(
+          text = character.role,
+          fontSize = 13.sp,
+          color = BwriterGold,
+          modifier = Modifier.padding(top = 2.dp)
+        )
+      }
+      LabeledField("Physical", character.physicalDescription)
+      LabeledField("Mind", character.psychologicalDescription)
+      LabeledField("Backstory", character.backstory)
+      LabeledField("Voice & Mannerisms", character.voiceAndMannerisms)
+      LabeledField("Archetype", character.intertextualArchetype)
+      LabeledField("Other Details", character.otherDetails)
+    }
+  }
+}
+
+@Composable
+private fun SettingCard(setting: BookSetting) {
+  Surface(
+    color = AppleSurface,
+    shape = RoundedCornerShape(16.dp),
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    Column(modifier = Modifier.padding(20.dp)) {
+      Text(
+        text = setting.locationName.ifBlank { "Unnamed place" },
+        fontSize = 18.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = AppleInk
+      )
+      if (setting.timePeriodOrEra.isNotBlank()) {
+        Text(
+          text = setting.timePeriodOrEra,
+          fontSize = 13.sp,
+          color = AppleSecondary,
+          modifier = Modifier.padding(top = 2.dp)
+        )
+      }
+      LabeledField("Atmosphere & Senses", setting.atmosphereAndSensory)
+      LabeledField("Space & Architecture", setting.architecturalOrSpatialDetails)
+      LabeledField("Historical & Cultural Context", setting.historicalOrCulturalContext)
+      LabeledField("Touchstones", setting.targetIntertextualTouchstones)
+      LabeledField("Other Notes", setting.otherNotes)
     }
   }
 }
