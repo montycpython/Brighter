@@ -20,6 +20,21 @@ import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.sp
 import java.util.Locale
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.text.style.ImageSpan
+import android.text.style.TypefaceSpan
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.em
+import ru.noties.jlatexmath.JLatexMathDrawable
 
 object CmosFormatter {
 
@@ -135,152 +150,188 @@ object CmosFormatter {
         return sb.toString()
     }
 
+
+    private val codeBackground = Color(0x14000000)
+
+    private fun mathPlaceholderId(index: Int): String = "bwriter-math-$index"
+
     fun toAnnotatedString(text: String, baseColor: Color = Color.Unspecified): AnnotatedString {
+        return toAnnotatedString(BookMarkup.parse(text))
+    }
+
+    fun toAnnotatedString(segments: List<MarkupSegment>): AnnotatedString {
         val builder = AnnotatedString.Builder()
-        val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
-        var lastIndex = 0
-        val matches = regex.findAll(text)
-
-        for (match in matches) {
-            if (match.range.first > lastIndex) {
-                builder.append(text.substring(lastIndex, match.range.first))
-            }
-            val full = match.value
-            when {
-                full.startsWith("***") && full.endsWith("***") -> {
-                    val inner = full.substring(3, full.length - 3)
-                    builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
-                    builder.append(inner)
-                    builder.pop()
-                }
-                full.startsWith("___") && full.endsWith("___") -> {
-                    val inner = full.substring(3, full.length - 3)
-                    builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
-                    builder.append(inner)
-                    builder.pop()
-                }
-                full.startsWith("**") && full.endsWith("**") -> {
-                    val inner = full.substring(2, full.length - 2)
+        var mathIndex = 0
+        for (seg in segments) {
+            when (seg) {
+                is MarkupSegment.Text -> builder.append(seg.content)
+                is MarkupSegment.Bold -> {
                     builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
-                    builder.append(inner)
+                    builder.append(seg.content)
                     builder.pop()
                 }
-                full.startsWith("__") && full.endsWith("__") -> {
-                    val inner = full.substring(2, full.length - 2)
-                    builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
-                    builder.append(inner)
-                    builder.pop()
-                }
-                full.startsWith("*") && full.endsWith("*") -> {
-                    val inner = full.substring(1, full.length - 1)
+                is MarkupSegment.Italic -> {
                     builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
-                    builder.append(inner)
+                    builder.append(seg.content)
                     builder.pop()
                 }
-                full.startsWith("_") && full.endsWith("_") -> {
-                    val inner = full.substring(1, full.length - 1)
-                    builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
-                    builder.append(inner)
+                is MarkupSegment.BoldItalic -> {
+                    builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
+                    builder.append(seg.content)
                     builder.pop()
                 }
-                full.startsWith("[^") && full.endsWith("]") -> {
+                is MarkupSegment.InlineCode -> {
+                    builder.pushStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBackground))
+                    builder.append(seg.content)
+                    builder.pop()
+                }
+                is MarkupSegment.CodeBlock -> {
+                    builder.pushStyle(SpanStyle(fontFamily = FontFamily.Monospace))
+                    builder.append(seg.content)
+                    builder.pop()
+                }
+                is MarkupSegment.Footnote -> {
                     builder.pushStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8C6D23)))
-                    builder.append(full.substring(2, full.length - 1))
+                    builder.append(seg.content)
                     builder.pop()
                 }
-                else -> {
-                    builder.append(full)
+                is MarkupSegment.InlineMath -> {
+                    builder.appendInlineContent(mathPlaceholderId(mathIndex++), seg.content)
+                }
+                is MarkupSegment.DisplayMath -> {
+                    builder.appendInlineContent(mathPlaceholderId(mathIndex++), seg.content)
                 }
             }
-            lastIndex = match.range.last + 1
         }
-
-        if (lastIndex < text.length) {
-            builder.append(text.substring(lastIndex))
-        }
-
         return builder.toAnnotatedString()
+    }
+
+    /**
+     * Renders one LaTeX formula to a bitmap at the given text size.
+     * Returns null when the formula does not parse, so callers fall back
+     * to showing the source — a bad formula degrades, it never crashes.
+     */
+    fun renderMathBitmap(latex: String, textSizePx: Float, colorArgb: Int): Bitmap? {
+        return try {
+            val drawable = JLatexMathDrawable.builder(latex)
+                .textSize(textSizePx)
+                .color(colorArgb)
+                .build()
+            val width = drawable.intrinsicWidth.coerceAtLeast(1)
+            val height = drawable.intrinsicHeight.coerceAtLeast(1)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, width, height)
+            drawable.draw(canvas)
+            bitmap
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * The inline-content map that paints the math placeholders produced
+     * by [toAnnotatedString] for the same segment list. Placeholder ids
+     * are assigned by counting math segments in order, so the two calls
+     * always agree. A formula that fails to render gets no entry, and
+     * Compose then shows its LaTeX source in place.
+     */
+    fun mathInlineContent(
+        segments: List<MarkupSegment>,
+        textSizePx: Float,
+        color: Color
+    ): Map<String, InlineTextContent> {
+        val result = LinkedHashMap<String, InlineTextContent>()
+        var mathIndex = 0
+        for (seg in segments) {
+            if (seg is MarkupSegment.InlineMath || seg is MarkupSegment.DisplayMath) {
+                val id = mathPlaceholderId(mathIndex++)
+                val bitmap = renderMathBitmap(seg.content, textSizePx, color.toArgb())
+                if (bitmap != null) {
+                    result[id] = InlineTextContent(
+                        Placeholder(
+                            width = (bitmap.width / textSizePx).em,
+                            height = (bitmap.height / textSizePx).em,
+                            placeholderVerticalAlign = PlaceholderVerticalAlign.AboveBaseline
+                        )
+                    ) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+            }
+        }
+        return result
     }
 
     fun toSpanned(text: String): CharSequence {
         val ssb = SpannableStringBuilder()
-        val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
-        var lastIndex = 0
-        val matches = regex.findAll(text)
-
-        for (match in matches) {
-            if (match.range.first > lastIndex) {
-                ssb.append(text.substring(lastIndex, match.range.first))
-            }
-            val full = match.value
-            when {
-                full.startsWith("***") && full.endsWith("***") -> {
-                    val inner = full.substring(3, full.length - 3)
+        for (seg in BookMarkup.parse(text)) {
+            when (seg) {
+                is MarkupSegment.Text -> ssb.append(seg.content)
+                is MarkupSegment.Bold -> {
                     val start = ssb.length
-                    ssb.append(inner)
-                    ssb.setSpan(StyleSpan(Typeface.BOLD_ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-                full.startsWith("___") && full.endsWith("___") -> {
-                    val inner = full.substring(3, full.length - 3)
-                    val start = ssb.length
-                    ssb.append(inner)
-                    ssb.setSpan(StyleSpan(Typeface.BOLD_ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-                full.startsWith("**") && full.endsWith("**") -> {
-                    val inner = full.substring(2, full.length - 2)
-                    val start = ssb.length
-                    ssb.append(inner)
+                    ssb.append(seg.content)
                     ssb.setSpan(StyleSpan(Typeface.BOLD), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
-                full.startsWith("__") && full.endsWith("__") -> {
-                    val inner = full.substring(2, full.length - 2)
+                is MarkupSegment.Italic -> {
                     val start = ssb.length
-                    ssb.append(inner)
-                    ssb.setSpan(StyleSpan(Typeface.BOLD), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-                full.startsWith("*") && full.endsWith("*") -> {
-                    val inner = full.substring(1, full.length - 1)
-                    val start = ssb.length
-                    ssb.append(inner)
+                    ssb.append(seg.content)
                     ssb.setSpan(StyleSpan(Typeface.ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
-                full.startsWith("_") && full.endsWith("_") -> {
-                    val inner = full.substring(1, full.length - 1)
+                is MarkupSegment.BoldItalic -> {
                     val start = ssb.length
-                    ssb.append(inner)
-                    ssb.setSpan(StyleSpan(Typeface.ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    ssb.append(seg.content)
+                    ssb.setSpan(StyleSpan(Typeface.BOLD_ITALIC), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
-                full.startsWith("[^") && full.endsWith("]") -> {
-                    val inner = full.substring(2, full.length - 1)
+                is MarkupSegment.InlineCode, is MarkupSegment.CodeBlock -> {
                     val start = ssb.length
-                    ssb.append(inner)
+                    ssb.append(seg.content)
+                    ssb.setSpan(TypefaceSpan("monospace"), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                is MarkupSegment.Footnote -> {
+                    val start = ssb.length
+                    ssb.append(seg.content)
                     ssb.setSpan(SuperscriptSpan(), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     ssb.setSpan(RelativeSizeSpan(0.7f), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     ssb.setSpan(StyleSpan(Typeface.BOLD), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
-                else -> {
-                    ssb.append(full)
+                is MarkupSegment.InlineMath, is MarkupSegment.DisplayMath -> {
+                    val drawable = try {
+                        JLatexMathDrawable.builder(seg.content)
+                            .textSize(42f)
+                            .color(android.graphics.Color.BLACK)
+                            .build()
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (drawable == null) {
+                        ssb.append(seg.content)
+                    } else {
+                        drawable.setBounds(
+                            0, 0,
+                            drawable.intrinsicWidth.coerceAtLeast(1),
+                            drawable.intrinsicHeight.coerceAtLeast(1)
+                        )
+                        val start = ssb.length
+                        ssb.append("\uFFFC")
+                        ssb.setSpan(ImageSpan(drawable), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
                 }
             }
-            lastIndex = match.range.last + 1
         }
-
-        if (lastIndex < text.length) {
-            ssb.append(text.substring(lastIndex))
-        }
-
         return ssb
     }
 
     fun rawOffsetForStrippedOffset(text: String, strippedOffset: Int): Int {
         if (strippedOffset <= 0) return 0
-        val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
         val removed = BooleanArray(text.length)
-        for (match in regex.findAll(text)) {
-            val inner = (2..8).mapNotNull { match.groups[it] }.firstOrNull()
-            for (i in match.range) {
-                if (inner == null || i !in inner.range) removed[i] = true
-            }
+        for (seg in BookMarkup.parse(text)) {
+            for (i in seg.start until seg.contentStart) removed[i] = true
+            for (i in seg.contentEnd until seg.end) removed[i] = true
         }
         var kept = 0
         var raw = 0
@@ -294,101 +345,61 @@ object CmosFormatter {
     // Preserves a 1:1 character index mapping so cursor position and typing never glitch.
     fun createMarkdownVisualTransformation(): VisualTransformation {
         return VisualTransformation { text ->
-            val builder = AnnotatedString.Builder()
             val raw = text.text
-            val regex = Regex("""(\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*|___([^_]+)___|__([^_]+)__|_\b([^_]+)\b_|\[\^(\d+)\])""")
-            var lastIndex = 0
-            val matches = regex.findAll(raw)
-
-            for (match in matches) {
-                if (match.range.first > lastIndex) {
-                    builder.append(raw.substring(lastIndex, match.range.first))
-                }
-                val full = match.value
-                when {
-                    full.startsWith("***") && full.endsWith("***") -> {
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("***")
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
-                        builder.append(full.substring(3, full.length - 3))
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("***")
-                        builder.pop()
-                    }
-                    full.startsWith("**") && full.endsWith("**") -> {
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("**")
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
-                        builder.append(full.substring(2, full.length - 2))
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("**")
-                        builder.pop()
-                    }
-                    full.startsWith("*") && full.endsWith("*") -> {
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("*")
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
-                        builder.append(full.substring(1, full.length - 1))
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("*")
-                        builder.pop()
-                    }
-                    full.startsWith("___") && full.endsWith("___") -> {
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("___")
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
-                        builder.append(full.substring(3, full.length - 3))
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("___")
-                        builder.pop()
-                    }
-                    full.startsWith("__") && full.endsWith("__") -> {
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("__")
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
-                        builder.append(full.substring(2, full.length - 2))
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("__")
-                        builder.pop()
-                    }
-                    full.startsWith("_") && full.endsWith("_") -> {
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("_")
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
-                        builder.append(full.substring(1, full.length - 1))
-                        builder.pop()
-                        builder.pushStyle(SpanStyle(color = Color(0xFFB09868)))
-                        builder.append("_")
-                        builder.pop()
-                    }
-                    full.startsWith("[^") && full.endsWith("]") -> {
-                        builder.pushStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8C6D23)))
-                        builder.append(full)
-                        builder.pop()
-                    }
-                    else -> {
-                        builder.append(full)
-                    }
-                }
-                lastIndex = match.range.last + 1
+            val builder = AnnotatedString.Builder()
+            for (seg in BookMarkup.parse(raw)) {
+                appendEditorSegment(builder, raw, seg)
             }
-
-            if (lastIndex < raw.length) {
-                builder.append(raw.substring(lastIndex))
-            }
-
             TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+        }
+    }
+
+    // Appends exactly the segment's source slice — markers in gold, content
+    // styled — so the transformed text is the same length as the raw text.
+    private fun appendEditorSegment(
+        builder: AnnotatedString.Builder,
+        raw: String,
+        seg: MarkupSegment
+    ) {
+        when (seg) {
+            is MarkupSegment.Text -> builder.append(raw.substring(seg.start, seg.end))
+            is MarkupSegment.Bold -> appendMarked(builder, raw, seg, SpanStyle(fontWeight = FontWeight.Bold))
+            is MarkupSegment.Italic -> appendMarked(builder, raw, seg, SpanStyle(fontStyle = FontStyle.Italic))
+            is MarkupSegment.BoldItalic -> appendMarked(
+                builder, raw, seg,
+                SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
+            )
+            is MarkupSegment.InlineCode -> appendMarked(builder, raw, seg, SpanStyle(fontFamily = FontFamily.Monospace))
+            is MarkupSegment.CodeBlock -> appendMarked(builder, raw, seg, SpanStyle(fontFamily = FontFamily.Monospace))
+            is MarkupSegment.InlineMath -> appendMarked(builder, raw, seg, SpanStyle(fontFamily = FontFamily.Monospace))
+            is MarkupSegment.DisplayMath -> appendMarked(builder, raw, seg, SpanStyle(fontFamily = FontFamily.Monospace))
+            is MarkupSegment.Footnote -> {
+                builder.pushStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8C6D23)))
+                builder.append(raw.substring(seg.start, seg.end))
+                builder.pop()
+            }
+        }
+    }
+
+    private fun appendMarked(
+        builder: AnnotatedString.Builder,
+        raw: String,
+        seg: MarkupSegment,
+        contentStyle: SpanStyle
+    ) {
+        val markerStyle = SpanStyle(color = Color(0xFFB09868))
+        if (seg.contentStart > seg.start) {
+            builder.pushStyle(markerStyle)
+            builder.append(raw.substring(seg.start, seg.contentStart))
+            builder.pop()
+        }
+        builder.pushStyle(contentStyle)
+        builder.append(raw.substring(seg.contentStart, seg.contentEnd))
+        builder.pop()
+        if (seg.end > seg.contentEnd) {
+            builder.pushStyle(markerStyle)
+            builder.append(raw.substring(seg.contentEnd, seg.end))
+            builder.pop()
         }
     }
 
