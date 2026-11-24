@@ -48,6 +48,14 @@ jobs:
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
+      - name: Add app icons
+        run: |
+          DIST=webApp/build/dist/wasmJs/productionExecutable
+          SRC=app/src/main/res/drawable/bwriter_app_icon_bet.png
+          convert "$SRC" -resize 1280x1280 -gravity center -extent 1024x1024 "$DIST/icon-1024.png"
+          convert "$DIST/icon-1024.png" -resize 512x512 "$DIST/icon-512.png"
+          convert "$DIST/icon-1024.png" -resize 192x192 "$DIST/icon-192.png"
+          convert "$DIST/icon-1024.png" -resize 180x180 "$DIST/apple-touch-icon.png"
 
       - name: Deploy to Firebase Hosting
         env:
