@@ -55,4 +55,4 @@ jobs:
         run: |
           printf '%s' "$FIREBASE_TOKEN_JSON" > "$RUNNER_TEMP/firebase-key.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-key.json"
-          firebase deploy --only hosting --project bwriter-app --non-interactive
+          firebase deploy --only hosting --project bwriterapp --non-interactive
