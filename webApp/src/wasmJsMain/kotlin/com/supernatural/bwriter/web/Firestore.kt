@@ -141,6 +141,26 @@ object FirestoreBooks {
       onResult(parseMyBooks(json.toString()))
     }
   }
+
+  /** Fetches the author's wallet: credit balance, unclaimed credit, units. */
+  fun fetchWallet(email: String, onResult: (WalletData?) -> Unit) {
+    firestoreFetchWallet(firestoreDb(), email.lowercase().trim().toJsString()) { json ->
+      onResult(parseWallet(json.toString()))
+    }
+  }
+
+  /** Fetches the author's mailbox, newest first. Null on failure. */
+  fun fetchMail(email: String, onResult: (List<MailMessage>?) -> Unit) {
+    firestoreFetchMail(firestoreDb(), email.lowercase().trim().toJsString()) { json ->
+      val text = json.toString()
+      onResult(if (text.isBlank()) null else parseMail(text))
+    }
+  }
+
+  /** Marks one message read, as opening it on Android does. */
+  fun markMailRead(id: String) {
+    firestoreMarkMailRead(firestoreDb(), id.toJsString())
+  }
 }
 
 internal fun parseMyBooks(json: String): List<MyBook> {
@@ -170,13 +190,6 @@ internal fun parseMyBooks(json: String): List<MyBook> {
     }
   }
   return books.sortedByDescending { it.updatedAt }
-
-  /** Fetches the author's wallet: credit balance, unclaimed credit, units. */
-  fun fetchWallet(email: String, onResult: (WalletData?) -> Unit) {
-    firestoreFetchWallet(firestoreDb(), email.lowercase().trim().toJsString()) { json ->
-      onResult(parseWallet(json.toString()))
-    }
-  }
 }
 
 internal fun parseWallet(json: String): WalletData? {
@@ -207,19 +220,6 @@ internal fun parseWallet(json: String): WalletData? {
 internal fun jsonBoolField(obj: String, key: String): Boolean {
   val valueStart = jsonValueStart(obj, key) ?: return false
   return obj.startsWith("true", valueStart)
-
-  /** Fetches the author's mailbox, newest first. Null on failure. */
-  fun fetchMail(email: String, onResult: (List<MailMessage>?) -> Unit) {
-    firestoreFetchMail(firestoreDb(), email.lowercase().trim().toJsString()) { json ->
-      val text = json.toString()
-      onResult(if (text.isBlank()) null else parseMail(text))
-    }
-  }
-
-  /** Marks one message read, as opening it on Android does. */
-  fun markMailRead(id: String) {
-    firestoreMarkMailRead(firestoreDb(), id.toJsString())
-  }
 }
 
 internal fun parseMail(json: String): List<MailMessage> {
