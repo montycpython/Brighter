@@ -153,6 +153,16 @@ data class EditableBook(
   }
 }
 
+/**
+ * org.json's optString rule, mirrored: the default applies only when
+ * the key is absent — a present-but-empty value stays empty.
+ */
+private fun fieldOr(obj: String, key: String, default: String): String =
+  if (jsonValueStart(obj, key) != null) jsonStringField(obj, key) else default
+
+private fun boolFieldOr(obj: String, key: String, default: Boolean): Boolean =
+  if (jsonValueStart(obj, key) != null) jsonBoolField(obj, key) else default
+
 /** Parses a stored payload into the editable mirror, without loss. */
 fun parseEditableBook(payload: String): EditableBook? {
   if (!payload.trimStart().startsWith("{")) return null
@@ -163,18 +173,18 @@ fun parseEditableBook(payload: String): EditableBook? {
     authorName = jsonStringField(payload, "authorName"),
     authorPenName = jsonStringField(payload, "authorPenName"),
     editorName = jsonStringField(payload, "editorName"),
-    publisher = jsonStringField(payload, "publisher"),
-    edition = jsonStringField(payload, "edition"),
-    year = jsonStringField(payload, "year"),
+    publisher = fieldOr(payload, "publisher", "Bwriter Editions"),
+    edition = fieldOr(payload, "edition", "First Edition"),
+    year = fieldOr(payload, "year", "2026"),
     isbn = jsonStringField(payload, "isbn"),
     copyrightText = jsonStringField(payload, "copyrightText"),
     dedication = jsonStringField(payload, "dedication"),
     epigraphText = jsonStringField(payload, "epigraphText"),
     epigraphAuthor = jsonStringField(payload, "epigraphAuthor"),
-    targetPageSize = jsonStringField(payload, "targetPageSize"),
-    workType = jsonStringField(payload, "workType").ifBlank { "NOVEL" },
-    manuscriptStatus = jsonStringField(payload, "manuscriptStatus").ifBlank { "DRAFT" },
-    acknowledgmentsJson = jsonStringField(payload, "acknowledgmentsJson").ifBlank { "[]" },
+    targetPageSize = fieldOr(payload, "targetPageSize", "Trade 6\" x 9\""),
+    workType = fieldOr(payload, "workType", "NOVEL"),
+    manuscriptStatus = fieldOr(payload, "manuscriptStatus", "DRAFT"),
+    acknowledgmentsJson = fieldOr(payload, "acknowledgmentsJson", "[]"),
     authorAddress = jsonStringField(payload, "authorAddress"),
     authorPubKey = jsonStringField(payload, "authorPubKey"),
     birthId = jsonStringField(payload, "birthId"),
@@ -184,21 +194,25 @@ fun parseEditableBook(payload: String): EditableBook? {
     stampSignature = jsonStringField(payload, "stampSignature"),
     isPublicInCommunity = jsonBoolField(payload, "isPublicInCommunity")
   )
-  book.sections = jsonObjectArray(payload, "sections").map { obj ->
+  book.sections = jsonObjectArray(payload, "sections").mapIndexed { position, obj ->
     EditableSection(
       id = jsonLongField(obj, "id"),
-      matterType = jsonStringField(obj, "matterType").ifBlank { "TEXT_BODY" },
-      sectionType = jsonStringField(obj, "sectionType").ifBlank { "CHAPTER" },
-      title = jsonStringField(obj, "title"),
+      matterType = fieldOr(obj, "matterType", "TEXT_BODY"),
+      sectionType = fieldOr(obj, "sectionType", "CHAPTER"),
+      title = fieldOr(obj, "title", "Chapter"),
       subtitle = jsonStringField(obj, "subtitle"),
-      orderIndex = jsonLongField(obj, "orderIndex").toInt(),
+      orderIndex = if (jsonValueStart(obj, "orderIndex") != null) {
+        jsonLongField(obj, "orderIndex").toInt()
+      } else {
+        position + 1
+      },
       content = jsonStringField(obj, "content"),
       aiDraftPrompt = jsonStringField(obj, "aiDraftPrompt"),
       contributorNotes = jsonStringField(obj, "contributorNotes"),
-      assignedAuthor = jsonStringField(obj, "assignedAuthor"),
-      assignedRole = jsonStringField(obj, "assignedRole").ifBlank { "AUTHOR" },
-      status = jsonStringField(obj, "status").ifBlank { "DRAFT" },
-      startOnRecto = jsonBoolField(obj, "startOnRecto"),
+      assignedAuthor = fieldOr(obj, "assignedAuthor", "Author"),
+      assignedRole = fieldOr(obj, "assignedRole", "AUTHOR"),
+      status = fieldOr(obj, "status", "DRAFT"),
+      startOnRecto = boolFieldOr(obj, "startOnRecto", true),
       headerIllustrationUri = jsonStringField(obj, "headerIllustrationUri"),
       headerIllustrationCaption = jsonStringField(obj, "headerIllustrationCaption"),
       tailIllustrationUri = jsonStringField(obj, "tailIllustrationUri"),
@@ -244,7 +258,7 @@ fun parseEditableBook(payload: String): EditableBook? {
       id = jsonLongField(obj, "id"),
       sectionId = jsonLongField(obj, "sectionId"),
       authorName = jsonStringField(obj, "authorName"),
-      authorRole = jsonStringField(obj, "authorRole").ifBlank { "AUTHOR" },
+      authorRole = fieldOr(obj, "authorRole", "AUTHOR"),
       commentText = jsonStringField(obj, "commentText"),
       cmosRuleReference = jsonStringField(obj, "cmosRuleReference"),
       isResolved = jsonBoolField(obj, "isResolved"),
