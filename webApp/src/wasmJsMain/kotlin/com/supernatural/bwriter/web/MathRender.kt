@@ -1,8 +1,6 @@
-@file:OptIn(ExperimentalWasmJsInterop::class)
 
 package com.supernatural.bwriter.web
 
-import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsString
 import kotlin.js.js
 import kotlin.js.toJsString

@@ -1,11 +1,9 @@
-@file:OptIn(ExperimentalWasmJsInterop::class)
 
 package com.supernatural.bwriter.web
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsString
 import kotlin.js.js
