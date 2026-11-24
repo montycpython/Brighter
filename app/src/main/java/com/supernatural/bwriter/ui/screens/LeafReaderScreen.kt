@@ -73,9 +73,6 @@ import com.supernatural.bwriter.ui.theme.BookGoldDark
 import com.supernatural.bwriter.ui.theme.InkBlack
 import com.supernatural.bwriter.ui.theme.ParchmentCream
 import com.supernatural.bwriter.ui.theme.ParchmentPaper
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalDensity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -595,117 +592,24 @@ fun SingleLeafView(
 
 @Composable
 fun ProseParagraphsView(text: String) {
-    val blocks = remember(text) { groupMarkupBlocks(com.supernatural.bwriter.cmos.BookMarkup.parse(text)) }
-    val density = LocalDensity.current
-    val bodyTextSizePx = with(density) { 10.sp.toPx() }
-    val displayTextSizePx = with(density) { 14.sp.toPx() }
+    val paragraphs = text.split("\n")
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (block in blocks) {
-            when (block) {
-                is MarkupBlock.Paragraph -> {
-                    if (block.segments.isEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                    } else {
-                        val withIndent = listOf(
-                            com.supernatural.bwriter.cmos.MarkupSegment.Text("    ", 0, 0, 0, 0)
-                        ) + block.segments
-                        Text(
-                            text = com.supernatural.bwriter.cmos.CmosFormatter.toAnnotatedString(withIndent),
-                            inlineContent = com.supernatural.bwriter.cmos.CmosFormatter.mathInlineContent(withIndent, bodyTextSizePx, InkBlack),
-                            fontFamily = FontFamily.Serif,
-                            fontSize = 10.sp,
-                            lineHeight = 16.5.sp,
-                            color = InkBlack
-                        )
-                    }
-                }
-                is MarkupBlock.Code -> {
-                    Text(
-                        text = block.segment.content,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 9.sp,
-                        lineHeight = 13.sp,
-                        color = InkBlack,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0x14000000))
-                            .padding(8.dp)
-                    )
-                }
-                is MarkupBlock.DisplayMathBlock -> {
-                    val bitmap = remember(block.segment.content, displayTextSizePx) {
-                        com.supernatural.bwriter.cmos.CmosFormatter.renderMathBitmap(
-                            block.segment.content, displayTextSizePx, InkBlack.toArgb()
-                        )
-                    }
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = block.segment.content,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(with(density) { bitmap.height.toDp() })
-                        )
-                    } else {
-                        Text(
-                            text = block.segment.content,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            color = InkBlack,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
+        for (para in paragraphs) {
+            if (para.isNotBlank()) {
+                val indent = "    "
+                val formatted = com.supernatural.bwriter.cmos.CmosFormatter.toAnnotatedString("$indent$para")
+                Text(
+                    text = formatted,
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 10.sp,
+                    lineHeight = 16.5.sp,
+                    color = InkBlack
+                )
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
             }
         }
     }
-}
-
-private sealed interface MarkupBlock {
-    data class Paragraph(val segments: List<com.supernatural.bwriter.cmos.MarkupSegment>) : MarkupBlock
-    data class Code(val segment: com.supernatural.bwriter.cmos.MarkupSegment.CodeBlock) : MarkupBlock
-    data class DisplayMathBlock(val segment: com.supernatural.bwriter.cmos.MarkupSegment.DisplayMath) : MarkupBlock
-}
-
-private fun groupMarkupBlocks(
-    segments: List<com.supernatural.bwriter.cmos.MarkupSegment>
-): List<MarkupBlock> {
-    val blocks = ArrayList<MarkupBlock>()
-    var current = ArrayList<com.supernatural.bwriter.cmos.MarkupSegment>()
-    fun flush(force: Boolean = false) {
-        if (current.isNotEmpty() || force) {
-            blocks.add(MarkupBlock.Paragraph(current))
-            current = ArrayList()
-        }
-    }
-    for (seg in segments) {
-        when (seg) {
-            is com.supernatural.bwriter.cmos.MarkupSegment.CodeBlock -> {
-                flush()
-                blocks.add(MarkupBlock.Code(seg))
-            }
-            is com.supernatural.bwriter.cmos.MarkupSegment.DisplayMath -> {
-                flush()
-                blocks.add(MarkupBlock.DisplayMathBlock(seg))
-            }
-            is com.supernatural.bwriter.cmos.MarkupSegment.Text -> {
-                val parts = seg.content.split("\n")
-                for ((index, part) in parts.withIndex()) {
-                    if (index > 0) flush(force = true)
-                    if (part.isNotEmpty()) {
-                        current.add(
-                            com.supernatural.bwriter.cmos.MarkupSegment.Text(part, seg.start, seg.end, seg.start, seg.end)
-                        )
-                    }
-                }
-            }
-            else -> current.add(seg)
-        }
-    }
-    flush()
-    return blocks
 }
 
 @Composable
