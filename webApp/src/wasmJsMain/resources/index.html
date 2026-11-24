@@ -6,12 +6,13 @@
   <title>Bwriter: Phoenicia</title>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#1B1B1F">
-  <!-- Firebase web SDK (modular v11) from the Firebase CDN. Exposes the six
-       functions the Kotlin/Wasm interop layer calls as window.BwriterFirebase.
+  <!-- Firebase web SDK (modular v11) from the Firebase CDN. Exposes the app,
+       auth and Firestore functions the Kotlin/Wasm interop layer calls as
+       window.BwriterFirebase and window.BwriterFirestore.
        Order matters: module scripts and deferred scripts execute in document
        order after parsing, so this block must stay before webApp.js. -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-app.js";
+    import { initializeApp, getApp } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-app.js";
     import {
       getAuth,
       GoogleAuthProvider,
@@ -19,13 +20,28 @@
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      getDocs,
+      doc,
+      getDoc
+    } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-firestore.js";
     window.BwriterFirebase = {
       initializeApp,
+      getApp,
       getAuth,
       GoogleAuthProvider,
       signInWithPopup,
       onAuthStateChanged,
       signOut
+    };
+    window.BwriterFirestore = {
+      getFirestore,
+      collection,
+      getDocs,
+      doc,
+      getDoc
     };
   </script>
   <!-- KaTeX from the jsDelivr CDN. The browser LaTeX renderer: the shared
