@@ -138,6 +138,7 @@ private fun LibraryScreen(
   var mail by remember { mutableStateOf<List<MailMessage>?>(null) }
   var mailFailed by remember { mutableStateOf(false) }
   var openMail by remember { mutableStateOf<MailMessage?>(null) }
+  var showKey by remember { mutableStateOf(false) }
   var wallet by remember { mutableStateOf<WalletData?>(null) }
   var walletLoaded by remember { mutableStateOf(false) }
   var walletFailed by remember { mutableStateOf(false) }
@@ -154,6 +155,10 @@ private fun LibraryScreen(
       walletFailed = result == null
       walletLoaded = true
     }
+  }
+  if (showKey) {
+    KeyScreen(email = email, onBack = { showKey = false })
+    return
   }
   val openedMail = openMail
   if (openedMail != null) {
@@ -183,6 +188,9 @@ private fun LibraryScreen(
           fontSize = 13.sp,
           color = AppleSecondary
         )
+      }
+      TextButton(onClick = { showKey = true }) {
+        Text(text = "Author Key", color = BwriterGold, fontSize = 15.sp)
       }
       TextButton(onClick = { FirebaseAuth.signOut() }) {
         Text(text = "Sign out", color = BwriterGold, fontSize = 15.sp)

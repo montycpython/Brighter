@@ -4,9 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bwriter: Phoenicia</title>
-    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#1B1B1F">
   <!-- Firebase web SDK (modular v11) from the Firebase CDN. Exposes the app,
@@ -31,7 +28,8 @@
       getDoc,
       query,
       where,
-      updateDoc
+      updateDoc,
+      setDoc
     } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-firestore.js";
     window.BwriterFirebase = {
       initializeApp,
@@ -42,6 +40,71 @@
       onAuthStateChanged,
       signOut
     };
+    window.BwriterRandom = {
+      hex32: () => {
+        const a = new Uint8Array(32);
+        crypto.getRandomValues(a);
+        return Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
+      }
+    };
+    const bwriterB64 = {
+      enc: (bytes) => {
+        let s = '';
+        bytes.forEach((b) => { s += String.fromCharCode(b); });
+        return btoa(s);
+      },
+      dec: (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0))
+    };
+    const bwriterHex = (bytes) =>
+      Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    async function bwriterDerive(passphrase, salt, iter) {
+      const base = await crypto.subtle.importKey(
+        'raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' },
+        base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    }
+    window.BwriterCrypto = {
+      sealKey: async (passphrase, scalarHex, address) => {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await bwriterDerive(passphrase, salt, 200000);
+        const scalar = Uint8Array.from(
+          scalarHex.match(/../g), (h) => parseInt(h, 16));
+        const sealed = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv: iv, tagLength: 128 }, key, scalar);
+        return JSON.stringify({
+          v: 1,
+          kdf: 'PBKDF2-HMAC-SHA256',
+          iter: 200000,
+          form: 'ec-private-scalar-32',
+          salt: bwriterB64.enc(salt),
+          iv: bwriterB64.enc(iv),
+          data: bwriterB64.enc(new Uint8Array(sealed)),
+          address: address
+        });
+      },
+      openKey: async (passphrase, json) => {
+        try {
+          const root = JSON.parse(json);
+          const key = await bwriterDerive(
+            passphrase, bwriterB64.dec(root.salt), root.iter || 200000);
+          const opened = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: bwriterB64.dec(root.iv), tagLength: 128 },
+            key, bwriterB64.dec(root.data));
+          const bytes = new Uint8Array(opened);
+          if (bytes.length !== 32) return '';
+          return bwriterHex(bytes);
+        } catch (e) {
+          return '';
+        }
+      }
+    };
+    window.BwriterVaultStore = {
+      get: (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+      set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } },
+      remove: (k) => { try { localStorage.removeItem(k); } catch (e) { } }
+    };
     window.BwriterFirestore = {
       getFirestore,
       collection,
@@ -50,7 +113,8 @@
       getDoc,
       query,
       where,
-      updateDoc
+      updateDoc,
+      setDoc
     };
   </script>
   <!-- KaTeX from the jsDelivr CDN. The browser LaTeX renderer: the shared

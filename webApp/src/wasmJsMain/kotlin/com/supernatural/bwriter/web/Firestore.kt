@@ -108,6 +108,10 @@ data class MailMessage(
   val messageType: String
 )
 
+
+private fun firestoreRegisterAuthorKey(db: JsAny, email: JsString, address: JsString, pubHex: JsString): Unit =
+  js("{ const F = window.BwriterFirestore; const ref = F.doc(db, 'users', email); F.setDoc(ref, { email: email, authorAddress: address, authorPubKey: pubHex }, { merge: true }).catch((e) => console.error('Bwriter key registration failed', e)); }")
+
 /** One row of the public registry, as written by the Android build. */
 data class RegistryBook(
   val id: String,
@@ -120,6 +124,17 @@ data class RegistryBook(
 )
 
 object FirestoreBooks {
+
+
+  /** Registers the account's author key binding (address + public key). */
+  fun registerAuthorKey(email: String, address: String, pubHex: String) {
+    firestoreRegisterAuthorKey(
+      firestoreDb(),
+      email.lowercase().trim().toJsString(),
+      address.toJsString(),
+      pubHex.toJsString()
+    )
+  }
 
   /** Fetches every registry document once and delivers the parsed rows. */
   fun fetchRegistry(onResult: (List<RegistryBook>) -> Unit) {
