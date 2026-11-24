@@ -8,6 +8,7 @@ package com.supernatural.bwriter.web
 // orderIndex order, as in the book.
 
 data class BookSection(
+  val id: String,
   val title: String,
   val orderIndex: Long,
   val content: String,
@@ -62,7 +63,20 @@ data class ParsedBook(
   val frontMatter: BookFrontMatter,
   val sections: List<BookSection>,
   val characters: List<BookCharacter>,
-  val settings: List<BookSetting>
+  val settings: List<BookSetting>,
+  val comments: List<BookComment>
+)
+
+/** One comment left on a section, by a reader, editor or the author. */
+data class BookComment(
+  val id: String,
+  val sectionId: String,
+  val authorName: String,
+  val authorRole: String,
+  val commentText: String,
+  val cmosRuleReference: String,
+  val isResolved: Boolean,
+  val timestamp: Long
 )
 
 /** Parses the whole payload: front matter, sections, characters, settings. */
@@ -71,8 +85,23 @@ fun parseBook(payload: String): ParsedBook =
     parseFrontMatter(payload),
     parseBookSections(payload),
     parseCharacters(payload),
-    parseSettings(payload)
+    parseSettings(payload),
+    parseComments(payload)
   )
+
+fun parseComments(payload: String): List<BookComment> =
+  jsonObjectArray(payload, "comments").map { obj ->
+    BookComment(
+      id = jsonStringField(obj, "id"),
+      sectionId = jsonStringField(obj, "sectionId"),
+      authorName = jsonStringField(obj, "authorName"),
+      authorRole = jsonStringField(obj, "authorRole"),
+      commentText = jsonStringField(obj, "commentText"),
+      cmosRuleReference = jsonStringField(obj, "cmosRuleReference"),
+      isResolved = jsonBoolField(obj, "isResolved"),
+      timestamp = jsonLongField(obj, "timestamp")
+    )
+  }.sortedBy { it.timestamp }
 
 fun parseCharacters(payload: String): List<BookCharacter> =
   jsonObjectArray(payload, "characters").map { obj ->
@@ -141,6 +170,7 @@ fun parseFrontMatter(payload: String): BookFrontMatter =
 fun parseBookSections(payload: String): List<BookSection> =
   jsonObjectArray(payload, "sections").map { obj ->
     BookSection(
+      id = jsonStringField(obj, "id"),
       title = jsonStringField(obj, "title"),
       orderIndex = jsonLongField(obj, "orderIndex"),
       content = jsonStringField(obj, "content"),

@@ -191,6 +191,10 @@ private fun ReaderContent(
               }
             }
             items(buildBlocks(section.content)) { block -> BlockView(block) }
+            val sectionComments = current.comments.filter { it.sectionId == section.id }
+            if (sectionComments.isNotEmpty()) {
+              item { CommentsBlock(sectionComments) }
+            }
           }
           item { Spacer(modifier = Modifier.height(40.dp)) }
         }
@@ -585,6 +589,74 @@ private fun SettingCard(setting: BookSetting) {
       LabeledField("Historical & Cultural Context", setting.historicalOrCulturalContext)
       LabeledField("Touchstones", setting.targetIntertextualTouchstones)
       LabeledField("Other Notes", setting.otherNotes)
+    }
+  }
+}
+
+@Composable
+private fun CommentsBlock(comments: List<BookComment>) {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 28.dp, vertical = 8.dp)
+  ) {
+    Text(
+      text = "COMMENTS",
+      fontSize = 11.sp,
+      fontWeight = FontWeight.SemiBold,
+      color = BwriterGold,
+      modifier = Modifier.padding(bottom = 6.dp)
+    )
+    for (comment in comments) {
+      Surface(
+        color = Color(0xFFF0F0F2),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(bottom = 8.dp)
+      ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+              text = comment.authorName.ifBlank { "Reader" },
+              fontSize = 13.sp,
+              fontWeight = FontWeight.SemiBold,
+              color = AppleInk
+            )
+            if (comment.authorRole.isNotBlank()) {
+              Text(
+                text = comment.authorRole,
+                fontSize = 11.sp,
+                color = BwriterGold,
+                modifier = Modifier.padding(start = 8.dp)
+              )
+            }
+            if (comment.isResolved) {
+              Text(
+                text = "Resolved",
+                fontSize = 11.sp,
+                color = AppleSecondary,
+                modifier = Modifier.padding(start = 8.dp)
+              )
+            }
+          }
+          Text(
+            text = comment.commentText,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            color = AppleInk,
+            modifier = Modifier.padding(top = 4.dp)
+          )
+          if (comment.cmosRuleReference.isNotBlank()) {
+            Text(
+              text = comment.cmosRuleReference,
+              fontSize = 12.sp,
+              color = AppleSecondary,
+              modifier = Modifier.padding(top = 4.dp)
+            )
+          }
+        }
+      }
     }
   }
 }
