@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlin.js.js
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -70,6 +71,7 @@ fun App() {
         myBook != null -> MyBookReaderScreen(myBook, onBack = { openMyBook = null })
         else -> LibraryScreen(
           email,
+          AuthState.displayName,
           onOpen = { openBook = it },
           onOpenMine = { openMyBook = it }
         )
@@ -130,6 +132,7 @@ private fun SignInScreen() {
 @Composable
 private fun LibraryScreen(
   email: String,
+  displayName: String,
   onOpen: (RegistryBook) -> Unit,
   onOpenMine: (MyBook) -> Unit
 ) {
@@ -139,6 +142,7 @@ private fun LibraryScreen(
   var mailFailed by remember { mutableStateOf(false) }
   var openMail by remember { mutableStateOf<MailMessage?>(null) }
   var showKey by remember { mutableStateOf(false) }
+  var editingBook by remember { mutableStateOf<EditableBook?>(null) }
   var wallet by remember { mutableStateOf<WalletData?>(null) }
   var walletLoaded by remember { mutableStateOf(false) }
   var walletFailed by remember { mutableStateOf(false) }
@@ -158,6 +162,20 @@ private fun LibraryScreen(
   }
   if (showKey) {
     KeyScreen(email = email, onBack = { showKey = false })
+    return
+  }
+  val editing = editingBook
+  if (editing != null) {
+    EditorScreen(
+      email = email,
+      displayName = displayName,
+      initial = editing,
+      onBack = {
+        editingBook = null
+        FirestoreBooks.fetchMyBooks(email) { result -> myBooks = result }
+      },
+      onOpenKey = { showKey = true }
+    )
     return
   }
   val openedMail = openMail
@@ -216,7 +234,14 @@ private fun LibraryScreen(
       }
     }
     when (tab) {
-      1 -> MyBooksList(myBooks, onOpenMine)
+      1 -> MyBooksList(
+        myBooks,
+        onOpenMine,
+        onEdit = { mine ->
+          parseEditableBook(mine.payload)?.let { editingBook = it }
+        },
+        onNew = { editingBook = newEditableBook(displayName) }
+      )
       2 -> WalletView(wallet, walletLoaded, walletFailed)
       3 -> MailList(mail, mailFailed) { message ->
         openMail = message
@@ -464,6 +489,10 @@ private fun BookCard(book: RegistryBook, onOpen: (RegistryBook) -> Unit) {
             color = BwriterGold
           )
         }
+        Spacer(modifier = Modifier.weight(1f))
+        TextButton(onClick = { onEdit(book) }) {
+          Text(text = "Edit", color = BwriterGold, fontSize = 14.sp)
+        }
       }
     }
   }
@@ -505,7 +534,35 @@ private fun SegmentButton(label: String, selected: Boolean, onClick: () -> Unit)
 }
 
 @Composable
-private fun MyBooksList(myBooks: List<MyBook>?, onOpenMine: (MyBook) -> Unit) {
+private fun newEditableBook(displayName: String): EditableBook {
+  val now = com.supernatural.bwriter.currentTimeMillis()
+  return EditableBook(
+    id = now + (secureRandomHex().take(4).toInt(16) % 100000),
+    year = currentYearText(),
+    updatedAt = now,
+    sections = listOf(
+      EditableSection(
+        id = now + 1,
+        title = "Chapter 1",
+        orderIndex = 0,
+        assignedAuthor = displayName
+      )
+    )
+  )
+}
+
+private fun currentYearJs(): kotlin.js.JsString =
+  js("{ return String(new Date().getFullYear()); }")
+
+private fun currentYearText(): String = currentYearJs().toString()
+
+@Composable
+private fun MyBooksList(
+  myBooks: List<MyBook>?,
+  onOpenMine: (MyBook) -> Unit,
+  onEdit: (MyBook) -> Unit,
+  onNew: () -> Unit
+) {
   val current = myBooks
   when {
     current == null -> {
@@ -517,15 +574,19 @@ private fun MyBooksList(myBooks: List<MyBook>?, onOpenMine: (MyBook) -> Unit) {
       }
     }
     current.isEmpty() -> {
-      Box(
+      Column(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally
       ) {
+        Spacer(modifier = Modifier.height(60.dp))
         Text(
           text = "No books of yours are in the cloud yet.",
           fontSize = 16.sp,
           color = AppleSecondary
         )
+        TextButton(onClick = onNew) {
+          Text(text = "Start a new book", color = BwriterGold, fontSize = 16.sp)
+        }
       }
     }
     else -> {
@@ -535,14 +596,23 @@ private fun MyBooksList(myBooks: List<MyBook>?, onOpenMine: (MyBook) -> Unit) {
           .padding(horizontal = 28.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
       ) {
-        items(current) { book -> MyBookCard(book, onOpenMine) }
+        item {
+          TextButton(onClick = onNew) {
+            Text(text = "+  New book", color = BwriterGold, fontSize = 16.sp)
+          }
+        }
+        items(current) { book -> MyBookCard(book, onOpenMine, onEdit) }
       }
     }
   }
 }
 
 @Composable
-private fun MyBookCard(book: MyBook, onOpenMine: (MyBook) -> Unit) {
+private fun MyBookCard(
+  book: MyBook,
+  onOpenMine: (MyBook) -> Unit,
+  onEdit: (MyBook) -> Unit
+) {
   Surface(
     onClick = { onOpenMine(book) },
     color = AppleSurface,
@@ -587,6 +657,10 @@ private fun MyBookCard(book: MyBook, onOpenMine: (MyBook) -> Unit) {
             fontSize = 12.sp,
             color = BwriterGold
           )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        TextButton(onClick = { onEdit(book) }) {
+          Text(text = "Edit", color = BwriterGold, fontSize = 14.sp)
         }
       }
     }

@@ -45,15 +45,17 @@ private fun firebaseSignInWithGoogle(auth: JsAny): Unit =
 private fun firebaseSignOut(auth: JsAny): Unit =
   js("{ window.BwriterFirebase.signOut(auth); }")
 
-// The JS adapter extracts user.email, so the Kotlin side only ever sees the
-// email string (or null when signed out) — the same value the Android build
-// keys standing and mail on.
+// The JS adapter extracts the user's email and display name as one small
+// JSON document (or null when signed out) — the same values the Android
+// build keys standing and mail on.
 private fun firebaseObserveAuth(auth: JsAny, callback: (JsString?) -> Unit): Unit =
-  js("{ window.BwriterFirebase.onAuthStateChanged(auth, (user) => callback(user ? user.email : null)); }")
+  js("{ window.BwriterFirebase.onAuthStateChanged(auth, (user) => callback(user ? JSON.stringify({ email: user.email || '', name: user.displayName || '' }) : null)); }")
 
-/** The signed-in user's email, or null. Driven solely by onAuthStateChanged. */
+/** The signed-in user's identity. Driven solely by onAuthStateChanged. */
 object AuthState {
   var email: String? by mutableStateOf(null)
+    internal set
+  var displayName: String by mutableStateOf("")
     internal set
 }
 
@@ -73,8 +75,15 @@ object FirebaseAuth {
 
   /** Initializes the Firebase app and subscribes to auth state. Call once. */
   fun start() {
-    firebaseObserveAuth(auth) { email ->
-      AuthState.email = email?.toString()
+    firebaseObserveAuth(auth) { json ->
+      val text = json?.toString().orEmpty()
+      if (text.isBlank()) {
+        AuthState.email = null
+        AuthState.displayName = ""
+      } else {
+        AuthState.email = jsonStringField(text, "email").ifBlank { null }
+        AuthState.displayName = jsonStringField(text, "name")
+      }
     }
   }
 

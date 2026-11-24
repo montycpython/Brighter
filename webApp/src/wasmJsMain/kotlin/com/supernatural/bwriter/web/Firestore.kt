@@ -112,6 +112,16 @@ data class MailMessage(
 private fun firestoreRegisterAuthorKey(db: JsAny, email: JsString, address: JsString, pubHex: JsString): Unit =
   js("{ const F = window.BwriterFirestore; const ref = F.doc(db, 'users', email); F.setDoc(ref, { email: email, authorAddress: address, authorPubKey: pubHex }, { merge: true }).catch((e) => console.error('Bwriter key registration failed', e)); }")
 
+
+private fun firestoreDocText(db: JsAny, path: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ const F = window.BwriterFirestore; const ref = F.doc(db, ...path.split('/')); F.getDoc(ref).then((snap) => callback(snap.exists() ? JSON.stringify(snap.data()) : '')).catch(() => callback('ERR')); }")
+
+private fun firestoreFindIndexEntry(db: JsAny, collection: JsString, manuscriptId: JsString, emailLower: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ const F = window.BwriterFirestore; const q = F.query(F.collection(db, collection), F.where('manuscriptId', '==', Number(manuscriptId)), F.where('authorEmailLower', '==', emailLower)); F.getDocs(q).then((snap) => { if (snap.empty) { callback(''); } else { const d = snap.docs[0]; callback(JSON.stringify(Object.assign({ __id: d.id }, d.data()))); } }).catch(() => callback('ERR')); }")
+
+private fun syncSaveAll(opsJson: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ window.BwriterSync.saveAll(opsJson).then(() => callback('1')).catch((e) => { console.error('Bwriter sync failed', e); callback(''); }); }")
+
 /** One row of the public registry, as written by the Android build. */
 data class RegistryBook(
   val id: String,
@@ -134,6 +144,37 @@ object FirestoreBooks {
       address.toJsString(),
       pubHex.toJsString()
     )
+  }
+
+
+  /**
+   * Reads one document as JSON text: the document's fields when it exists,
+   * "" when it does not, and "ERR" when the read itself failed — the three
+   * cases Android's sync distinguishes.
+   */
+  fun fetchDocText(path: String, onDone: (String) -> Unit) {
+    firestoreDocText(firestoreDb(), path.toJsString()) { text ->
+      onDone(text.toString())
+    }
+  }
+
+  /** Finds an index entry by manuscript id and author, as Android does. */
+  fun findIndexEntry(collection: String, manuscriptId: Long, email: String, onDone: (String) -> Unit) {
+    firestoreFindIndexEntry(
+      firestoreDb(),
+      collection.toJsString(),
+      manuscriptId.toString().toJsString(),
+      email.lowercase().trim().toJsString()
+    ) { text ->
+      onDone(text.toString())
+    }
+  }
+
+  /** Performs the sync's writes in order; delivers true when all landed. */
+  fun saveAll(opsJson: String, onDone: (Boolean) -> Unit) {
+    syncSaveAll(opsJson.toJsString()) { result ->
+      onDone(result.toString() == "1")
+    }
   }
 
   /** Fetches every registry document once and delivers the parsed rows. */

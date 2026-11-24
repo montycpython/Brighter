@@ -29,7 +29,8 @@
       query,
       where,
       updateDoc,
-      setDoc
+      setDoc,
+      addDoc
     } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-firestore.js";
     window.BwriterFirebase = {
       initializeApp,
@@ -105,6 +106,20 @@
       set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } },
       remove: (k) => { try { localStorage.removeItem(k); } catch (e) { } }
     };
+    window.BwriterSync = {
+      saveAll: async (opsJson) => {
+        const F = window.BwriterFirestore;
+        const db = F.getFirestore(F.getApp());
+        const ops = JSON.parse(opsJson);
+        for (const op of ops) {
+          if (op.add) {
+            await F.addDoc(F.collection(db, op.path), op.data);
+          } else {
+            await F.setDoc(F.doc(db, ...op.path.split('/')), op.data);
+          }
+        }
+      }
+    };
     window.BwriterFirestore = {
       getFirestore,
       collection,
@@ -114,7 +129,8 @@
       query,
       where,
       updateDoc,
-      setDoc
+      setDoc,
+      addDoc
     };
   </script>
   <!-- KaTeX from the jsDelivr CDN. The browser LaTeX renderer: the shared
