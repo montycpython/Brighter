@@ -5,10 +5,10 @@ package com.supernatural.bwriter.web
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import kotlin.js.JsAny
-import kotlin.JsFun
 import kotlin.js.ExperimentalWasmJsInterop
+import kotlin.js.JsAny
 import kotlin.js.JsString
+import kotlin.js.js
 import kotlin.js.toJsString
 
 // Hand-written interop to the Firebase web SDK. There are no official Firebase
@@ -24,44 +24,34 @@ import kotlin.js.toJsString
 //
 // index.html loads the SDK from the Firebase CDN and exposes those six
 // functions as window.BwriterFirebase before this module starts.
+//
+// Each function below is a js() snippet: the compiler places the code string
+// into a JavaScript function whose parameters carry the same names, so the
+// snippet reads its arguments directly.
 
-@JsFun(
-  "(apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId) => " +
-    "({ apiKey: apiKey, authDomain: authDomain, projectId: projectId, " +
-    "storageBucket: storageBucket, messagingSenderId: messagingSenderId, appId: appId })"
-)
-private external fun firebaseConfigObject(
+private fun firebaseConfigObject(
   apiKey: JsString,
   authDomain: JsString,
   projectId: JsString,
   storageBucket: JsString,
   messagingSenderId: JsString,
   appId: JsString
-): JsAny
+): JsAny = js("({ apiKey: apiKey, authDomain: authDomain, projectId: projectId, storageBucket: storageBucket, messagingSenderId: messagingSenderId, appId: appId })")
 
-@JsFun(
-  "(config) => window.BwriterFirebase.getAuth(window.BwriterFirebase.initializeApp(config))"
-)
-private external fun firebaseAuth(config: JsAny): JsAny
+private fun firebaseAuth(config: JsAny): JsAny =
+  js("window.BwriterFirebase.getAuth(window.BwriterFirebase.initializeApp(config))")
 
-@JsFun(
-  "(auth) => { const provider = new window.BwriterFirebase.GoogleAuthProvider(); " +
-    "window.BwriterFirebase.signInWithPopup(auth, provider)" +
-    ".catch((error) => console.error('Bwriter sign-in failed', error)); }"
-)
-private external fun firebaseSignInWithGoogle(auth: JsAny)
+private fun firebaseSignInWithGoogle(auth: JsAny): Unit =
+  js("{ const provider = new window.BwriterFirebase.GoogleAuthProvider(); window.BwriterFirebase.signInWithPopup(auth, provider).catch((error) => console.error('Bwriter sign-in failed', error)); }")
 
-@JsFun("(auth) => { window.BwriterFirebase.signOut(auth); }")
-private external fun firebaseSignOut(auth: JsAny)
+private fun firebaseSignOut(auth: JsAny): Unit =
+  js("{ window.BwriterFirebase.signOut(auth); }")
 
 // The JS adapter extracts user.email, so the Kotlin side only ever sees the
 // email string (or null when signed out) — the same value the Android build
 // keys standing and mail on.
-@JsFun(
-  "(auth, callback) => { window.BwriterFirebase.onAuthStateChanged(auth, " +
-    "(user) => callback(user ? user.email : null)); }"
-)
-private external fun firebaseObserveAuth(auth: JsAny, callback: (JsString?) -> Unit)
+private fun firebaseObserveAuth(auth: JsAny, callback: (JsString?) -> Unit): Unit =
+  js("{ window.BwriterFirebase.onAuthStateChanged(auth, (user) => callback(user ? user.email : null)); }")
 
 /** The signed-in user's email, or null. Driven solely by onAuthStateChanged. */
 object AuthState {
