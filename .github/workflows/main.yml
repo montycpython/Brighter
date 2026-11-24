@@ -1,0 +1,58 @@
+name: Build and Deploy Web App to Firebase Hosting
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+          validate-wrappers: false
+          cache-disabled: true
+
+      - name: Build Web App
+        run: gradle :webApp:wasmJsBrowserDistribution --no-configuration-cache --no-build-cache --stacktrace
+
+      - name: Write Firebase Config
+        run: |
+          cat << 'EOF' > firebase.json
+          {
+            "hosting": {
+              "public": "webApp/build/dist/wasmJs/productionExecutable",
+              "ignore": [ "firebase.json", "**/.*", "**/node_modules/**" ],
+              "rewrites": [ { "source": "**", "destination": "/index.html" } ]
+            }
+          }
+          EOF
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN_JSON: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          printf '%s' "$FIREBASE_TOKEN_JSON" > "$RUNNER_TEMP/firebase-key.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-key.json"
+          firebase deploy --only hosting --project bwriter-app --non-interactive
