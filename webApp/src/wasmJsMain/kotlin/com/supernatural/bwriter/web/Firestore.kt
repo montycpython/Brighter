@@ -34,6 +34,26 @@ private fun firestoreFetchRegistry(db: JsAny, callback: (JsString) -> Unit): Uni
 private fun firestoreFetchBookText(db: JsAny, fileId: JsString, callback: (JsString) -> Unit): Unit =
   js("{ const F = window.BwriterFirestore; const ref = F.doc(db, 'registry', fileId, 'content', 'fullText'); F.getDoc(ref).then((snap) => { const v = snap.exists() ? snap.data() : null; callback(v && v.payload ? v.payload : ''); }).catch((e) => { console.error('Bwriter book fetch failed', e); callback(''); }); }")
 
+
+private fun firestoreFetchMyBooks(db: JsAny, email: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ const F = window.BwriterFirestore; const q = F.query(F.collection(db, 'cloudBooks'), F.where('ownerEmail', '==', email)); F.getDocs(q).then((snap) => { const rows = []; snap.forEach((d) => { const v = d.data(); rows.push({ id: d.id, birthId: v.birthId || '', payload: v.payload || '', updatedAt: v.updatedAt || 0 }); }); callback(JSON.stringify(rows)); }).catch((e) => { console.error('Bwriter my-books fetch failed', e); callback('[]'); }); }")
+
+/**
+ * One of the signed-in author's own cloud books (the cloudBooks collection
+ * the Android build syncs to). The book's text rides in [payload], the same
+ * manuscript JSON the registry content documents carry.
+ */
+data class MyBook(
+  val id: String,
+  val birthId: String,
+  val title: String,
+  val subtitle: String,
+  val authorName: String,
+  val wordCount: Long,
+  val updatedAt: Long,
+  val payload: String
+)
+
 /** One row of the public registry, as written by the Android build. */
 data class RegistryBook(
   val id: String,
@@ -60,6 +80,42 @@ object FirestoreBooks {
       onResult(payload.toString())
     }
   }
+
+  /** Fetches the author's own cloud books, newest sync first. */
+  fun fetchMyBooks(email: String, onResult: (List<MyBook>) -> Unit) {
+    firestoreFetchMyBooks(firestoreDb(), email.lowercase().trim().toJsString()) { json ->
+      onResult(parseMyBooks(json.toString()))
+    }
+  }
+}
+
+internal fun parseMyBooks(json: String): List<MyBook> {
+  val books = ArrayList<MyBook>()
+  var i = 0
+  while (i < json.length) {
+    if (json[i] == '{') {
+      val end = jsonObjectEnd(json, i)
+      if (end < 0) break
+      val obj = json.substring(i, end + 1)
+      val payload = jsonStringField(obj, "payload")
+      books.add(
+        MyBook(
+          id = jsonStringField(obj, "id"),
+          birthId = jsonStringField(obj, "birthId"),
+          title = jsonStringField(payload, "title"),
+          subtitle = jsonStringField(payload, "subtitle"),
+          authorName = jsonStringField(payload, "authorName"),
+          wordCount = parseBookSections(payload).sumOf { it.wordCount },
+          updatedAt = jsonLongField(obj, "updatedAt"),
+          payload = payload
+        )
+      )
+      i = end + 1
+    } else {
+      i++
+    }
+  }
+  return books.sortedByDescending { it.updatedAt }
 }
 
 // Minimal JSON reading for exactly the shape firestoreFetchRegistry builds:

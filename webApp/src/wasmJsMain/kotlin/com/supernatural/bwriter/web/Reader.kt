@@ -60,6 +60,24 @@ fun ReaderScreen(book: RegistryBook, onBack: () -> Unit) {
       parsed = parseBook(payload)
     }
   }
+  ReaderContent(book.title, book.authorName, book.birthId, parsed, onBack)
+}
+
+/** A book from the author's own cloud library: its text rides in the payload. */
+@Composable
+fun MyBookReaderScreen(book: MyBook, onBack: () -> Unit) {
+  val parsed = remember(book.id) { parseBook(book.payload) }
+  ReaderContent(book.title, book.authorName, book.birthId, parsed, onBack)
+}
+
+@Composable
+private fun ReaderContent(
+  title: String,
+  authorName: String,
+  birthId: String,
+  parsed: ParsedBook?,
+  onBack: () -> Unit
+) {
   Column(
     modifier = Modifier
       .fillMaxSize()
@@ -106,14 +124,14 @@ fun ReaderScreen(book: RegistryBook, onBack: () -> Unit) {
                 .padding(horizontal = 28.dp, vertical = 12.dp)
             ) {
               Text(
-                text = book.title.ifBlank { "Untitled" },
+                text = title.ifBlank { "Untitled" },
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
                 color = AppleInk
               )
-              if (book.authorName.isNotBlank()) {
+              if (authorName.isNotBlank()) {
                 Text(
-                  text = "by ${book.authorName}",
+                  text = "by ${authorName}",
                   fontSize = 15.sp,
                   color = AppleSecondary,
                   modifier = Modifier.padding(top = 4.dp)
@@ -135,7 +153,7 @@ fun ReaderScreen(book: RegistryBook, onBack: () -> Unit) {
             }
           }
           if (!current.frontMatter.isEmpty()) {
-            item { FrontMatterBlock(current.frontMatter, book.birthId) }
+            item { FrontMatterBlock(current.frontMatter, birthId) }
           }
           for (section in current.sections) {
             if (section.title.isNotBlank()) {

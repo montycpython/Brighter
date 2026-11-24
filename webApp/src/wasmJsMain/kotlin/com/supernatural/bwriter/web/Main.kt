@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,11 +55,18 @@ fun App() {
     ) {
       val email = AuthState.email
       var openBook by remember { mutableStateOf<RegistryBook?>(null) }
+      var openMyBook by remember { mutableStateOf<MyBook?>(null) }
       val book = openBook
+      val myBook = openMyBook
       when {
         email == null -> SignInScreen()
         book != null -> ReaderScreen(book, onBack = { openBook = null })
-        else -> LibraryScreen(email, onOpen = { openBook = it })
+        myBook != null -> MyBookReaderScreen(myBook, onBack = { openMyBook = null })
+        else -> LibraryScreen(
+          email,
+          onOpen = { openBook = it },
+          onOpenMine = { openMyBook = it }
+        )
       }
     }
   }
@@ -114,10 +122,17 @@ private fun SignInScreen() {
 }
 
 @Composable
-private fun LibraryScreen(email: String, onOpen: (RegistryBook) -> Unit) {
+private fun LibraryScreen(
+  email: String,
+  onOpen: (RegistryBook) -> Unit,
+  onOpenMine: (MyBook) -> Unit
+) {
   var books by remember { mutableStateOf<List<RegistryBook>?>(null) }
+  var myBooks by remember { mutableStateOf<List<MyBook>?>(null) }
+  var tab by remember { mutableStateOf(0) }
   LaunchedEffect(email) {
     FirestoreBooks.fetchRegistry { result -> books = result }
+    FirestoreBooks.fetchMyBooks(email) { result -> myBooks = result }
   }
   Column(
     modifier = Modifier
@@ -147,6 +162,22 @@ private fun LibraryScreen(email: String, onOpen: (RegistryBook) -> Unit) {
         Text(text = "Sign out", color = BwriterGold, fontSize = 15.sp)
       }
     }
+    Row(
+      modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
+    ) {
+      Surface(
+        color = Color(0xFFE8E8ED),
+        shape = RoundedCornerShape(10.dp)
+      ) {
+        Row(modifier = Modifier.padding(2.dp)) {
+          SegmentButton("Library", tab == 0) { tab = 0 }
+          SegmentButton("My Books", tab == 1) { tab = 1 }
+        }
+      }
+    }
+    if (tab == 1) {
+      MyBooksList(myBooks, onOpenMine)
+    } else {
     val current = books
     when {
       current == null -> {
@@ -180,6 +211,7 @@ private fun LibraryScreen(email: String, onOpen: (RegistryBook) -> Unit) {
           item { Spacer(modifier = Modifier.height(14.dp)) }
         }
       }
+    }
     }
   }
 }
@@ -252,4 +284,117 @@ private fun groupThousands(value: Long): String {
     sb.append(digits[i])
   }
   return sb.toString()
+}
+
+@Composable
+private fun SegmentButton(label: String, selected: Boolean, onClick: () -> Unit) {
+  if (selected) {
+    Surface(
+      color = AppleSurface,
+      shape = RoundedCornerShape(8.dp),
+      shadowElevation = 1.dp
+    ) {
+      Text(
+        text = label,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = AppleInk,
+        modifier = Modifier
+          .padding(horizontal = 18.dp, vertical = 6.dp)
+      )
+    }
+  } else {
+    TextButton(onClick = onClick) {
+      Text(text = label, fontSize = 14.sp, color = AppleSecondary)
+    }
+  }
+}
+
+@Composable
+private fun MyBooksList(myBooks: List<MyBook>?, onOpenMine: (MyBook) -> Unit) {
+  val current = myBooks
+  when {
+    current == null -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        CircularProgressIndicator(color = BwriterGold)
+      }
+    }
+    current.isEmpty() -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        Text(
+          text = "No books of yours are in the cloud yet.",
+          fontSize = 16.sp,
+          color = AppleSecondary
+        )
+      }
+    }
+    else -> {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(horizontal = 28.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+      ) {
+        items(current) { book -> MyBookCard(book, onOpenMine) }
+      }
+    }
+  }
+}
+
+@Composable
+private fun MyBookCard(book: MyBook, onOpenMine: (MyBook) -> Unit) {
+  Surface(
+    onClick = { onOpenMine(book) },
+    color = AppleSurface,
+    shape = RoundedCornerShape(16.dp),
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    Column(modifier = Modifier.padding(20.dp)) {
+      Text(
+        text = book.title.ifBlank { "Untitled" },
+        fontSize = 20.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = AppleInk
+      )
+      if (book.subtitle.isNotBlank()) {
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+          text = book.subtitle,
+          fontSize = 15.sp,
+          color = AppleSecondary
+        )
+      }
+      if (book.authorName.isNotBlank()) {
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+          text = "by ${book.authorName}",
+          fontSize = 14.sp,
+          color = AppleSecondary
+        )
+      }
+      Spacer(modifier = Modifier.height(12.dp))
+      Row {
+        if (book.wordCount > 0) {
+          Text(
+            text = "${groupThousands(book.wordCount)} words",
+            fontSize = 12.sp,
+            color = AppleSecondary
+          )
+        }
+        if (book.birthId.isNotBlank()) {
+          Text(
+            text = "  ·  BISN ${bisnFor(book.birthId)}",
+            fontSize = 12.sp,
+            color = BwriterGold
+          )
+        }
+      }
+    }
+  }
 }

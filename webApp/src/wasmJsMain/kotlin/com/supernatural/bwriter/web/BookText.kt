@@ -10,7 +10,8 @@ package com.supernatural.bwriter.web
 data class BookSection(
   val title: String,
   val orderIndex: Long,
-  val content: String
+  val content: String,
+  val wordCount: Long
 )
 
 /** The book's title-page and copyright-page facts, as the author set them. */
@@ -74,7 +75,8 @@ fun parseBookSections(payload: String): List<BookSection> {
           BookSection(
             title = jsonStringField(obj, "title"),
             orderIndex = jsonLongField(obj, "orderIndex"),
-            content = jsonStringField(obj, "content")
+            content = jsonStringField(obj, "content"),
+            wordCount = jsonLongField(obj, "wordCount")
           )
         )
         i = end + 1
