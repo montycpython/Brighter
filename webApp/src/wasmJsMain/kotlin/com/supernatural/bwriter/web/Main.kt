@@ -129,10 +129,18 @@ private fun LibraryScreen(
 ) {
   var books by remember { mutableStateOf<List<RegistryBook>?>(null) }
   var myBooks by remember { mutableStateOf<List<MyBook>?>(null) }
+  var wallet by remember { mutableStateOf<WalletData?>(null) }
+  var walletLoaded by remember { mutableStateOf(false) }
+  var walletFailed by remember { mutableStateOf(false) }
   var tab by remember { mutableStateOf(0) }
   LaunchedEffect(email) {
     FirestoreBooks.fetchRegistry { result -> books = result }
     FirestoreBooks.fetchMyBooks(email) { result -> myBooks = result }
+    FirestoreBooks.fetchWallet(email) { result ->
+      wallet = result
+      walletFailed = result == null
+      walletLoaded = true
+    }
   }
   Column(
     modifier = Modifier
@@ -172,46 +180,192 @@ private fun LibraryScreen(
         Row(modifier = Modifier.padding(2.dp)) {
           SegmentButton("Library", tab == 0) { tab = 0 }
           SegmentButton("My Books", tab == 1) { tab = 1 }
+          SegmentButton("Wallet", tab == 2) { tab = 2 }
         }
       }
     }
-    if (tab == 1) {
-      MyBooksList(myBooks, onOpenMine)
-    } else {
-    val current = books
-    when {
-      current == null -> {
-        Box(
-          modifier = Modifier.fillMaxSize(),
-          contentAlignment = Alignment.Center
-        ) {
-          CircularProgressIndicator(color = BwriterGold)
-        }
-      }
-      current.isEmpty() -> {
-        Box(
-          modifier = Modifier.fillMaxSize(),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(
-            text = "No books in the registry yet.",
-            fontSize = 16.sp,
-            color = AppleSecondary
-          )
-        }
-      }
-      else -> {
-        LazyColumn(
-          modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 28.dp),
-          verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-          items(current) { book -> BookCard(book, onOpen) }
-          item { Spacer(modifier = Modifier.height(14.dp)) }
-        }
+    when (tab) {
+      1 -> MyBooksList(myBooks, onOpenMine)
+      2 -> WalletView(wallet, walletLoaded, walletFailed)
+      else -> RegistryList(books, onOpen)
+    }
+  }
+}
+
+@Composable
+private fun RegistryList(
+  books: List<RegistryBook>?,
+  onOpen: (RegistryBook) -> Unit
+) {
+  val current = books
+  when {
+    current == null -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        CircularProgressIndicator(color = BwriterGold)
       }
     }
+    current.isEmpty() -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        Text(
+          text = "No books in the registry yet.",
+          fontSize = 16.sp,
+          color = AppleSecondary
+        )
+      }
+    }
+    else -> {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(horizontal = 28.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+      ) {
+        items(current) { book -> BookCard(book, onOpen) }
+      }
+    }
+  }
+}
+
+@Composable
+private fun WalletView(wallet: WalletData?, loaded: Boolean, failed: Boolean) {
+  when {
+    !loaded -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        CircularProgressIndicator(color = BwriterGold)
+      }
+    }
+    failed || wallet == null -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        Text(
+          text = "Your wallet could not be loaded.",
+          fontSize = 16.sp,
+          color = AppleSecondary
+        )
+      }
+    }
+    else -> {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(horizontal = 28.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+      ) {
+        item {
+          Surface(
+            color = AppleSurface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+              Text(
+                text = "CREDIT BALANCE",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AppleSecondary
+              )
+              Text(
+                text = wallet.balance.toString(),
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppleInk,
+                modifier = Modifier.padding(top = 4.dp)
+              )
+              Text(
+                text = "Claimed ${wallet.claimed} · Received ${wallet.received}" +
+                  " · Sent ${wallet.sent} · Spent ${wallet.spent}",
+                fontSize = 12.sp,
+                color = AppleSecondary,
+                modifier = Modifier.padding(top = 6.dp)
+              )
+            }
+          }
+        }
+        if (wallet.unclaimed.isNotEmpty()) {
+          item {
+            Surface(
+              color = AppleSurface,
+              shape = RoundedCornerShape(16.dp),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                  text = "UNCLAIMED CREDIT",
+                  fontSize = 11.sp,
+                  fontWeight = FontWeight.SemiBold,
+                  color = AppleSecondary
+                )
+                Text(
+                  text = wallet.unclaimed.sumOf { it.amount }.toString(),
+                  fontSize = 22.sp,
+                  fontWeight = FontWeight.SemiBold,
+                  color = AppleInk,
+                  modifier = Modifier.padding(top = 4.dp)
+                )
+                Text(
+                  text = "${wallet.unclaimed.size} issuances waiting to be mined",
+                  fontSize = 12.sp,
+                  color = AppleSecondary,
+                  modifier = Modifier.padding(top = 4.dp)
+                )
+              }
+            }
+          }
+        }
+        item {
+          Surface(
+            color = AppleSurface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+              Text(
+                text = "SHARE UNITS",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AppleSecondary
+              )
+              Text(
+                text = wallet.units.size.toString(),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AppleInk,
+                modifier = Modifier.padding(top = 4.dp)
+              )
+              val vested = wallet.units.count { it.vested }
+              Text(
+                text = "Vested $vested · Awaiting vesting ${wallet.units.size - vested}",
+                fontSize = 12.sp,
+                color = AppleSecondary,
+                modifier = Modifier.padding(top = 4.dp)
+              )
+              val groups = wallet.units
+                .groupBy { it.seasonYear to it.role }
+                .entries
+                .sortedWith(compareBy({ it.key.first }, { it.key.second }))
+              for ((key, group) in groups) {
+                Text(
+                  text = "Season ${key.first} · ${key.second} · ${group.size}",
+                  fontSize = 13.sp,
+                  color = AppleInk,
+                  modifier = Modifier.padding(top = 8.dp)
+                )
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

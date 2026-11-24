@@ -54,6 +54,40 @@ data class MyBook(
   val payload: String
 )
 
+
+private fun firestoreFetchWallet(db: JsAny, email: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ const F = window.BwriterFirestore; const q = (col, field) => F.getDocs(F.query(F.collection(db, col), F.where(field, '==', email))); Promise.all([q('creditClaims', 'authorEmail'), q('creditIssuances', 'authorEmail'), q('creditTransfers', 'fromEmail'), q('creditTransfers', 'toEmail'), q('creditSpends', 'fromEmail'), q('shareUnits', 'holderEmail')]).then(([claims, issuances, sent, received, spends, units]) => { let claimedSum = 0; const claimedIds = new Set(); claims.forEach((d) => { const v = d.data(); claimedSum += v.amount || 0; claimedIds.add(v.issuanceHash); }); const unclaimed = []; issuances.forEach((d) => { const v = d.data(); if (!claimedIds.has(v.issuanceHash)) unclaimed.push({ amount: v.amount || 0, kind: v.kind || '', bonus: !!v.bonus }); }); let sentSum = 0; sent.forEach((d) => { sentSum += d.data().amount || 0; }); let receivedSum = 0; received.forEach((d) => { receivedSum += d.data().amount || 0; }); let spentSum = 0; spends.forEach((d) => { spentSum += d.data().amount || 0; }); const unitRows = []; units.forEach((d) => { const v = d.data(); unitRows.push({ role: v.role || '', seasonYear: v.seasonYear || 0, vested: !!v.vested }); }); callback(JSON.stringify({ claimed: claimedSum, unclaimed: unclaimed, sent: sentSum, received: receivedSum, spent: spentSum, units: unitRows })); }).catch((e) => { console.error('Bwriter wallet fetch failed', e); callback(''); }); }")
+
+/** An issuance the author has not yet mined into claimed credit. */
+data class UnclaimedCredit(
+  val amount: Long,
+  val kind: String,
+  val bonus: Boolean
+)
+
+/** One share unit held by the author (one shareUnits document). */
+data class UnitGrantView(
+  val role: String,
+  val seasonYear: Long,
+  val vested: Boolean
+)
+
+/**
+ * The author's wallet, computed exactly as the Android build computes it:
+ * balance = claimed - sent + received - spent, over the creditClaims,
+ * creditTransfers and creditSpends collections; units from shareUnits.
+ */
+data class WalletData(
+  val claimed: Long,
+  val unclaimed: List<UnclaimedCredit>,
+  val sent: Long,
+  val received: Long,
+  val spent: Long,
+  val units: List<UnitGrantView>
+) {
+  val balance: Long get() = claimed - sent + received - spent
+}
+
 /** One row of the public registry, as written by the Android build. */
 data class RegistryBook(
   val id: String,
@@ -116,6 +150,43 @@ internal fun parseMyBooks(json: String): List<MyBook> {
     }
   }
   return books.sortedByDescending { it.updatedAt }
+
+  /** Fetches the author's wallet: credit balance, unclaimed credit, units. */
+  fun fetchWallet(email: String, onResult: (WalletData?) -> Unit) {
+    firestoreFetchWallet(firestoreDb(), email.lowercase().trim().toJsString()) { json ->
+      onResult(parseWallet(json.toString()))
+    }
+  }
+}
+
+internal fun parseWallet(json: String): WalletData? {
+  if (json.isBlank()) return null
+  return WalletData(
+    claimed = jsonLongField(json, "claimed"),
+    unclaimed = jsonObjectArray(json, "unclaimed").map { obj ->
+      UnclaimedCredit(
+        amount = jsonLongField(obj, "amount"),
+        kind = jsonStringField(obj, "kind"),
+        bonus = jsonBoolField(obj, "bonus")
+      )
+    },
+    sent = jsonLongField(json, "sent"),
+    received = jsonLongField(json, "received"),
+    spent = jsonLongField(json, "spent"),
+    units = jsonObjectArray(json, "units").map { obj ->
+      UnitGrantView(
+        role = jsonStringField(obj, "role"),
+        seasonYear = jsonLongField(obj, "seasonYear"),
+        vested = jsonBoolField(obj, "vested")
+      )
+    }
+  )
+}
+
+/** The boolean value of "key" in a flat JSON object, or false when absent. */
+internal fun jsonBoolField(obj: String, key: String): Boolean {
+  val valueStart = jsonValueStart(obj, key) ?: return false
+  return obj.startsWith("true", valueStart)
 }
 
 // Minimal JSON reading for exactly the shape firestoreFetchRegistry builds:
