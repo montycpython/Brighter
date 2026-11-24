@@ -42,14 +42,14 @@
        order after parsing, so this block must stay before webApp.js. -->
   <script src="https://accounts.google.com/gsi/client" async></script>
   <script type="module">
-    import { initializeApp, getApp } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-app.js";
+    import { initializeApp, getApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
     import {
       getAuth,
       GoogleAuthProvider,
       signInWithPopup,
       onAuthStateChanged,
       signOut
-    } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-auth.js";
+    } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
     import {
       getFirestore,
       collection,
@@ -61,7 +61,7 @@
       updateDoc,
       setDoc,
       addDoc
-    } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-firestore.js";
+    } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
     window.BwriterFirebase = {
       initializeApp,
       getApp,
