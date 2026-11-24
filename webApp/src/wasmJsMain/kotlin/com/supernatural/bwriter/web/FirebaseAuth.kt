@@ -54,6 +54,12 @@ private fun firebaseSignOut(auth: JsAny): Unit =
 private fun firebaseObserveAuth(auth: JsAny, callback: (JsString?) -> Unit): Unit =
   js("{ window.BwriterFirebase.onAuthStateChanged(auth, (user) => callback(user ? JSON.stringify({ email: user.email || '', name: user.displayName || '' }) : null)); }")
 
+// Hands the signed-in address to the page's boot reporter: if the
+// on-device boot record holds startup errors, the page mails them to
+// the studio as a site report and clears the record.
+private fun reportBoot(email: JsString): Unit =
+  js("{ if (window.BwriterReportBoot) { window.BwriterReportBoot(email); } }")
+
 /** The signed-in user's identity. Driven solely by onAuthStateChanged. */
 object AuthState {
   var email: String? by mutableStateOf(null)
@@ -84,8 +90,10 @@ object FirebaseAuth {
         AuthState.email = null
         AuthState.displayName = ""
       } else {
-        AuthState.email = jsonStringField(text, "email").ifBlank { null }
+        val email = jsonStringField(text, "email")
+        AuthState.email = email.ifBlank { null }
         AuthState.displayName = jsonStringField(text, "name")
+        if (email.isNotBlank()) reportBoot(email.toJsString())
       }
     }
   }

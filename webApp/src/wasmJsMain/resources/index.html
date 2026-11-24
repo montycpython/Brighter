@@ -6,6 +6,35 @@
   <title>Bwriter: Phoenicia</title>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#1B1B1F">
+  <script>
+    // Boot capture: installed before anything else on the page. Records
+    // startup milestones and every uncaught error, persists them on the
+    // device, and mails them to the studio after sign-in (see
+    // window.BwriterReportBoot below). A silent failure is how a broken
+    // build sat unnoticed; this record is the site's voice.
+    window.__bwriterBoot = { at: Date.now(), marks: [], errors: [] };
+    window.__bwriterMark = function (name) {
+      try {
+        window.__bwriterBoot.marks.push(name + '@' + (Date.now() - window.__bwriterBoot.at));
+        localStorage.setItem('bwriter.bootlog', JSON.stringify(window.__bwriterBoot));
+      } catch (e) { }
+    };
+    window.__bwriterCapture = function (kind, message, stack) {
+      try {
+        window.__bwriterBoot.errors.push({ kind: kind, message: String(message || ''), stack: String(stack || '') });
+        if (window.__bwriterBoot.errors.length > 20) window.__bwriterBoot.errors.shift();
+        localStorage.setItem('bwriter.bootlog', JSON.stringify(window.__bwriterBoot));
+      } catch (e) { }
+    };
+    window.addEventListener('error', function (ev) {
+      window.__bwriterCapture('error', ev.message, ev.error && ev.error.stack);
+    });
+    window.addEventListener('unhandledrejection', function (ev) {
+      var r = ev.reason;
+      window.__bwriterCapture('rejection', r && r.message ? r.message : r, r && r.stack);
+    });
+    window.__bwriterMark('capture-installed');
+  </script>
   <!-- Firebase web SDK (modular v11) from the Firebase CDN. Exposes the app,
        auth and Firestore functions the Kotlin/Wasm interop layer calls as
        window.BwriterFirebase and window.BwriterFirestore.
@@ -373,6 +402,40 @@
       setDoc,
       addDoc
     };
+    // Boot reporting: after a sign-in, if the on-device boot record holds
+    // errors, mail it to the studio as a site report and clear the record,
+    // so the Editor in Chief hears about a broken site from the site
+    // itself. Mirrors the Android mail document shape field for field.
+    window.BwriterReportBoot = async (email) => {
+      try {
+        const raw = localStorage.getItem('bwriter.bootlog');
+        if (!raw) return;
+        const log = JSON.parse(raw);
+        if (!log.errors || log.errors.length === 0) return;
+        const F = window.BwriterFirestore;
+        const db = F.getFirestore(F.getApp());
+        const lines = log.errors.map((e) =>
+          '[' + e.kind + '] ' + e.message + (e.stack ? '\n' + e.stack : ''));
+        const id = 'report_' + Date.now() + '_' +
+          Math.floor(Math.random() * 1000000);
+        await F.setDoc(F.doc(db, 'mail', id), {
+          id: id,
+          recipientEmail: 'author.studio@bwriter.io',
+          recipientEmailDisplay: 'author.studio@bwriter.io',
+          senderEmail: email,
+          senderName: 'Bwriter Web',
+          subject: 'Site report: web boot errors',
+          body: 'Boot marks: ' + (log.marks || []).join(', ') +
+            '\n\nErrors:\n' + lines.join('\n\n'),
+          timestamp: Date.now(),
+          isRead: false,
+          messageType: 'SITE_REPORT'
+        });
+        localStorage.removeItem('bwriter.bootlog');
+      } catch (e) { }
+    };
+    window.__bwriterBridgesReady = true;
+    window.__bwriterMark('bridges-ready');
   </script>
   <!-- KaTeX from the jsDelivr CDN. The browser LaTeX renderer: the shared
        parser hands the web reader the same math segments Android renders
@@ -408,36 +471,79 @@
     <div style="font-size: 30px; font-weight: bold;">Bwriter</div>
     <p id="bwriter-fallback-text"
        style="font-size: 17px; line-height: 27px; max-width: 520px; margin: 18px auto 0; color: #3A3A3C;">
-      Bwriter needs a newer browser to run. On an iPhone, that means
-      iOS 18.4 or later — please update iOS, or open Bwriter in the
-      latest Safari, Chrome, or Firefox on a computer. Your books and
-      your account are untouched.
+      Bwriter needs a current browser to run. On Android, that means
+      Chrome 119 or later; on an iPhone, iOS 18.4 or later. Please
+      update the browser and try again. Your books and your account
+      are untouched.
     </p>
   </div>
   <script>
     (function () {
       var fallback = document.getElementById('bwriter-fallback');
-      if (window.__bwriterWasmOk) {
-        var s = document.createElement('script');
-        s.src = 'webApp.js';
-        document.body.appendChild(s);
-        new MutationObserver(function () {
-          if (document.querySelector('canvas')) {
-            fallback.style.display = 'none';
-          }
-        }).observe(document.body, { childList: true, subtree: true });
-        setTimeout(function () {
-          if (!document.querySelector('canvas')) {
-            document.getElementById('bwriter-fallback-text').textContent =
-              'Bwriter is taking a long time to load. A slow connection ' +
-              'can do this — or the browser may be too old. On an ' +
-              'iPhone, Bwriter needs iOS 18.4 or later.';
-            fallback.style.display = 'block';
-          }
-        }, 25000);
-      } else {
+      var text = document.getElementById('bwriter-fallback-text');
+      function showMessage(msg) {
+        text.textContent = msg;
         fallback.style.display = 'block';
       }
+      function capturedErrors() {
+        try {
+          var log = JSON.parse(localStorage.getItem('bwriter.bootlog') || '{}');
+          if (log.errors && log.errors.length) {
+            return ' The page recorded this error: ' +
+              log.errors[log.errors.length - 1].message;
+          }
+        } catch (e) { }
+        return '';
+      }
+      if (!window.__bwriterWasmOk) {
+        window.__bwriterMark('wasm-unsupported');
+        showMessage(
+          'Bwriter needs a current browser to run. On Android, that ' +
+          'means Chrome 119 or later; on an iPhone, iOS 18.4 or ' +
+          'later. Please update the browser and try again. Your ' +
+          'books and your account are untouched.');
+        return;
+      }
+      // The app calls the Firebase bridges on its very first line, so
+      // it must not start until the module that defines them has run.
+      // Wait for the bridges; if they never arrive, say so plainly
+      // instead of letting the app die silently on its first line.
+      var waited = 0;
+      var gate = setInterval(function () {
+        waited += 100;
+        if (window.__bwriterBridgesReady) {
+          clearInterval(gate);
+          window.__bwriterMark('app-injected');
+          var s = document.createElement('script');
+          s.src = 'webApp.js';
+          document.body.appendChild(s);
+          new MutationObserver(function () {
+            if (document.querySelector('canvas')) {
+              fallback.style.display = 'none';
+              window.__bwriterMark('app-mounted');
+            }
+          }).observe(document.body, { childList: true, subtree: true });
+          setTimeout(function () {
+            if (!document.querySelector('canvas')) {
+              window.__bwriterMark('app-slow');
+              showMessage(
+                'Bwriter is still loading. The first load carries ' +
+                'about 12 MB of app, so a slow connection can take ' +
+                'a while — or the browser may be too old. On ' +
+                'Android, Bwriter needs Chrome 119 or later; on an ' +
+                'iPhone, iOS 18.4 or later.' + capturedErrors());
+            }
+          }, 45000);
+        } else if (waited >= 30000) {
+          clearInterval(gate);
+          window.__bwriterMark('bridges-timeout');
+          window.__bwriterCapture('boot',
+            'Firebase bridges never became ready', '');
+          showMessage(
+            'Bwriter could not load its sign-in libraries. Check ' +
+            'the connection and reload the page.' + capturedErrors());
+        }
+      }, 100);
     })();
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
