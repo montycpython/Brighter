@@ -28,6 +28,17 @@
       signOut
     };
   </script>
+  <!-- KaTeX from the jsDelivr CDN. The browser LaTeX renderer: the shared
+       parser hands the web reader the same math segments Android renders
+       with JLatexMath. Exposed as window.BwriterKatex before webApp.js. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script>
+    window.BwriterKatex = {
+      renderToString: (tex, displayMode) =>
+        window.katex.renderToString(tex, { displayMode: displayMode, throwOnError: false })
+    };
+  </script>
   <script defer src="webApp.js"></script>
 </head>
 <body>
