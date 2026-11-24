@@ -61,14 +61,14 @@ fun ReaderScreen(book: RegistryBook, onBack: () -> Unit) {
       parsed = parseBook(payload)
     }
   }
-  ReaderContent(book.title, book.authorName, book.birthId, parsed, onBack)
+  ReaderContent(book.title, book.authorName, book.birthId, parsed, false, onBack)
 }
 
 /** A book from the author's own cloud library: its text rides in the payload. */
 @Composable
 fun MyBookReaderScreen(book: MyBook, onBack: () -> Unit) {
   val parsed = remember(book.id) { parseBook(book.payload) }
-  ReaderContent(book.title, book.authorName, book.birthId, parsed, onBack)
+  ReaderContent(book.title, book.authorName, book.birthId, parsed, true, onBack)
 }
 
 @Composable
@@ -77,6 +77,7 @@ private fun ReaderContent(
   authorName: String,
   birthId: String,
   parsed: ParsedBook?,
+  ownBook: Boolean,
   onBack: () -> Unit
 ) {
   var showCast by remember { mutableStateOf(false) }
@@ -190,7 +191,25 @@ private fun ReaderContent(
                 )
               }
             }
+            if (section.headerIllustrationUri.isNotBlank()) {
+              item {
+                IllustrationView(
+                  section.headerIllustrationUri,
+                  section.headerIllustrationCaption,
+                  ownBook
+                )
+              }
+            }
             items(buildBlocks(section.content)) { block -> BlockView(block) }
+            if (section.tailIllustrationUri.isNotBlank()) {
+              item {
+                IllustrationView(
+                  section.tailIllustrationUri,
+                  section.tailIllustrationCaption,
+                  ownBook
+                )
+              }
+            }
             val sectionComments = current.comments.filter { it.sectionId == section.id }
             if (sectionComments.isNotEmpty()) {
               item { CommentsBlock(sectionComments) }
@@ -657,6 +676,51 @@ private fun CommentsBlock(comments: List<BookComment>) {
           }
         }
       }
+    }
+  }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun IllustrationView(uri: String, caption: String, ownBook: Boolean) {
+  val src = when {
+    uri == "drawable:head_engraving" -> "plate-head.jpg"
+    uri == "drawable:tailpiece" -> "plate-tail.jpg"
+    ownBook && (uri.startsWith("https://") || uri.startsWith("http://")) -> uri
+    else -> ""
+  }
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 28.dp, vertical = 10.dp),
+    horizontalAlignment = Alignment.CenterHorizontally
+  ) {
+    if (src.isNotBlank()) {
+      WebElementView(
+        factory = { document.createElement("img") as HTMLElement },
+        modifier = Modifier
+          .widthIn(max = 680.dp)
+          .fillMaxWidth()
+          .height(220.dp),
+        update = { element ->
+          element.setAttribute("src", src)
+          element.setAttribute(
+            "style",
+            "width:100%;height:100%;object-fit:contain;border-radius:3px;display:block;"
+          )
+        }
+      )
+    }
+    if (caption.isNotBlank()) {
+      Text(
+        text = caption,
+        fontFamily = FontFamily.Serif,
+        fontStyle = FontStyle.Italic,
+        fontSize = 12.sp,
+        color = AppleSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 4.dp)
+      )
     }
   }
 }

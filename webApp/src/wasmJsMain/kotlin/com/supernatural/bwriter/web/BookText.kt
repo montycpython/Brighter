@@ -12,7 +12,11 @@ data class BookSection(
   val title: String,
   val orderIndex: Long,
   val content: String,
-  val wordCount: Long
+  val wordCount: Long,
+  val headerIllustrationUri: String,
+  val headerIllustrationCaption: String,
+  val tailIllustrationUri: String,
+  val tailIllustrationCaption: String
 )
 
 /** The book's title-page and copyright-page facts, as the author set them. */
@@ -174,6 +178,10 @@ fun parseBookSections(payload: String): List<BookSection> =
       title = jsonStringField(obj, "title"),
       orderIndex = jsonLongField(obj, "orderIndex"),
       content = jsonStringField(obj, "content"),
-      wordCount = jsonLongField(obj, "wordCount")
+      wordCount = jsonLongField(obj, "wordCount"),
+      headerIllustrationUri = jsonStringField(obj, "headerIllustrationUri"),
+      headerIllustrationCaption = jsonStringField(obj, "headerIllustrationCaption"),
+      tailIllustrationUri = jsonStringField(obj, "tailIllustrationUri"),
+      tailIllustrationCaption = jsonStringField(obj, "tailIllustrationCaption")
     )
   }.sortedBy { it.orderIndex }
