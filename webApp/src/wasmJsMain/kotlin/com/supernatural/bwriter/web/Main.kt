@@ -1,6 +1,8 @@
 package com.supernatural.bwriter.web
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,9 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -22,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -129,6 +134,9 @@ private fun LibraryScreen(
 ) {
   var books by remember { mutableStateOf<List<RegistryBook>?>(null) }
   var myBooks by remember { mutableStateOf<List<MyBook>?>(null) }
+  var mail by remember { mutableStateOf<List<MailMessage>?>(null) }
+  var mailFailed by remember { mutableStateOf(false) }
+  var openMail by remember { mutableStateOf<MailMessage?>(null) }
   var wallet by remember { mutableStateOf<WalletData?>(null) }
   var walletLoaded by remember { mutableStateOf(false) }
   var walletFailed by remember { mutableStateOf(false) }
@@ -136,11 +144,20 @@ private fun LibraryScreen(
   LaunchedEffect(email) {
     FirestoreBooks.fetchRegistry { result -> books = result }
     FirestoreBooks.fetchMyBooks(email) { result -> myBooks = result }
+    FirestoreBooks.fetchMail(email) { result ->
+      mail = result
+      mailFailed = result == null
+    }
     FirestoreBooks.fetchWallet(email) { result ->
       wallet = result
       walletFailed = result == null
       walletLoaded = true
     }
+  }
+  val openedMail = openMail
+  if (openedMail != null) {
+    MailReaderScreen(message = openedMail, onBack = { openMail = null })
+    return
   }
   Column(
     modifier = Modifier
@@ -181,12 +198,26 @@ private fun LibraryScreen(
           SegmentButton("Library", tab == 0) { tab = 0 }
           SegmentButton("My Books", tab == 1) { tab = 1 }
           SegmentButton("Wallet", tab == 2) { tab = 2 }
+          val unread = mail?.count { !it.isRead } ?: 0
+          SegmentButton(
+            if (unread > 0) "Mail ($unread)" else "Mail",
+            tab == 3
+          ) { tab = 3 }
         }
       }
     }
     when (tab) {
       1 -> MyBooksList(myBooks, onOpenMine)
       2 -> WalletView(wallet, walletLoaded, walletFailed)
+      3 -> MailList(mail, mailFailed) { message ->
+        openMail = message
+        if (!message.isRead) {
+          FirestoreBooks.markMailRead(message.id)
+          mail = mail?.map {
+            if (it.id == message.id) it.copy(isRead = true) else it
+          }
+        }
+      }
       else -> RegistryList(books, onOpen)
     }
   }
@@ -549,6 +580,165 @@ private fun MyBookCard(book: MyBook, onOpenMine: (MyBook) -> Unit) {
           )
         }
       }
+    }
+  }
+}
+
+@Composable
+private fun MailList(
+  mail: List<MailMessage>?,
+  failed: Boolean,
+  onOpen: (MailMessage) -> Unit
+) {
+  when {
+    mail == null && !failed -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        CircularProgressIndicator(color = BwriterGold)
+      }
+    }
+    failed -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        Text(
+          text = "Your mail could not be loaded.",
+          fontSize = 16.sp,
+          color = AppleSecondary
+        )
+      }
+    }
+    mail.isNullOrEmpty() -> {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        Text(
+          text = "No mail yet.",
+          fontSize = 16.sp,
+          color = AppleSecondary
+        )
+      }
+    }
+    else -> {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(horizontal = 28.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        items(mail) { message -> MailRow(message, onOpen) }
+      }
+    }
+  }
+}
+
+@Composable
+private fun MailRow(message: MailMessage, onOpen: (MailMessage) -> Unit) {
+  Surface(
+    onClick = { onOpen(message) },
+    color = AppleSurface,
+    shape = RoundedCornerShape(14.dp),
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    Row(
+      modifier = Modifier.padding(16.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Box(
+        modifier = Modifier
+          .size(9.dp)
+          .background(
+            if (message.isRead) Color.Transparent else BwriterGold,
+            CircleShape
+          )
+      )
+      Column(modifier = Modifier.padding(start = 12.dp)) {
+        Text(
+          text = message.senderName.ifBlank { message.senderEmail },
+          fontSize = 15.sp,
+          fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold,
+          color = AppleInk,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+        Text(
+          text = message.subject.ifBlank { "(no subject)" },
+          fontSize = 14.sp,
+          fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold,
+          color = AppleInk,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.padding(top = 2.dp)
+        )
+        Text(
+          text = message.body,
+          fontSize = 13.sp,
+          color = AppleSecondary,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.padding(top = 2.dp)
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun MailReaderScreen(message: MailMessage, onBack: () -> Unit) {
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(AppleBackground)
+  ) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 16.dp, vertical = 8.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      TextButton(onClick = onBack) {
+        Text(text = "‹  Mail", color = BwriterGold, fontSize = 16.sp)
+      }
+    }
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 28.dp, vertical = 12.dp)
+    ) {
+      Text(
+        text = message.subject.ifBlank { "(no subject)" },
+        fontSize = 24.sp,
+        fontWeight = FontWeight.Bold,
+        color = AppleInk
+      )
+      Text(
+        text = "From ${message.senderName.ifBlank { message.senderEmail }}",
+        fontSize = 14.sp,
+        color = AppleSecondary,
+        modifier = Modifier.padding(top = 6.dp)
+      )
+      if (message.manuscriptTitle.isNotBlank()) {
+        Text(
+          text = "About: ${message.manuscriptTitle}",
+          fontSize = 13.sp,
+          color = BwriterGold,
+          modifier = Modifier.padding(top = 4.dp)
+        )
+      }
+      Spacer(modifier = Modifier.height(20.dp))
+      Text(
+        text = message.body,
+        fontFamily = FontFamily.Serif,
+        fontSize = 16.sp,
+        lineHeight = 25.sp,
+        color = AppleInk
+      )
+      Spacer(modifier = Modifier.height(40.dp))
     }
   }
 }

@@ -88,6 +88,26 @@ data class WalletData(
   val balance: Long get() = claimed - sent + received - spent
 }
 
+
+private fun firestoreFetchMail(db: JsAny, email: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ const F = window.BwriterFirestore; const q = F.query(F.collection(db, 'mail'), F.where('recipientEmail', '==', email)); F.getDocs(q).then((snap) => { const rows = []; snap.forEach((d) => { const v = d.data(); rows.push({ id: d.id, senderName: v.senderName || '', senderEmail: v.senderEmail || '', subject: v.subject || '', body: v.body || '', timestamp: v.timestamp || 0, isRead: !!v.isRead, manuscriptTitle: v.manuscriptTitle || '', messageType: v.messageType || '' }); }); callback(JSON.stringify(rows)); }).catch((e) => { console.error('Bwriter mail fetch failed', e); callback(''); }); }")
+
+private fun firestoreMarkMailRead(db: JsAny, id: JsString): Unit =
+  js("{ const F = window.BwriterFirestore; F.updateDoc(F.doc(db, 'mail', id), { isRead: true }).catch((e) => console.error('Bwriter mail mark-read failed', e)); }")
+
+/** One message in the author's in-app mailbox (the mail collection). */
+data class MailMessage(
+  val id: String,
+  val senderName: String,
+  val senderEmail: String,
+  val subject: String,
+  val body: String,
+  val timestamp: Long,
+  val isRead: Boolean,
+  val manuscriptTitle: String,
+  val messageType: String
+)
+
 /** One row of the public registry, as written by the Android build. */
 data class RegistryBook(
   val id: String,
@@ -187,6 +207,48 @@ internal fun parseWallet(json: String): WalletData? {
 internal fun jsonBoolField(obj: String, key: String): Boolean {
   val valueStart = jsonValueStart(obj, key) ?: return false
   return obj.startsWith("true", valueStart)
+
+  /** Fetches the author's mailbox, newest first. Null on failure. */
+  fun fetchMail(email: String, onResult: (List<MailMessage>?) -> Unit) {
+    firestoreFetchMail(firestoreDb(), email.lowercase().trim().toJsString()) { json ->
+      val text = json.toString()
+      onResult(if (text.isBlank()) null else parseMail(text))
+    }
+  }
+
+  /** Marks one message read, as opening it on Android does. */
+  fun markMailRead(id: String) {
+    firestoreMarkMailRead(firestoreDb(), id.toJsString())
+  }
+}
+
+internal fun parseMail(json: String): List<MailMessage> {
+  val out = ArrayList<MailMessage>()
+  var i = 0
+  while (i < json.length) {
+    if (json[i] == '{') {
+      val end = jsonObjectEnd(json, i)
+      if (end < 0) break
+      val obj = json.substring(i, end + 1)
+      out.add(
+        MailMessage(
+          id = jsonStringField(obj, "id"),
+          senderName = jsonStringField(obj, "senderName"),
+          senderEmail = jsonStringField(obj, "senderEmail"),
+          subject = jsonStringField(obj, "subject"),
+          body = jsonStringField(obj, "body"),
+          timestamp = jsonLongField(obj, "timestamp"),
+          isRead = jsonBoolField(obj, "isRead"),
+          manuscriptTitle = jsonStringField(obj, "manuscriptTitle"),
+          messageType = jsonStringField(obj, "messageType")
+        )
+      )
+      i = end + 1
+    } else {
+      i++
+    }
+  }
+  return out.sortedByDescending { it.timestamp }
 }
 
 // Minimal JSON reading for exactly the shape firestoreFetchRegistry builds:
