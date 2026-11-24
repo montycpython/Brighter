@@ -311,7 +311,7 @@ private fun buildBlocks(content: String): List<ReaderBlock> {
             background = Color(0x14000000)
           )
         )
-        html.append("<code style="font-family:monospace;background:rgba(0,0,0,0.08);padding:0 3px;border-radius:3px">")
+        html.append("<code style='font-family:monospace;background:rgba(0,0,0,0.08);padding:0 3px;border-radius:3px'>")
           .append(htmlEscape(seg.content))
           .append("</code>")
       }
@@ -329,7 +329,7 @@ private fun buildBlocks(content: String): List<ReaderBlock> {
             color = BwriterGold
           )
         )
-        html.append("<sup style="color:#8C6D23;font-size:11px">")
+        html.append("<sup style='color:#8C6D23;font-size:11px'>")
           .append(htmlEscape(seg.content))
           .append("</sup>")
       }

@@ -501,9 +501,6 @@ private fun BookCard(book: RegistryBook, onOpen: (RegistryBook) -> Unit) {
           )
         }
         Spacer(modifier = Modifier.weight(1f))
-        TextButton(onClick = { onEdit(book) }) {
-          Text(text = "Edit", color = BwriterGold, fontSize = 14.sp)
-        }
       }
     }
   }
@@ -544,7 +541,6 @@ private fun SegmentButton(label: String, selected: Boolean, onClick: () -> Unit)
   }
 }
 
-@Composable
 private fun newEditableBook(displayName: String): EditableBook {
   val now = com.supernatural.bwriter.currentTimeMillis()
   return EditableBook(

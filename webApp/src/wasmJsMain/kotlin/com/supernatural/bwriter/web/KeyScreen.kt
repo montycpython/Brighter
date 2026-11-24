@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supernatural.bwriter.crypto.Secp256k1
 import com.supernatural.bwriter.crypto.hexToBytes
+import com.supernatural.bwriter.crypto.toHex
 
 /**
  * The author key screen: create, import, unlock and export the key that
@@ -281,7 +282,7 @@ fun KeyScreen(email: String, onBack: () -> Unit) {
                     if (scalar == null) {
                       notice = "That passphrase did not open the key."
                     } else {
-                      unlockedHex = com.supernatural.bwriter.crypto.toHex(scalar)
+                      unlockedHex = scalar.toHex()
                       notice = "Key unlocked for this session."
                     }
                   }
