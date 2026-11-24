@@ -1,5 +1,7 @@
 package com.supernatural.bwriter.data
 
+import kotlin.concurrent.Volatile
+
 data class StudioSystemConfig(
     val geminiApiKey: String = "",
     val geminiModel: String = DEFAULT_MODEL,

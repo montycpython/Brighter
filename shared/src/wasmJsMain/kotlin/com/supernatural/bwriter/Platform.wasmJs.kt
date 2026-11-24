@@ -4,7 +4,7 @@ import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
-import kotlin.time.ExperimentalTimeApi
+import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -33,13 +33,13 @@ actual fun unsignedBytesToDecimalString(bytes: ByteArray): String {
     return digits.reverse().toString()
 }
 
-@OptIn(ExperimentalTimeApi::class)
+@OptIn(ExperimentalTime::class)
 actual fun currentTimeMillis(): Long = Clock.System.now().toEpochMilliseconds()
 
 @OptIn(ExperimentalUuidApi::class)
 actual fun randomUuidString(): String = Uuid.random().toString()
 
-@OptIn(ExperimentalTimeApi::class)
+@OptIn(ExperimentalTime::class)
 actual fun platformSeasonYear(millis: Long): Int {
     val local = Instant.fromEpochMilliseconds(millis)
         .toLocalDateTime(TimeZone.currentSystemDefault())

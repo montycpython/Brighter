@@ -5,7 +5,7 @@ import com.supernatural.bwriter.unsignedBytesToDecimalString
 
 fun bisnFor(birthId: String): String {
     if (birthId.isBlank()) return ""
-    val digest = sha256Digest(birthId.toByteArray(Charsets.UTF_8))
+    val digest = sha256Digest(birthId.encodeToByteArray())
     val decimal = unsignedBytesToDecimalString(digest)
     val first12 = decimal.padStart(12, '0').substring(0, 12)
     var sum = 0

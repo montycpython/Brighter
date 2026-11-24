@@ -67,8 +67,8 @@ data class EditorAssignment(
 
 object CreditChain {
     fun sha256Hex(input: String): String {
-        val digest = sha256Digest(input.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
+        val digest = sha256Digest(input.encodeToByteArray())
+        return digest.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
     }
 
     fun transferHashFor(
@@ -88,15 +88,15 @@ object CreditChain {
     ): String = sha256Hex("$prevHash|$authorAddress|$amount|$fileId|$issuedAtMillis")
 
     fun verifyClaim(issuanceHash: String, nonce: Long, difficultyBits: Int): Boolean {
-        val hash = sha256Digest("$issuanceHash|$nonce".toByteArray(Charsets.UTF_8))
+        val hash = sha256Digest("$issuanceHash|$nonce".encodeToByteArray())
         return hasLeadingZeroBits(hash, difficultyBits)
     }
 
     fun mineClaim(issuanceHash: String, difficultyBits: Int, maxIterations: Long = 500_000_000L): Long? {
-        val prefix = "$issuanceHash|".toByteArray(Charsets.UTF_8)
+        val prefix = "$issuanceHash|".encodeToByteArray()
         var nonce = 0L
         while (nonce < maxIterations) {
-            val hash = sha256Digest(prefix + nonce.toString().toByteArray(Charsets.UTF_8))
+            val hash = sha256Digest(prefix + nonce.toString().encodeToByteArray())
             if (hasLeadingZeroBits(hash, difficultyBits)) return nonce
             nonce++
         }
