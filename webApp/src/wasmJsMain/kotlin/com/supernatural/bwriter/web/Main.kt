@@ -6,6 +6,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeViewport
@@ -17,6 +18,7 @@ import kotlinx.browser.document
 // with the same SHA-256 the Android build uses (the wasm actual in :shared).
 private const val SAMPLE_BIRTH_ID = "bwriter-web-sample"
 
+@OptIn(ExperimentalComposeUiApi::class)
 fun main() {
   FirebaseAuth.start()
   ComposeViewport(document.body!!) {
