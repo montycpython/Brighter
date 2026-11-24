@@ -125,9 +125,16 @@ private fun SignInScreen() {
           modifier = Modifier.padding(vertical = 6.dp)
         )
       }
+      Spacer(modifier = Modifier.height(14.dp))
+      TextButton(onClick = { openPrivacyPolicy() }) {
+        Text(text = "Privacy Policy", color = AppleSecondary, fontSize = 14.sp)
+      }
     }
   }
 }
+
+private fun openPrivacyPolicy(): Unit =
+  js("{ window.open('privacy-policy.html', '_blank'); }")
 
 @Composable
 private fun LibraryScreen(
@@ -240,7 +247,11 @@ private fun LibraryScreen(
         onEdit = { mine ->
           parseEditableBook(mine.payload)?.let { editingBook = it }
         },
-        onNew = { editingBook = newEditableBook(displayName) }
+        onNew = { editingBook = newEditableBook(displayName) },
+        email = email,
+        onRestored = {
+          FirestoreBooks.fetchMyBooks(email) { result -> myBooks = result }
+        }
       )
       2 -> WalletView(wallet, walletLoaded, walletFailed)
       3 -> MailList(mail, mailFailed) { message ->
@@ -561,8 +572,12 @@ private fun MyBooksList(
   myBooks: List<MyBook>?,
   onOpenMine: (MyBook) -> Unit,
   onEdit: (MyBook) -> Unit,
-  onNew: () -> Unit
+  onNew: () -> Unit,
+  email: String,
+  onRestored: () -> Unit
 ) {
+  var restoreNote by remember { mutableStateOf("") }
+  var restoring by remember { mutableStateOf(false) }
   val current = myBooks
   when {
     current == null -> {
@@ -597,8 +612,42 @@ private fun MyBooksList(
         verticalArrangement = Arrangement.spacedBy(14.dp)
       ) {
         item {
-          TextButton(onClick = onNew) {
-            Text(text = "+  New book", color = BwriterGold, fontSize = 16.sp)
+          Column {
+            Row {
+              TextButton(onClick = onNew) {
+                Text(text = "+  New book", color = BwriterGold, fontSize = 16.sp)
+              }
+              TextButton(
+                onClick = {
+                  restoring = true
+                  restoreNote = "Restoring from Drive…"
+                  restoreFromDrive(email) { count ->
+                    restoring = false
+                    restoreNote = if (count > 0) {
+                      "Restored $count book(s) from Drive."
+                    } else {
+                      "Nothing new to restore from Drive."
+                    }
+                    if (count > 0) onRestored()
+                  }
+                },
+                enabled = !restoring
+              ) {
+                Text(
+                  text = "Restore from Drive",
+                  color = BwriterGold,
+                  fontSize = 16.sp
+                )
+              }
+            }
+            if (restoreNote.isNotBlank()) {
+              Text(
+                text = restoreNote,
+                fontSize = 13.sp,
+                color = AppleSecondary,
+                modifier = Modifier.padding(horizontal = 12.dp)
+              )
+            }
           }
         }
         items(current) { book -> MyBookCard(book, onOpenMine, onEdit) }

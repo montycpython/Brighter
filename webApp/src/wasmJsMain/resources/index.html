@@ -264,6 +264,103 @@
         }
       }
     };
+    async function driveFindFileByName(token, folderId, name) {
+      const raw = "name = '" + name + "' and '" + folderId +
+        "' in parents and trashed = false";
+      const r = await driveHttp(
+        'GET', DRIVE_FILES + '?q=' + encodeURIComponent(raw) + '&fields=files(id,name)', token);
+      if (r.code < 200 || r.code >= 300) return '';
+      const files = (JSON.parse(r.text).files) || [];
+      return files.length ? (files[0].id || '') : '';
+    }
+    window.BwriterDriveRestore = {
+      downloadAllPayloads: async () => {
+        const token = await bwriterDriveToken();
+        if (!token) return [];
+        const folderId = await driveFindFolder(token);
+        if (!folderId) return [];
+        const payloads = [];
+        let pageToken = '';
+        do {
+          const q = encodeURIComponent(
+            "'" + folderId + "' in parents and trashed = false");
+          let url = DRIVE_FILES + '?q=' + q +
+            '&fields=nextPageToken,files(id,name)&pageSize=100';
+          if (pageToken) url += '&pageToken=' + encodeURIComponent(pageToken);
+          const r = await driveHttp('GET', url, token);
+          if (r.code < 200 || r.code >= 300) break;
+          const root = JSON.parse(r.text);
+          const files = root.files || [];
+          for (const f of files) {
+            if (f.name === 'bwriter-author-key.json') continue;
+            if (!f.id) continue;
+            const dl = await driveHttp(
+              'GET', DRIVE_FILES + '/' + f.id + '?alt=media', token);
+            if (dl.code >= 200 && dl.code < 300 && dl.text) {
+              payloads.push(dl.text);
+            }
+          }
+          pageToken = root.nextPageToken || '';
+        } while (pageToken);
+        return payloads;
+      },
+      downloadKeyBackup: async () => {
+        const token = await bwriterDriveToken();
+        if (!token) return '';
+        const folderId = await driveFindFolder(token);
+        if (!folderId) return '';
+        const fileId = await driveFindFileByName(
+          token, folderId, 'bwriter-author-key.json');
+        if (!fileId) return '';
+        const dl = await driveHttp(
+          'GET', DRIVE_FILES + '/' + fileId + '?alt=media', token);
+        return (dl.code >= 200 && dl.code < 300) ? dl.text : '';
+      },
+      uploadKeyBackup: async (json) => {
+        const token = await bwriterDriveToken();
+        if (!token) return 'Google Drive access not granted.';
+        try {
+          const folderId = await driveEnsureFolder(token);
+          if (!folderId) return 'Drive folder unavailable.';
+          const existingId = await driveFindFileByName(
+            token, folderId, 'bwriter-author-key.json');
+          if (existingId) {
+            const patch = await driveHttp(
+              'PATCH', DRIVE_UPLOAD + '/' + existingId + '?uploadType=media',
+              token, json, 'application/json');
+            if (patch.code < 200 || patch.code >= 300) {
+              return 'Key backup update failed (' + patch.code + ')';
+            }
+            return '';
+          }
+          const metadata = JSON.stringify({
+            name: 'bwriter-author-key.json',
+            mimeType: 'application/json',
+            parents: [folderId]
+          });
+          const boundary = 'bwriter-' + Date.now();
+          const body = '--' + boundary + '\r\n' +
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+            metadata + '\r\n' +
+            '--' + boundary + '\r\n' +
+            'Content-Type: application/json\r\n\r\n' +
+            json + '\r\n' +
+            '--' + boundary + '--';
+          const created = await driveHttp(
+            'POST', DRIVE_UPLOAD + '?uploadType=multipart',
+            token, body, 'multipart/related; boundary=' + boundary);
+          if (created.code < 200 || created.code >= 300) {
+            return 'Key backup create failed (' + created.code + ')';
+          }
+          if (!JSON.parse(created.text).id) {
+            return 'Key backup create returned no file id';
+          }
+          return '';
+        } catch (e) {
+          return 'Key backup failed: ' + (e && e.message ? e.message : 'unknown');
+        }
+      }
+    };
     window.BwriterFirestore = {
       getFirestore,
       collection,
@@ -288,10 +385,60 @@
         window.katex.renderToString(tex, { displayMode: displayMode, throwOnError: false })
     };
   </script>
-  <script defer src="webApp.js"></script>
+  <script>
+    // Bwriter is compiled to WebAssembly with garbage collection, which
+    // needs a current engine — on iPhone, iOS 18.4 or later. The probe
+    // below validates a tiny module that only a WasmGC engine accepts,
+    // so an older browser gets a legible word instead of a blank page.
+    window.__bwriterWasmOk = (function () {
+      try {
+        if (!window.WebAssembly || !WebAssembly.validate) return false;
+        var bytes = new Uint8Array(
+          [0, 97, 115, 109, 1, 0, 0, 0, 1, 3, 1, 0x5f, 0]);
+        return WebAssembly.validate(bytes);
+      } catch (e) {
+        return false;
+      }
+    })();
+  </script>
 </head>
 <body>
+  <div id="bwriter-fallback"
+       style="display:none; font-family: Georgia, 'Times New Roman', serif; color: #1D1D1F; padding: 72px 28px; text-align: center;">
+    <div style="font-size: 30px; font-weight: bold;">Bwriter</div>
+    <p id="bwriter-fallback-text"
+       style="font-size: 17px; line-height: 27px; max-width: 520px; margin: 18px auto 0; color: #3A3A3C;">
+      Bwriter needs a newer browser to run. On an iPhone, that means
+      iOS 18.4 or later — please update iOS, or open Bwriter in the
+      latest Safari, Chrome, or Firefox on a computer. Your books and
+      your account are untouched.
+    </p>
+  </div>
   <script>
+    (function () {
+      var fallback = document.getElementById('bwriter-fallback');
+      if (window.__bwriterWasmOk) {
+        var s = document.createElement('script');
+        s.src = 'webApp.js';
+        document.body.appendChild(s);
+        new MutationObserver(function () {
+          if (document.querySelector('canvas')) {
+            fallback.style.display = 'none';
+          }
+        }).observe(document.body, { childList: true, subtree: true });
+        setTimeout(function () {
+          if (!document.querySelector('canvas')) {
+            document.getElementById('bwriter-fallback-text').textContent =
+              'Bwriter is taking a long time to load. A slow connection ' +
+              'can do this — or the browser may be too old. On an ' +
+              'iPhone, Bwriter needs iOS 18.4 or later.';
+            fallback.style.display = 'block';
+          }
+        }, 25000);
+      } else {
+        fallback.style.display = 'block';
+      }
+    })();
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('service-worker.js');

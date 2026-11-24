@@ -43,6 +43,9 @@ import com.supernatural.bwriter.cmos.BookMarkup
 import com.supernatural.bwriter.data.bisnFor
 import com.supernatural.bwriter.cmos.MarkupSegment
 import kotlinx.browser.document
+import kotlinx.coroutines.delay
+import kotlin.js.JsAny
+import kotlin.js.js
 import org.w3c.dom.HTMLElement
 
 // The web reader: the same book the Android reader shows, from the same
@@ -224,20 +227,43 @@ private fun ReaderContent(
 
 private sealed interface ReaderBlock {
   data class Paragraph(val text: AnnotatedString) : ReaderBlock
+  data class HtmlParagraph(val html: String) : ReaderBlock
   data class Code(val content: String) : ReaderBlock
   data class Math(val tex: String) : ReaderBlock
+}
+
+/** Escapes text for the HTML paragraph path. */
+private fun htmlEscape(text: String): String {
+  val sb = StringBuilder(text.length)
+  for (c in text) {
+    when (c) {
+      '&' -> sb.append("&amp;")
+      '<' -> sb.append("&lt;")
+      '>' -> sb.append("&gt;")
+      else -> sb.append(c)
+    }
+  }
+  return sb.toString()
 }
 
 /** Cuts one section's text into paragraphs, code blocks and math blocks. */
 private fun buildBlocks(content: String): List<ReaderBlock> {
   val blocks = ArrayList<ReaderBlock>()
   var builder = AnnotatedString.Builder()
+  var html = StringBuilder()
+  var paragraphHasMath = false
   var hasText = false
 
   fun flush() {
     if (hasText) {
-      blocks.add(ReaderBlock.Paragraph(builder.toAnnotatedString()))
+      if (paragraphHasMath) {
+        blocks.add(ReaderBlock.HtmlParagraph(html.toString()))
+      } else {
+        blocks.add(ReaderBlock.Paragraph(builder.toAnnotatedString()))
+      }
       builder = AnnotatedString.Builder()
+      html = StringBuilder()
+      paragraphHasMath = false
       hasText = false
     }
   }
@@ -257,20 +283,27 @@ private fun buildBlocks(content: String): List<ReaderBlock> {
           if (index > 0) flush()
           if (part.isNotEmpty()) {
             builder.append(part)
+            html.append(htmlEscape(part))
             hasText = true
           }
         }
       }
-      is MarkupSegment.Bold ->
+      is MarkupSegment.Bold -> {
         appendStyled(seg, SpanStyle(fontWeight = FontWeight.Bold))
-      is MarkupSegment.Italic ->
+        html.append("<b>").append(htmlEscape(seg.content)).append("</b>")
+      }
+      is MarkupSegment.Italic -> {
         appendStyled(seg, SpanStyle(fontStyle = FontStyle.Italic))
-      is MarkupSegment.BoldItalic ->
+        html.append("<i>").append(htmlEscape(seg.content)).append("</i>")
+      }
+      is MarkupSegment.BoldItalic -> {
         appendStyled(
           seg,
           SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
         )
-      is MarkupSegment.InlineCode ->
+        html.append("<b><i>").append(htmlEscape(seg.content)).append("</i></b>")
+      }
+      is MarkupSegment.InlineCode -> {
         appendStyled(
           seg,
           SpanStyle(
@@ -278,9 +311,16 @@ private fun buildBlocks(content: String): List<ReaderBlock> {
             background = Color(0x14000000)
           )
         )
-      is MarkupSegment.InlineMath ->
+        html.append("<code style="font-family:monospace;background:rgba(0,0,0,0.08);padding:0 3px;border-radius:3px">")
+          .append(htmlEscape(seg.content))
+          .append("</code>")
+      }
+      is MarkupSegment.InlineMath -> {
         appendStyled(seg, SpanStyle(fontStyle = FontStyle.Italic))
-      is MarkupSegment.Footnote ->
+        paragraphHasMath = true
+        html.append(MathRender.render(seg.content, displayMode = false))
+      }
+      is MarkupSegment.Footnote -> {
         appendStyled(
           seg,
           SpanStyle(
@@ -289,6 +329,10 @@ private fun buildBlocks(content: String): List<ReaderBlock> {
             color = BwriterGold
           )
         )
+        html.append("<sup style="color:#8C6D23;font-size:11px">")
+          .append(htmlEscape(seg.content))
+          .append("</sup>")
+      }
       is MarkupSegment.CodeBlock -> {
         flush()
         blocks.add(ReaderBlock.Code(seg.content))
@@ -324,6 +368,7 @@ private fun BlockView(block: ReaderBlock) {
         )
       }
     }
+    is ReaderBlock.HtmlParagraph -> HtmlParagraphView(block.html)
     is ReaderBlock.Code -> {
       Box(
         modifier = Modifier.fillMaxWidth(),
@@ -367,6 +412,52 @@ private fun KatexBlock(tex: String) {
         .padding(horizontal = 28.dp),
       update = { element ->
         element.innerHTML = MathRender.render(tex, displayMode = true)
+      }
+    )
+  }
+}
+
+private fun elementScrollHeight(element: JsAny): Int =
+  js("{ return element.scrollHeight || 0; }")
+
+/**
+ * A paragraph carrying inline math, painted as one HTML block so KaTeX
+ * sits inside the text. The element's own height is measured after it
+ * paints and fed back into the layout.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun HtmlParagraphView(html: String) {
+  var element by remember { mutableStateOf<HTMLElement?>(null) }
+  var heightDp by remember(html) { mutableStateOf(30) }
+  LaunchedEffect(element, html) {
+    val el = element ?: return@LaunchedEffect
+    repeat(8) {
+      delay(150)
+      val measured = elementScrollHeight(el)
+      if (measured > 0 && measured != heightDp) {
+        heightDp = measured
+      }
+    }
+  }
+  Box(
+    modifier = Modifier.fillMaxWidth(),
+    contentAlignment = Alignment.TopCenter
+  ) {
+    WebElementView(
+      factory = {
+        (document.createElement("div") as HTMLElement).also { element = it }
+      },
+      modifier = Modifier
+        .widthIn(max = 680.dp)
+        .fillMaxWidth()
+        .height(heightDp.dp)
+        .padding(horizontal = 28.dp, vertical = 6.dp),
+      update = { el ->
+        el.innerHTML = html
+        el.style.cssText =
+          "font-family: Georgia, 'Times New Roman', serif; font-size: 17px; " +
+            "line-height: 26px; color: #1D1D1F; margin: 0; padding: 0;"
       }
     )
   }

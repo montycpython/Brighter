@@ -199,6 +199,23 @@ fun KeyScreen(email: String, onBack: () -> Unit) {
                 .fillMaxWidth()
                 .padding(top = 8.dp)
             )
+            TextButton(
+              onClick = {
+                busy = true
+                downloadDriveKeyBackup { backup ->
+                  busy = false
+                  if (backup.isBlank()) {
+                    notice = "No key backup was found in your Drive."
+                  } else {
+                    importJson = backup
+                    notice = "Backup loaded from your Drive — enter its passphrase and import."
+                  }
+                }
+              },
+              enabled = !busy
+            ) {
+              Text("Import from Drive instead", color = BwriterGold)
+            }
             Button(
               onClick = {
                 busy = true
@@ -367,6 +384,32 @@ fun KeyScreen(email: String, onBack: () -> Unit) {
                 .height(120.dp)
                 .padding(top = 8.dp)
             )
+            Button(
+              onClick = {
+                val sealedRecord = KeyVault.sealed(email)
+                if (sealedRecord == null) {
+                  notice = "No sealed key is stored on this device."
+                } else {
+                  busy = true
+                  uploadDriveKeyBackup(sealedRecord) { error ->
+                    busy = false
+                    notice = if (error.isBlank()) {
+                      "Backup saved to your Drive."
+                    } else {
+                      "Drive backup did not land: $error"
+                    }
+                  }
+                }
+              },
+              enabled = !busy,
+              colors = ButtonDefaults.buttonColors(
+                containerColor = AppleInk,
+                contentColor = Color.White
+              ),
+              modifier = Modifier.padding(top = 12.dp)
+            ) {
+              Text("Save backup to Drive")
+            }
           }
         }
       }

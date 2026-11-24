@@ -1,18 +1,44 @@
-// Bwriter web app service worker — registration stub.
+// Bwriter web app service worker.
 //
-// Offline caching is deliberately not implemented in this first step: the web
-// build is online-only for now, and every request goes straight to the
-// network. The handlers exist so the registration in index.html succeeds and
-// the installability requirements are met; a real cache strategy lands with
-// the offline work.
+// The app shell (page, script, wasm, icons, plates) is served
+// stale-while-revalidate from a versioned cache: the app opens at once,
+// even offline, and a fresh deploy is picked up in the background for
+// the next open. Everything else — above all the Firestore and Google
+// API traffic that carries the books themselves — is never cached and
+// always goes to the network.
+const CACHE = 'bwriter-shell-v2';
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(fetch(event.request));
+  const url = new URL(event.request.url);
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
+  event.respondWith(
+    caches.open(CACHE).then(async (cache) => {
+      const cached = await cache.match(event.request);
+      const network = fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            cache.put(event.request, response.clone());
+          }
+          return response;
+        })
+        .catch(() => cached);
+      return cached || network;
+    })
+  );
 });
