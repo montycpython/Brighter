@@ -11,6 +11,7 @@
        window.BwriterFirebase and window.BwriterFirestore.
        Order matters: module scripts and deferred scripts execute in document
        order after parsing, so this block must stay before webApp.js. -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
   <script type="module">
     import { initializeApp, getApp } from "https://www.gstatic.com/firebasejs/11.13.0/firebase-app.js";
     import {
@@ -117,6 +118,149 @@
           } else {
             await F.setDoc(F.doc(db, ...op.path.split('/')), op.data);
           }
+        }
+      }
+    };
+    window.BwriterDriveTokens = { token: '', expiresAt: 0 };
+    let bwriterTokenClient = null;
+    let bwriterTokenWaiter = null;
+    function bwriterDriveToken() {
+      if (window.BwriterDriveTokens.token &&
+          Date.now() < window.BwriterDriveTokens.expiresAt) {
+        return Promise.resolve(window.BwriterDriveTokens.token);
+      }
+      if (bwriterTokenWaiter) return bwriterTokenWaiter;
+      bwriterTokenWaiter = new Promise((resolve) => {
+        const finish = (token) => { bwriterTokenWaiter = null; resolve(token); };
+        if (!window.google || !google.accounts || !google.accounts.oauth2) {
+          finish('');
+          return;
+        }
+        try {
+          if (!bwriterTokenClient) {
+            bwriterTokenClient = google.accounts.oauth2.initTokenClient({
+              client_id: '200758170739-868t5p0ij0tq59kko5in839206mkcrfe.apps.googleusercontent.com',
+              scope: 'https://www.googleapis.com/auth/drive.file',
+              callback: (resp) => {
+                if (resp && resp.access_token) {
+                  window.BwriterDriveTokens.token = resp.access_token;
+                  window.BwriterDriveTokens.expiresAt =
+                    Date.now() + ((resp.expires_in || 3600) - 60) * 1000;
+                  finish(resp.access_token);
+                } else {
+                  finish('');
+                }
+              },
+              error_callback: () => finish('')
+            });
+          }
+          bwriterTokenClient.requestAccessToken({ prompt: '' });
+        } catch (e) {
+          finish('');
+        }
+      });
+      return bwriterTokenWaiter;
+    }
+    const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
+    const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
+    async function driveHttp(method, url, token, body, contentType) {
+      const headers = { Authorization: 'Bearer ' + token };
+      if (contentType) headers['Content-Type'] = contentType;
+      const resp = await fetch(url, {
+        method: method, headers: headers, body: body || undefined
+      });
+      return { code: resp.status, text: await resp.text() };
+    }
+    async function driveFindFolder(token) {
+      const q = encodeURIComponent(
+        "mimeType = 'application/vnd.google-apps.folder' and name = 'Bwriter' and trashed = false");
+      const r = await driveHttp('GET', DRIVE_FILES + '?q=' + q + '&fields=files(id,name)', token);
+      if (r.code < 200 || r.code >= 300) return '';
+      const files = (JSON.parse(r.text).files) || [];
+      return files.length ? (files[0].id || '') : '';
+    }
+    async function driveEnsureFolder(token) {
+      const existing = await driveFindFolder(token);
+      if (existing) return existing;
+      const meta = JSON.stringify({
+        name: 'Bwriter', mimeType: 'application/vnd.google-apps.folder'
+      });
+      const r = await driveHttp('POST', DRIVE_FILES, token, meta, 'application/json');
+      if (r.code < 200 || r.code >= 300) {
+        throw new Error('Drive folder create failed (' + r.code + ')');
+      }
+      return JSON.parse(r.text).id || '';
+    }
+    async function driveFindBookFile(token, folderId, birthId) {
+      const raw = "appProperties has { key='birthId' and value='" + birthId +
+        "' } and '" + folderId + "' in parents and trashed = false";
+      const r = await driveHttp(
+        'GET', DRIVE_FILES + '?q=' + encodeURIComponent(raw) + '&fields=files(id,name)', token);
+      if (r.code < 200 || r.code >= 300) return '';
+      const files = (JSON.parse(r.text).files) || [];
+      return files.length ? (files[0].id || '') : '';
+    }
+    function driveSanitize(title) {
+      const cleaned = (title || '')
+        .replace(/[\\\/:*?"<>|]/g, ' ').trim().replace(/\s+/g, ' ');
+      return cleaned || 'Untitled Book';
+    }
+    function driveUpdatedAt(payload) {
+      const m = /"updatedAt"\s*:\s*(\d+)/.exec(payload || '');
+      return m ? parseInt(m[1], 10) : 0;
+    }
+    window.BwriterDrive = {
+      warm: () => { bwriterDriveToken(); },
+      saveBook: async (birthId, title, payload) => {
+        const token = await bwriterDriveToken();
+        if (!token) return 'Google Drive access not granted.';
+        try {
+          const folderId = await driveEnsureFolder(token);
+          if (!folderId) return 'Drive folder unavailable.';
+          const existingId = await driveFindBookFile(token, folderId, birthId);
+          if (existingId) {
+            const dl = await driveHttp(
+              'GET', DRIVE_FILES + '/' + existingId + '?alt=media', token);
+            if (dl.code >= 200 && dl.code < 300 && dl.text) {
+              if (driveUpdatedAt(dl.text) > driveUpdatedAt(payload)) {
+                return "Drive copy of '" + title +
+                  "' is newer than this browser copy. Restore it before syncing.";
+              }
+            }
+            const patch = await driveHttp(
+              'PATCH', DRIVE_UPLOAD + '/' + existingId + '?uploadType=media',
+              token, payload, 'application/json');
+            if (patch.code < 200 || patch.code >= 300) {
+              return 'Drive update failed (' + patch.code + ')';
+            }
+            return '';
+          }
+          const metadata = JSON.stringify({
+            name: driveSanitize(title) + '.json',
+            mimeType: 'application/json',
+            parents: [folderId],
+            appProperties: { app: 'bwriter', birthId: birthId }
+          });
+          const boundary = 'bwriter-' + Date.now();
+          const body = '--' + boundary + '\r\n' +
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+            metadata + '\r\n' +
+            '--' + boundary + '\r\n' +
+            'Content-Type: application/json\r\n\r\n' +
+            payload + '\r\n' +
+            '--' + boundary + '--';
+          const created = await driveHttp(
+            'POST', DRIVE_UPLOAD + '?uploadType=multipart',
+            token, body, 'multipart/related; boundary=' + boundary);
+          if (created.code < 200 || created.code >= 300) {
+            return 'Drive create failed (' + created.code + ')';
+          }
+          if (!JSON.parse(created.text).id) {
+            return 'Drive create returned no file id';
+          }
+          return '';
+        } catch (e) {
+          return 'Drive save failed: ' + (e && e.message ? e.message : 'unknown');
         }
       }
     };

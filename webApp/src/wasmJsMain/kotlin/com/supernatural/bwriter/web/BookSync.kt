@@ -1,6 +1,12 @@
 package com.supernatural.bwriter.web
 
 import com.supernatural.bwriter.crypto.Secp256k1
+import com.supernatural.bwriter.data.UnitChain
+import com.supernatural.bwriter.data.UnitGrant
+import com.supernatural.bwriter.data.UnitRoles
+import kotlin.js.JsString
+import kotlin.js.js
+import kotlin.js.toJsString
 import com.supernatural.bwriter.currentTimeMillis
 import com.supernatural.bwriter.randomUuidString
 
@@ -309,20 +315,157 @@ object BookSync {
 
     val opsJson = ops.joinToString(",", "[", "]")
     FirestoreBooks.saveAll(opsJson) { saved ->
-      if (saved) {
-        book.prevStampHash = prevStampHash
-        book.stampHash = newStampHash
-        book.stampSignature = signature
-        onDone(
-          true,
-          if (target == COL_PENDING) {
-            "Saved and submitted for approval."
-          } else {
-            "Saved and published to the registry."
-          }
-        )
-      } else {
+      if (!saved) {
         onDone(false, "The save did not land. Nothing was submitted.")
+        return@saveAll
+      }
+      book.prevStampHash = prevStampHash
+      book.stampHash = newStampHash
+      book.stampSignature = signature
+      val baseMessage = if (target == COL_PENDING) {
+        "Saved and submitted for approval."
+      } else {
+        "Saved and published to the registry."
+      }
+      val afterUnits: (String) -> Unit = { unitsNote ->
+        saveDriveBackup(book, email, displayName) { driveError ->
+          val driveNote = if (driveError.isBlank()) {
+            " Drive backup saved."
+          } else {
+            " Drive backup did not land: $driveError"
+          }
+          onDone(true, baseMessage + unitsNote + driveNote)
+        }
+      }
+      if (isEic && target == COL_REGISTRY) {
+        recordApprovalUnits(email, fileId, email) { result ->
+          afterUnits(
+            when (result) {
+              "WRITTEN" -> " Units recorded."
+              "SEASON_CAP_REACHED" -> " The season's author-unit cap is reached; units were not recorded."
+              "FAILED" -> " Units could not be recorded."
+              else -> ""
+            }
+          )
+        }
+      } else {
+        afterUnits("")
+      }
+    }
+  }
+}
+
+/**
+ * The Drive leg of the save, run after the back-room writes land — the
+ * same order the Android sync uses. The Drive payload is rebuilt from
+ * the rotated book, so it carries the new stamp, as Android's does.
+ */
+fun driveWarmToken(): Unit =
+  js("{ if (window.BwriterDrive) { window.BwriterDrive.warm(); } }")
+
+private fun driveSaveBook(
+  birthId: JsString,
+  title: JsString,
+  payload: JsString,
+  callback: (JsString) -> Unit
+): Unit =
+  js("{ window.BwriterDrive.saveBook(birthId, title, payload).then((e) => callback(e)).catch(() => callback('Drive request failed')); }")
+
+/** Saves the book's Drive backup; delivers "" on success or the failure. */
+fun saveDriveBackup(book: EditableBook, email: String, displayName: String, onDone: (String) -> Unit) {
+  val payload = buildPayload(book, email, displayName)
+  driveSaveBook(book.birthId.toJsString(), book.title.toJsString(), payload.toJsString()) { error ->
+    onDone(error.toString())
+  }
+}
+
+/**
+ * The chair's unit recording for his own books, mirroring
+ * recordApprovalUnits: author, approved editors of record, and chair
+ * grants, idempotent per book, chained over the latest grant, with the
+ * season's author cap honored. Uses the shared UnitChain, so the hashes
+ * and season are the Android ones by construction.
+ */
+fun recordApprovalUnits(
+  chairEmail: String,
+  fileId: String,
+  authorEmail: String,
+  onDone: (String) -> Unit
+) {
+  val chair = chairEmail.lowercase().trim()
+  FirestoreBooks.fetchCollectionText("shareUnits") { unitsText ->
+    if (unitsText == "ERR" || unitsText.isBlank()) {
+      onDone("FAILED")
+      return@fetchCollectionText
+    }
+    FirestoreBooks.fetchQueryText("editorAssignments", "fileId", fileId) { assignText ->
+      val now = currentTimeMillis()
+      val seasonYear = UnitChain.seasonYearFor(now)
+      val allUnits = jsonObjectArray("{\"x\":$unitsText}", "x").map { obj ->
+        UnitGrant(
+          id = jsonStringField(obj, "id"),
+          holderEmail = jsonStringField(obj, "holderEmail"),
+          role = jsonStringField(obj, "role"),
+          fileId = jsonStringField(obj, "fileId"),
+          seasonYear = jsonLongField(obj, "seasonYear").toInt(),
+          issuedAtMillis = jsonLongField(obj, "issuedAtMillis"),
+          vested = jsonBoolField(obj, "vested"),
+          prevGrantHash = jsonStringField(obj, "prevGrantHash"),
+          grantHash = jsonStringField(obj, "grantHash")
+        )
+      }
+      val grants = mutableListOf<Pair<String, String>>()
+      grants.add(authorEmail.lowercase().trim() to UnitRoles.AUTHOR)
+      if (assignText != "ERR" && assignText.isNotBlank()) {
+        jsonObjectArray("{\"x\":$assignText}", "x")
+          .filter { jsonStringField(it, "status") == "APPROVED" }
+          .map { jsonStringField(it, "editorEmail").lowercase().trim() }
+          .filter { it.isNotBlank() }
+          .distinct()
+          .forEach { grants.add(it to UnitRoles.EDITOR) }
+      }
+      grants.add(chair to UnitRoles.CHAIR)
+
+      val recordedKeys = allUnits
+        .filter { it.fileId == fileId }
+        .map { it.holderEmail to it.role }
+        .toSet()
+      val missing = grants.filter { it !in recordedKeys }
+      if (missing.isEmpty()) {
+        onDone("ALREADY_RECORDED")
+        return@fetchQueryText
+      }
+      if (missing.any { it.second == UnitRoles.AUTHOR }) {
+        val seasonAuthorGrants = allUnits.count {
+          it.role == UnitRoles.AUTHOR && it.seasonYear == seasonYear
+        }
+        if (seasonAuthorGrants >= UnitChain.SEASON_AUTHOR_CAP) {
+          onDone("SEASON_CAP_REACHED")
+          return@fetchQueryText
+        }
+      }
+      var prevHash = allUnits
+        .maxWithOrNull(compareBy<UnitGrant> { it.issuedAtMillis }.thenBy { it.grantHash })
+        ?.grantHash ?: ""
+      val ops = mutableListOf<String>()
+      for ((holderEmail, role) in missing) {
+        val hash = UnitChain.grantHashFor(prevHash, holderEmail, role, fileId, now)
+        ops.add(
+          "{\"path\":${orgJsonQuote("shareUnits/$hash")},\"data\":{" +
+            "\"id\":${orgJsonQuote(hash)}," +
+            "\"holderEmail\":${orgJsonQuote(holderEmail)}," +
+            "\"role\":${orgJsonQuote(role)}," +
+            "\"fileId\":${orgJsonQuote(fileId)}," +
+            "\"seasonYear\":$seasonYear," +
+            "\"issuedAtMillis\":$now," +
+            "\"vested\":false," +
+            "\"prevGrantHash\":${orgJsonQuote(prevHash)}," +
+            "\"grantHash\":${orgJsonQuote(hash)}}}"
+        )
+        prevHash = hash
+      }
+      FirestoreBooks.saveAll(ops.joinToString(",", "[", "]")) { saved ->
+        onDone(if (saved) "WRITTEN" else "FAILED")
       }
     }
   }

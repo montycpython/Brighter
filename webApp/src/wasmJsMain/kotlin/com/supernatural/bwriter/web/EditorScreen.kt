@@ -81,6 +81,7 @@ fun EditorScreen(
       Spacer(modifier = Modifier.weight(1f))
       Button(
         onClick = {
+          driveWarmToken()
           val scalar = unlockedHex.hexToBytes()
           if (scalar == null) {
             notice = "Unlock your author key to save."

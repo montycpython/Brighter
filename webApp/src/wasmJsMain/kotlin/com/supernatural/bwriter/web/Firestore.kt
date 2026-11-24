@@ -122,6 +122,13 @@ private fun firestoreFindIndexEntry(db: JsAny, collection: JsString, manuscriptI
 private fun syncSaveAll(opsJson: JsString, callback: (JsString) -> Unit): Unit =
   js("{ window.BwriterSync.saveAll(opsJson).then(() => callback('1')).catch((e) => { console.error('Bwriter sync failed', e); callback(''); }); }")
 
+
+private fun firestoreCollectionText(db: JsAny, name: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ const F = window.BwriterFirestore; F.getDocs(F.collection(db, name)).then((snap) => callback(JSON.stringify(snap.docs.map((d) => d.data())))).catch(() => callback('ERR')); }")
+
+private fun firestoreQueryText(db: JsAny, name: JsString, field: JsString, value: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ const F = window.BwriterFirestore; const q = F.query(F.collection(db, name), F.where(field, '==', value)); F.getDocs(q).then((snap) => callback(JSON.stringify(snap.docs.map((d) => d.data())))).catch(() => callback('ERR')); }")
+
 /** One row of the public registry, as written by the Android build. */
 data class RegistryBook(
   val id: String,
@@ -174,6 +181,26 @@ object FirestoreBooks {
   fun saveAll(opsJson: String, onDone: (Boolean) -> Unit) {
     syncSaveAll(opsJson.toJsString()) { result ->
       onDone(result.toString() == "1")
+    }
+  }
+
+
+  /** Reads a whole collection as a JSON array of its documents' fields. */
+  fun fetchCollectionText(name: String, onDone: (String) -> Unit) {
+    firestoreCollectionText(firestoreDb(), name.toJsString()) { text ->
+      onDone(text.toString())
+    }
+  }
+
+  /** Reads the documents of a collection matching one equality condition. */
+  fun fetchQueryText(name: String, field: String, value: String, onDone: (String) -> Unit) {
+    firestoreQueryText(
+      firestoreDb(),
+      name.toJsString(),
+      field.toJsString(),
+      value.toJsString()
+    ) { text ->
+      onDone(text.toString())
     }
   }
 

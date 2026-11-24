@@ -39,8 +39,11 @@ private fun firebaseConfigObject(
 private fun firebaseAuth(config: JsAny): JsAny =
   js("window.BwriterFirebase.getAuth(window.BwriterFirebase.initializeApp(config))")
 
+// Sign-in also asks for the Drive file scope and keeps the resulting
+// access token for the Drive backup, as the Android build does through
+// its own authorization flow.
 private fun firebaseSignInWithGoogle(auth: JsAny): Unit =
-  js("{ const provider = new window.BwriterFirebase.GoogleAuthProvider(); window.BwriterFirebase.signInWithPopup(auth, provider).catch((error) => console.error('Bwriter sign-in failed', error)); }")
+  js("{ const provider = new window.BwriterFirebase.GoogleAuthProvider(); provider.addScope('https://www.googleapis.com/auth/drive.file'); window.BwriterFirebase.signInWithPopup(auth, provider).then((result) => { try { const cred = window.BwriterFirebase.GoogleAuthProvider.credentialFromResult(result); if (cred && cred.accessToken && window.BwriterDriveTokens) { window.BwriterDriveTokens.token = cred.accessToken; window.BwriterDriveTokens.expiresAt = Date.now() + 3500000; } } catch (e) { } }).catch((error) => console.error('Bwriter sign-in failed', error)); }")
 
 private fun firebaseSignOut(auth: JsAny): Unit =
   js("{ window.BwriterFirebase.signOut(auth); }")
