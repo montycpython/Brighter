@@ -194,3 +194,14 @@ internal fun jsonValueStart(obj: String, key: String): Int? {
     from = at + needle.length
   }
 }
+
+/** A scalar field read as text: strings unescaped, numbers as written. */
+internal fun jsonScalarField(obj: String, key: String): String {
+  val valueStart = jsonValueStart(obj, key) ?: return ""
+  if (valueStart >= obj.length) return ""
+  if (obj[valueStart] == '"') return jsonStringField(obj, key)
+  var i = valueStart
+  while (i < obj.length && obj[i] != ',' && obj[i] != '}' && obj[i] != ']') i++
+  val raw = obj.substring(valueStart, i).trim()
+  return if (raw == "null") "" else raw
+}

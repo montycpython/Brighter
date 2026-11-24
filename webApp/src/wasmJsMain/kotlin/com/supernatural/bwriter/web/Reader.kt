@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,10 +34,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.WebElementView
 import com.supernatural.bwriter.cmos.BookMarkup
+import com.supernatural.bwriter.data.bisnFor
 import com.supernatural.bwriter.cmos.MarkupSegment
 import kotlinx.browser.document
 import org.w3c.dom.HTMLElement
@@ -51,10 +54,10 @@ import org.w3c.dom.HTMLElement
 
 @Composable
 fun ReaderScreen(book: RegistryBook, onBack: () -> Unit) {
-  var sections by remember(book.id) { mutableStateOf<List<BookSection>?>(null) }
+  var parsed by remember(book.id) { mutableStateOf<ParsedBook?>(null) }
   LaunchedEffect(book.id) {
     FirestoreBooks.fetchBookPayload(book.id) { payload ->
-      sections = parseBookSections(payload)
+      parsed = parseBook(payload)
     }
   }
   Column(
@@ -72,7 +75,7 @@ fun ReaderScreen(book: RegistryBook, onBack: () -> Unit) {
         Text(text = "‹  Library", color = BwriterGold, fontSize = 16.sp)
       }
     }
-    val current = sections
+    val current = parsed
     when {
       current == null -> {
         Box(
@@ -82,7 +85,7 @@ fun ReaderScreen(book: RegistryBook, onBack: () -> Unit) {
           CircularProgressIndicator(color = BwriterGold)
         }
       }
-      current.isEmpty() -> {
+      current.sections.isEmpty() && current.frontMatter.isEmpty() -> {
         Box(
           modifier = Modifier.fillMaxSize(),
           contentAlignment = Alignment.Center
@@ -116,9 +119,25 @@ fun ReaderScreen(book: RegistryBook, onBack: () -> Unit) {
                   modifier = Modifier.padding(top = 4.dp)
                 )
               }
+              val imprint = listOf(
+                current.frontMatter.publisher,
+                current.frontMatter.edition,
+                current.frontMatter.year
+              ).filter { it.isNotBlank() }.joinToString(" · ")
+              if (imprint.isNotBlank()) {
+                Text(
+                  text = imprint,
+                  fontSize = 13.sp,
+                  color = AppleSecondary,
+                  modifier = Modifier.padding(top = 2.dp)
+                )
+              }
             }
           }
-          for (section in current) {
+          if (!current.frontMatter.isEmpty()) {
+            item { FrontMatterBlock(current.frontMatter, book.birthId) }
+          }
+          for (section in current.sections) {
             if (section.title.isNotBlank()) {
               item {
                 Text(
@@ -288,5 +307,91 @@ private fun KatexBlock(tex: String) {
         element.innerHTML = MathRender.render(tex, displayMode = true)
       }
     )
+  }
+}
+
+@Composable
+private fun FrontMatterBlock(front: BookFrontMatter, fallbackBirthId: String) {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 28.dp, vertical = 8.dp),
+    horizontalAlignment = Alignment.CenterHorizontally
+  ) {
+    if (front.dedication.isNotBlank()) {
+      Text(
+        text = front.dedication,
+        fontFamily = FontFamily.Serif,
+        fontStyle = FontStyle.Italic,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        color = AppleInk,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+          .widthIn(max = 520.dp)
+          .padding(vertical = 16.dp)
+      )
+    }
+    if (front.epigraphText.isNotBlank()) {
+      Text(
+        text = front.epigraphText,
+        fontFamily = FontFamily.Serif,
+        fontStyle = FontStyle.Italic,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        color = AppleInk,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+          .widthIn(max = 520.dp)
+          .padding(top = 16.dp)
+      )
+      if (front.epigraphAuthor.isNotBlank()) {
+        Text(
+          text = "— ${front.epigraphAuthor}",
+          fontSize = 13.sp,
+          color = AppleSecondary,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.padding(top = 4.dp)
+        )
+      }
+    }
+    Box(
+      modifier = Modifier
+        .padding(vertical = 20.dp)
+        .width(40.dp)
+        .height(1.dp)
+        .background(BwriterGold)
+    )
+    Column(
+      modifier = Modifier
+        .widthIn(max = 680.dp)
+        .fillMaxWidth()
+    ) {
+      if (front.copyrightText.isNotBlank()) {
+        Text(
+          text = front.copyrightText,
+          fontSize = 12.sp,
+          lineHeight = 18.sp,
+          color = AppleSecondary
+        )
+      }
+      if (front.isbn.isNotBlank()) {
+        Text(
+          text = "ISBN ${front.isbn}",
+          fontSize = 12.sp,
+          color = AppleSecondary,
+          modifier = Modifier.padding(top = 4.dp)
+        )
+      }
+      val birthId = front.birthId.ifBlank { fallbackBirthId }
+      if (birthId.isNotBlank()) {
+        Text(
+          text = "BISN ${bisnFor(birthId)}",
+          fontSize = 12.sp,
+          color = BwriterGold,
+          modifier = Modifier.padding(top = 4.dp)
+        )
+      }
+    }
   }
 }
