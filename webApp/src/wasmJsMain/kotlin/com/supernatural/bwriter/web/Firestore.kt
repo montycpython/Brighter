@@ -3,6 +3,7 @@ package com.supernatural.bwriter.web
 import kotlin.js.JsAny
 import kotlin.js.JsString
 import kotlin.js.js
+import kotlin.js.toJsString
 
 // Hand-written interop to Cloud Firestore through the Firebase web SDK.
 // There are no official Firebase bindings for Kotlin/Wasm, so each snippet
@@ -29,6 +30,10 @@ private fun firestoreDb(): JsAny =
 private fun firestoreFetchRegistry(db: JsAny, callback: (JsString) -> Unit): Unit =
   js("{ const F = window.BwriterFirestore; F.getDocs(F.collection(db, 'registry')).then((snap) => { const rows = []; snap.forEach((d) => { const v = d.data(); rows.push({ id: d.id, title: v.title || '', subtitle: v.subtitle || '', authorName: v.authorName || '', workType: v.workType || '', wordCount: v.wordCount || 0, birthId: v.birthId || '' }); }); callback(JSON.stringify(rows)); }).catch((e) => { console.error('Bwriter registry fetch failed', e); callback('[]'); }); }")
 
+
+private fun firestoreFetchBookText(db: JsAny, fileId: JsString, callback: (JsString) -> Unit): Unit =
+  js("{ const F = window.BwriterFirestore; const ref = F.doc(db, 'registry', fileId, 'content', 'fullText'); F.getDoc(ref).then((snap) => { const v = snap.exists() ? snap.data() : null; callback(v && v.payload ? v.payload : ''); }).catch((e) => { console.error('Bwriter book fetch failed', e); callback(''); }); }")
+
 /** One row of the public registry, as written by the Android build. */
 data class RegistryBook(
   val id: String,
@@ -46,6 +51,13 @@ object FirestoreBooks {
   fun fetchRegistry(onResult: (List<RegistryBook>) -> Unit) {
     firestoreFetchRegistry(firestoreDb()) { json ->
       onResult(parseRegistryBooks(json.toString()))
+    }
+  }
+
+  /** Fetches one book's full-text payload (the manuscript JSON string). */
+  fun fetchBookPayload(fileId: String, onResult: (String) -> Unit) {
+    firestoreFetchBookText(firestoreDb(), fileId.toJsString()) { payload ->
+      onResult(payload.toString())
     }
   }
 }
@@ -83,7 +95,7 @@ internal fun parseRegistryBooks(json: String): List<RegistryBook> {
 }
 
 /** Index of the '}' closing the object that starts at [start], or -1. */
-private fun jsonObjectEnd(json: String, start: Int): Int {
+internal fun jsonObjectEnd(json: String, start: Int): Int {
   var depth = 0
   var inString = false
   var escaped = false
@@ -110,7 +122,7 @@ private fun jsonObjectEnd(json: String, start: Int): Int {
 }
 
 /** The string value of "key" in a flat JSON object, or "" when absent. */
-private fun jsonStringField(obj: String, key: String): String {
+internal fun jsonStringField(obj: String, key: String): String {
   val valueStart = jsonValueStart(obj, key) ?: return ""
   if (valueStart >= obj.length || obj[valueStart] != '"') return ""
   val sb = StringBuilder()
@@ -150,7 +162,7 @@ private fun jsonStringField(obj: String, key: String): String {
 }
 
 /** The integer value of "key" in a flat JSON object, or 0 when absent. */
-private fun jsonLongField(obj: String, key: String): Long {
+internal fun jsonLongField(obj: String, key: String): Long {
   val valueStart = jsonValueStart(obj, key) ?: return 0L
   var i = valueStart
   val sb = StringBuilder()
@@ -166,7 +178,7 @@ private fun jsonLongField(obj: String, key: String): Long {
 }
 
 /** Index just past the ':' of "key", or null when the key is absent. */
-private fun jsonValueStart(obj: String, key: String): Int? {
+internal fun jsonValueStart(obj: String, key: String): Int? {
   val needle = "\"" + key + "\""
   var from = 0
   while (true) {

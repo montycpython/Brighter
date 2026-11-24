@@ -53,10 +53,12 @@ fun App() {
       color = MaterialTheme.colorScheme.background
     ) {
       val email = AuthState.email
-      if (email == null) {
-        SignInScreen()
-      } else {
-        LibraryScreen(email)
+      var openBook by remember { mutableStateOf<RegistryBook?>(null) }
+      val book = openBook
+      when {
+        email == null -> SignInScreen()
+        book != null -> ReaderScreen(book, onBack = { openBook = null })
+        else -> LibraryScreen(email, onOpen = { openBook = it })
       }
     }
   }
@@ -112,7 +114,7 @@ private fun SignInScreen() {
 }
 
 @Composable
-private fun LibraryScreen(email: String) {
+private fun LibraryScreen(email: String, onOpen: (RegistryBook) -> Unit) {
   var books by remember { mutableStateOf<List<RegistryBook>?>(null) }
   LaunchedEffect(email) {
     FirestoreBooks.fetchRegistry { result -> books = result }
@@ -174,7 +176,7 @@ private fun LibraryScreen(email: String) {
             .padding(horizontal = 28.dp),
           verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-          items(current) { book -> BookCard(book) }
+          items(current) { book -> BookCard(book, onOpen) }
           item { Spacer(modifier = Modifier.height(14.dp)) }
         }
       }
@@ -183,8 +185,9 @@ private fun LibraryScreen(email: String) {
 }
 
 @Composable
-private fun BookCard(book: RegistryBook) {
+private fun BookCard(book: RegistryBook, onOpen: (RegistryBook) -> Unit) {
   Surface(
+    onClick = { onOpen(book) },
     color = AppleSurface,
     shape = RoundedCornerShape(16.dp),
     modifier = Modifier.fillMaxWidth()
